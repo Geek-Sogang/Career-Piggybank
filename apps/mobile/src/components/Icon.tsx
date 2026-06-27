@@ -5,7 +5,8 @@ type Props = { name: IconName; size?: number; color?: string; sw?: number };
 export type IconName =
   | 'bell' | 'chevronRight' | 'chevronLeft' | 'download' | 'trending' | 'cardPig'
   | 'github' | 'card' | 'building' | 'plus' | 'check' | 'shield' | 'cardLink'
-  | 'gear' | 'tabHome' | 'tabPiggy' | 'tabLedger' | 'tabMy' | 'docRow' | 'houseSmall';
+  | 'gear' | 'tabHome' | 'tabPiggy' | 'tabLedger' | 'tabMy' | 'docRow' | 'houseSmall'
+  | 'shieldCheck' | 'send' | 'arrowRight' | 'coin' | 'ledgerDoc';
 
 /** 디자인 소스의 인라인 SVG를 react-native-svg로 1:1 포팅. */
 export function Icon({ name, size = 24, color = '#1A1A1A', sw = 1.9 }: Props) {
@@ -52,6 +53,16 @@ export function Icon({ name, size = 24, color = '#1A1A1A', sw = 1.9 }: Props) {
       return V(<><Rect x={5} y={3.5} width={14} height={17} rx={2.5} {...s} /><Path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" {...s} /></>);
     case 'tabMy':
       return V(<><Circle cx={12} cy={8} r={3.4} {...s} /><Path d="M5.5 19.5c0-3.3 2.9-5.5 6.5-5.5s6.5 2.2 6.5 5.5" {...s} /></>);
+    case 'shieldCheck':
+      return V(<><Path d="M12 3 4 6v6c0 4 3.4 7.5 8 9 4.6-1.5 8-5 8-9V6Z" {...s} /><Path d="m9 12 2 2 4-4" {...s} /></>);
+    case 'send':
+      return V(<Path d="m5 12 14-7-7 14-2-5-5-2Z" {...s} strokeWidth={2} />);
+    case 'arrowRight':
+      return V(<Path d="M5 12h14M13 6l6 6-6 6" {...s} strokeWidth={sw || 2.2} />);
+    case 'coin':
+      return V(<><Circle cx={12} cy={12} r={9} {...s} /><Path d="M12 7v10M9 10h4.5a2 2 0 0 1 0 4H9" {...s} /></>);
+    case 'ledgerDoc':
+      return V(<><Rect x={5} y={3.5} width={14} height={17} rx={2.5} {...s} /><Path d="M8.5 9h7M8.5 12.5h5" {...s} /></>);
     case 'github':
       return V(<Path fill={color} d="M12 2C6.5 2 2 6.6 2 12.3c0 4.5 2.9 8.3 6.8 9.7.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1 1.6-.4 3.3-.4 4.9 0 1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5 3.9-1.4 6.8-5.2 6.8-9.7C22 6.6 17.5 2 12 2Z" />);
     default:

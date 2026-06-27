@@ -52,6 +52,24 @@ export function Ledger() {
         </Card>
       </Pressable>
 
+      {/* 코칭 · 여윳돈 진입 */}
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Pressable onPress={() => actions.pushScr('chat')} style={{ flex: 1 }}>
+          <Card p={14} style={{ borderRadius: 16, gap: 8 }}>
+            <Icon name="send" size={20} color={colors.green} sw={2} />
+            <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.ink }}>피기 코치</Text>
+            <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500' }}>특이 입출금 코칭</Text>
+          </Card>
+        </Pressable>
+        <Pressable onPress={() => actions.openSheet('invest')} style={{ flex: 1 }}>
+          <Card p={14} style={{ borderRadius: 16, gap: 8 }}>
+            <Icon name="trending" size={20} color={colors.buffer} sw={2} />
+            <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.ink }}>여윳돈 굴리기</Text>
+            <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500' }}>₩99,555 · 보수적</Text>
+          </Card>
+        </Pressable>
+      </View>
+
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>입금 · 자동 분류</Text>
 
       <Card p={0} style={{ paddingHorizontal: 16, borderRadius: 16 }}>

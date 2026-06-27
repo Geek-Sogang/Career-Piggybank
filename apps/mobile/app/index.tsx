@@ -15,6 +15,10 @@ import { My } from '@/screens/My';
 import { DataSovereignty } from '@/screens/DataSovereignty';
 import { Products } from '@/screens/Products';
 import { Settings } from '@/screens/Settings';
+import { NestEgg } from '@/screens/NestEgg';
+import { Intro } from '@/screens/Intro';
+import { Chat } from '@/screens/Chat';
+import { LockScreen } from '@/screens/LockScreen';
 
 export default function Index() {
   return (
@@ -27,13 +31,18 @@ export default function Index() {
 const SCREENS: Record<string, () => JSX.Element> = {
   home: Home, piggy: Piggy, ledger: Ledger, my: My,
   connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
-  dataSovereignty: DataSovereignty, products: Products, settings: Settings,
+  dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg,
 };
 
 function Shell() {
-  const { tab, sheet, vals, actions } = useApp();
+  const { entered, tab, push, sheet, vals, actions } = useApp();
   const insets = useSafeAreaInsets();
   const Screen = SCREENS[vals.scr] || Home;
+
+  // 인트로 플로우 / 풀스크린(자체 chrome) 화면들
+  if (!entered) return <Intro />;
+  if (push === 'chat') return <Chat />;
+  if (push === 'lockscreen') return <LockScreen />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -81,9 +90,58 @@ function Shell() {
         <TabButton icon="tabMy" label="마이" active={tab === 'my'} onPress={() => actions.nav('my')} />
       </View>
 
-      {/* 동의 시트 */}
+      {/* 시트 */}
       {sheet === 'consent' && <ConsentSheet onConfirm={actions.confirm} onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {sheet === 'invest' && <InvestSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
     </SafeAreaView>
+  );
+}
+
+function InvestSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Mascot head size={44} radius={13} />
+          <View>
+            <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>여윳돈 ₩99,555</Text>
+            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>버퍼 초과분, 보수적으로 굴려볼까요?</Text>
+          </View>
+        </View>
+        <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 16, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.sub }}>안전 70%</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.sub }}>성장 30%</Text>
+          </View>
+          <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2, marginTop: 8 }}>
+            <View style={{ width: '70%', backgroundColor: colors.spendable }} />
+            <View style={{ flex: 1, backgroundColor: colors.buffer }} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <Mini name="ISA · 예금형" amt="₩69,688" />
+            <Mini name="증권 · 소수점" amt="₩29,867" />
+          </View>
+        </View>
+        <Text style={{ fontSize: 11.5, color: colors.sub3, fontWeight: '500', marginTop: 12, lineHeight: 18 }}>투자는 원금 손실이 발생할 수 있어요. 즉시가용·세금봉투는 건드리지 않아요.</Text>
+        <Pressable onPress={onClose} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 16, alignItems: 'center', marginTop: 14, shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+          <Text style={{ color: '#fff', fontSize: 15.5, fontWeight: '800' }}>보수적으로 시작하기</Text>
+        </Pressable>
+        <Pressable onPress={onClose} style={{ paddingVertical: 10, alignItems: 'center', marginTop: 2 }}>
+          <Text style={{ color: colors.sub2, fontSize: 14, fontWeight: '700' }}>다음에 할게요</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function Mini({ name, amt }: { name: string; amt: string }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 11, paddingHorizontal: 13 }}>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.ink }}>{name}</Text>
+      <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{amt}</Text>
+    </View>
   );
 }
 

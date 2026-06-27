@@ -1,48 +1,49 @@
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
-import { Card } from '@/components/ui';
+import { Icon, type IconName } from '@/components/Icon';
+import { Card, T } from '@/components/ui';
 
-type P = { badge: string; bg: string; color: string; name: string; desc: string; tag: string; on?: boolean };
-const LINKED: P[] = [
-  { badge: '통', bg: colors.greenTint, color: colors.green, name: '달달 하나 통장 + 체크카드', desc: '정산입금 급여성 태깅 · ATM 수수료 면제', tag: '연결됨', on: true },
-  { badge: '비', bg: colors.bufferTint, color: colors.buffer, name: '하나원큐 비상금대출', desc: 'SGI 보증 · 마이너스통장 한도 300만', tag: '한도 조회', on: true },
-];
-const SUGGEST: P[] = [
-  { badge: '햇', bg: colors.pinkTint, color: colors.pinkStrong, name: '하나원큐 햇살론유스', desc: "3.3% 신고로 '저소득 청년사업자' 요건 충족", tag: '맞춤 추천' },
-  { badge: 'I', bg: colors.indigoTint, color: colors.indigo, name: '하나은행 ISA', desc: '여윳돈 버퍼 초과분 투자 라우팅 · 비과세', tag: '연결 가능' },
-  { badge: '연', bg: colors.orangeTint, color: colors.orange, name: '하나 개인형 IRP', desc: '노후봉투 도착지 · 자유 적립', tag: '연결 가능' },
+const MORE: { icon: IconName; bg: string; color: string; name: string; desc: string }[] = [
+  { icon: 'cardLink', bg: colors.bufferTint, color: colors.buffer, name: '긱워커 첫 통장', desc: '매출 자동분류 · 수수료 면제' },
+  { icon: 'coin', bg: colors.orangeTint, color: colors.orange, name: '햇살론유스', desc: '청년 정책금융 · 자격 확인' },
 ];
 
 export function Products() {
   return (
     <View style={{ gap: 14 }}>
-      <View style={{ backgroundColor: colors.greenTint, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 16, padding: 15 }}>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.greenInk }}>검증된 커리어로 열린 상품</Text>
-        <Text style={{ fontSize: 12, color: '#5E7B7A', marginTop: 3, fontWeight: '500', lineHeight: 17 }}>검증 한도 ₩2,400,000 기준으로 맞춤 상품이 열렸어요.</Text>
+      <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '500', lineHeight: 20, marginHorizontal: 2 }}>
+        검증된 한도 <Text style={{ color: colors.ink, fontWeight: '700' }}>240만원</Text> 기준으로, 지금 받을 수 있는 조건이에요.
+      </Text>
+
+      {/* 히어로 — 비상금 대출 */}
+      <View style={{ backgroundColor: colors.green, borderRadius: 18, padding: 20, shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>지금 가장 잘 맞아요</Text>
+          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,.8)', fontWeight: '600' }}>비상금</Text>
+        </View>
+        <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginTop: 14 }}>긱워커 비상금 대출</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,.82)' }}>한도</Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: -0.4, ...T.num }}>2,000,000원</Text>
+        </View>
+        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', fontWeight: '500', marginTop: 4 }}>연 5.9%~ · 검증 활동 기반 중도상환 수수료 면제</Text>
+        <Pressable style={{ backgroundColor: '#fff', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 }}>
+          <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.green }}>자세히 보고 신청</Text>
+        </Pressable>
       </View>
 
-      <Text style={[label]}>연결된 상품</Text>
-      {LINKED.map((p) => <Item key={p.name} {...p} />)}
-
-      <Text style={[label]}>연결 가능</Text>
-      {SUGGEST.map((p) => <Item key={p.name} {...p} />)}
+      {MORE.map((m) => (
+        <Card key={m.name} p={16} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, borderRadius: 16 }}>
+          <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: m.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={m.icon} size={22} color={m.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{m.name}</Text>
+            <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{m.desc}</Text>
+          </View>
+          <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+        </Card>
+      ))}
     </View>
   );
 }
-
-function Item({ badge, bg, color, name, desc, tag, on }: P) {
-  return (
-    <Card p={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16 }}>
-      <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 15, fontWeight: '800', color }}>{badge}</Text>
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{name}</Text>
-        <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{desc}</Text>
-      </View>
-      <Text style={{ fontSize: 11, fontWeight: '700', color: on ? colors.green : colors.sub3, backgroundColor: on ? colors.greenTint : colors.line, paddingVertical: 5, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>{tag}</Text>
-    </Card>
-  );
-}
-
-const label = { fontSize: 13, fontWeight: '700' as const, color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 };

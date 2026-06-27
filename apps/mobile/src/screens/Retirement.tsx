@@ -1,6 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { colors } from '@/theme/colors';
+import { Icon } from '@/components/Icon';
 import { useApp, type Scenario } from '@/store';
 
 export function Retirement() {
@@ -56,6 +57,11 @@ export function Retirement() {
           월 적립 추세 + 커리어 성장률을 외삽해 자산 곡선을 그려요. 입금 데이터가 쌓일수록 신뢰구간이 좁아집니다.
         </Text>
       </View>
+
+      <Pressable onPress={() => actions.pushScr('nestEgg')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>노후 준비 시작하기</Text>
+        <Icon name="arrowRight" size={18} color="#fff" sw={2.2} />
+      </Pressable>
     </View>
   );
 }

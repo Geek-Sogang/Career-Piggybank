@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { JobKey } from '@/jobs';
 
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
 export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings';
@@ -28,6 +29,7 @@ function useAppState(startTab: Tab = 'home') {
   const [sheet, setSheet] = useState<null | 'consent'>(null);
   const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, behance: false });
   const [scenario, setScenario] = useState<Scenario>('base');
+  const [detail, setDetail] = useState<JobKey>('commerce');
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -49,6 +51,7 @@ function useAppState(startTab: Tab = 'home') {
   const actions = {
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
+    openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
     back: () => setPush(null),
     closeSheet: () => setSheet(null),
     confirm: () => { apply('mydata', true); setSheet(null); },
@@ -76,7 +79,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario]);
 
-  return { tab, push, sheet, scenario, flash, vals, actions };
+  return { tab, push, sheet, scenario, detail, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

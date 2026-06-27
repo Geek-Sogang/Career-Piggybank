@@ -52,11 +52,15 @@ export function Piggy() {
 
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>검증된 일감</Text>
 
-      <Pressable onPress={() => actions.pushScr('verifiedDetail')}>
+      <Pressable onPress={() => actions.openJob('commerce')}>
         <JobRow badge="커" badgeBg={colors.indigoTint} badgeColor={colors.indigo} title="○○커머스 · 웹 프론트엔드" sub="2025.05 정산 · 3자 교차검증" amount="₩500,000" verified />
       </Pressable>
-      <JobRow badge="스" badgeBg={colors.orangeTint} badgeColor={colors.orange} title="△△스튜디오 · 랜딩 개발" sub="2025.03 정산" amount="₩1,200,000" verified />
-      <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
+      <Pressable onPress={() => actions.openJob('studio')}>
+        <JobRow badge="스" badgeBg={colors.orangeTint} badgeColor={colors.orange} title="△△스튜디오 · 랜딩 개발" sub="2025.03 정산" amount="₩1,200,000" verified />
+      </Pressable>
+      <Pressable onPress={() => actions.openJob('personal')}>
+        <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
+      </Pressable>
     </View>
   );
 }

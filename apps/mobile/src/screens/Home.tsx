@@ -10,7 +10,7 @@ export function Home() {
   return (
     <View style={{ gap: 14 }}>
       {/* 잔액 카드 */}
-      <View style={{ borderRadius: 22, padding: 20, paddingBottom: 18, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
+      <View style={{ borderRadius: 22, padding: 20, paddingBottom: 18, paddingRight: 96, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
         <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,.82)' }}>내 커리어 저금통</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 9 }}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: '#fff', opacity: 0.92 }}>₩</Text>
@@ -21,7 +21,7 @@ export function Home() {
           <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 확정 ✓</Text>
           <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>이번 달 +50만</Text>
         </View>
-        <Mascot style={{ position: 'absolute', right: 6, bottom: -6, width: 118 }} />
+        <Mascot size={132} style={{ position: 'absolute', right: 2, bottom: -8 }} />
       </View>
 
       {/* 3단계 진입 */}

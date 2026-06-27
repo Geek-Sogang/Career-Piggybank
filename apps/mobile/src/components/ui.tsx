@@ -1,17 +1,26 @@
-import { Image, View, Text, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
+import { Image, View, Text, Pressable, type ViewStyle, type TextStyle, type ImageStyle } from 'react-native';
 import { colors } from '@/theme/colors';
+
+/** 디자인 토글 스위치 (46x28). */
+export function Toggle({ on, onPress }: { on: boolean; onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: on ? colors.green : '#E2E5E9' }}>
+      <View style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
+    </Pressable>
+  );
+}
 
 const headImg = require('../../assets/mascot-head.png');
 const fullImg = require('../../assets/mascot.png');
 
+const FULL_RATIO = 734 / 1202; // 캐릭터 세로 크롭 비율
+
+/** head=true: 정사각 얼굴, head=false: 세로 전신. size는 head=너비, full=높이 기준. */
 export function Mascot({ head, size = 40, radius, style }: { head?: boolean; size?: number; radius?: number; style?: ImageStyle | ImageStyle[] }) {
-  return (
-    <Image
-      source={head ? headImg : fullImg}
-      style={[{ width: size, height: head ? size : undefined, aspectRatio: 1, borderRadius: radius, backgroundColor: head ? colors.pinkTint : undefined }, style as ImageStyle]}
-      resizeMode="contain"
-    />
-  );
+  const base: ImageStyle = head
+    ? { width: size, height: size, borderRadius: radius, backgroundColor: colors.pinkTint }
+    : { height: size, aspectRatio: FULL_RATIO, borderRadius: radius };
+  return <Image source={head ? headImg : fullImg} style={[base, style as ImageStyle]} resizeMode="contain" />;
 }
 
 /** 흰 카드 컨테이너 (디자인 기본 카드). */

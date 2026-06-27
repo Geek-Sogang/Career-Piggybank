@@ -1,15 +1,17 @@
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, Mascot } from '@/components/ui';
+import { useApp, type Push } from '@/store';
 
-const MENU: { icon: IconName; color: string; label: string }[] = [
-  { icon: 'shield', color: colors.green, label: '데이터 주권 · 관리' },
-  { icon: 'cardLink', color: colors.pinkStrong, label: '상품 연결' },
-  { icon: 'gear', color: colors.sub, label: '알림 · 설정' },
+const MENU: { icon: IconName; color: string; label: string; push: Exclude<Push, null> }[] = [
+  { icon: 'shield', color: colors.green, label: '데이터 주권 · 관리', push: 'dataSovereignty' },
+  { icon: 'cardLink', color: colors.pinkStrong, label: '상품 연결', push: 'products' },
+  { icon: 'gear', color: colors.sub, label: '알림 · 설정', push: 'settings' },
 ];
 
 export function My() {
+  const { actions } = useApp();
   return (
     <View style={{ gap: 14 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -29,11 +31,11 @@ export function My() {
 
       <Card p={0} style={{ paddingHorizontal: 16 }}>
         {MENU.map((m, i) => (
-          <View key={m.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < MENU.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
+          <Pressable key={m.label} onPress={() => actions.pushScr(m.push)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < MENU.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
             <Icon name={m.icon} size={20} color={m.color} />
             <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{m.label}</Text>
             <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
-          </View>
+          </Pressable>
         ))}
       </Card>
     </View>

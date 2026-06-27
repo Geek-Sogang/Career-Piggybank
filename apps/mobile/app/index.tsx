@@ -12,6 +12,9 @@ import { Ledger } from '@/screens/Ledger';
 import { Tax } from '@/screens/Tax';
 import { Retirement } from '@/screens/Retirement';
 import { My } from '@/screens/My';
+import { DataSovereignty } from '@/screens/DataSovereignty';
+import { Products } from '@/screens/Products';
+import { Settings } from '@/screens/Settings';
 
 export default function Index() {
   return (
@@ -24,6 +27,7 @@ export default function Index() {
 const SCREENS: Record<string, () => JSX.Element> = {
   home: Home, piggy: Piggy, ledger: Ledger, my: My,
   connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
+  dataSovereignty: DataSovereignty, products: Products, settings: Settings,
 };
 
 function Shell() {

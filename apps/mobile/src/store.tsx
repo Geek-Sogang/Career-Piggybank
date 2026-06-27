@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
-export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement';
+export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance';
 type Conn = Record<ConnSrc, boolean>;
@@ -69,7 +69,7 @@ function useAppState(startTab: Tab = 'home') {
       limitWon: limit.toLocaleString('en-US'),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '세금봉투', retirement: '은퇴 곡선' } as Record<string, string>)[push || ''] || '',
+      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '세금봉투', retirement: '은퇴 곡선', dataSovereignty: '데이터 주권 · 관리', products: '상품 연결', settings: '알림 · 설정' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,

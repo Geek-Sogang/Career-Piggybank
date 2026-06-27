@@ -17,9 +17,10 @@ const FULL_RATIO = 734 / 1202; // 캐릭터 세로 크롭 비율
 
 /** head=true: 정사각 얼굴, head=false: 세로 전신. size는 head=너비, full=높이 기준. */
 export function Mascot({ head, size = 40, radius, style }: { head?: boolean; size?: number; radius?: number; style?: ImageStyle | ImageStyle[] }) {
+  // full은 폭을 명시(네이티브 absolute 위치 보정: right 기준이 폭 없으면 어긋남)
   const base: ImageStyle = head
     ? { width: size, height: size, borderRadius: radius, backgroundColor: colors.pinkTint }
-    : { height: size, aspectRatio: FULL_RATIO, borderRadius: radius };
+    : { width: Math.round(size * FULL_RATIO), height: size, borderRadius: radius };
   return <Image source={head ? headImg : fullImg} style={[base, style as ImageStyle]} resizeMode="contain" />;
 }
 

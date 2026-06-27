@@ -38,6 +38,10 @@ export function Settings() {
           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.ink }}>알림 미리보기 (잠금화면)</Text>
           <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
         </Pressable>
+        <Pressable onPress={() => actions.pushScr('emptyState')} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.line2 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.ink }}>빈 상태 미리보기 (저금통)</Text>
+          <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+        </Pressable>
         <Pressable onPress={() => actions.leave()} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 }}>
           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.ink }}>인트로 다시 보기</Text>
           <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />

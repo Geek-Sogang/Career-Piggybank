@@ -19,6 +19,9 @@ import { NestEgg } from '@/screens/NestEgg';
 import { Intro } from '@/screens/Intro';
 import { Chat } from '@/screens/Chat';
 import { LockScreen } from '@/screens/LockScreen';
+import { TxDetail } from '@/screens/TxDetail';
+import { ProductDetail } from '@/screens/ProductDetail';
+import { EmptyState } from '@/screens/EmptyState';
 
 export default function Index() {
   return (
@@ -31,7 +34,8 @@ export default function Index() {
 const SCREENS: Record<string, () => JSX.Element> = {
   home: Home, piggy: Piggy, ledger: Ledger, my: My,
   connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
-  dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg,
+  dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
+  productDetail: ProductDetail, emptyState: EmptyState,
 };
 
 function Shell() {
@@ -120,8 +124,8 @@ function InvestSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
             <View style={{ flex: 1, backgroundColor: colors.buffer }} />
           </View>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-            <Mini name="ISA · 예금형" amt="₩69,688" />
-            <Mini name="증권 · 소수점" amt="₩29,867" />
+            <Mini name="하나 ISA · 예금형" amt="₩69,688" />
+            <Mini name="하나증권 · 소수점" amt="₩29,867" />
           </View>
         </View>
         <Text style={{ fontSize: 11.5, color: colors.sub3, fontWeight: '500', marginTop: 12, lineHeight: 18 }}>투자는 원금 손실이 발생할 수 있어요. 즉시가용·세금봉투는 건드리지 않아요.</Text>

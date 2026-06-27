@@ -1,8 +1,9 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { JobKey } from '@/jobs';
+import type { ProductKey } from '@/products';
 
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
-export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen';
+export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState';
 export type Sheet = null | 'consent' | 'invest';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance';
@@ -32,6 +33,7 @@ function useAppState(startTab: Tab = 'home') {
   const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, behance: false });
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
+  const [product, setProduct] = useState<ProductKey>('emergency');
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,6 +58,7 @@ function useAppState(startTab: Tab = 'home') {
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
     openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
+    openProduct: (key: ProductKey) => { setProduct(key); setPush('productDetail'); setSheet(null); },
     back: () => setPush(null),
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     closeSheet: () => setSheet(null),
@@ -77,14 +80,14 @@ function useAppState(startTab: Tab = 'home') {
       limitWon: limit.toLocaleString('en-US'),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '세금봉투', retirement: '은퇴 곡선', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비' } as Record<string, string>)[push || ''] || '',
+      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '세금봉투', retirement: '은퇴 곡선', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '저금통 (빈 상태)' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,
     };
   }, [conn, push, tab, scenario]);
 
-  return { entered, tab, push, sheet, scenario, detail, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

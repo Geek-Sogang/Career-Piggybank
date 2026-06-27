@@ -1,0 +1,85 @@
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+
+export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
+export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement';
+export type Scenario = 'cons' | 'base' | 'opt';
+export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance';
+type Conn = Record<ConnSrc, boolean>;
+
+const VAL: Record<ConnSrc, number> = { github: 500000, mydata: 1200000, hometax: 700000, behance: 400000 };
+const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
+const SC = {
+  cons: ['2044 ~ 2047', 0.74, 0.12, '보수적 가정'],
+  base: ['2041 ~ 2044', 0.63, 0.11, '기본 가정'],
+  opt: ['2039 ~ 2041', 0.56, 0.08, '낙관 가정'],
+} as const;
+
+export type AppCtx = ReturnType<typeof useAppState>;
+const Ctx = createContext<AppCtx | null>(null);
+export const useApp = () => {
+  const c = useContext(Ctx);
+  if (!c) throw new Error('useApp must be used within AppProvider');
+  return c;
+};
+
+function useAppState(startTab: Tab = 'home') {
+  const [tab, setTab] = useState<Tab>(startTab);
+  const [push, setPush] = useState<Push>(null);
+  const [sheet, setSheet] = useState<null | 'consent'>(null);
+  const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, behance: false });
+  const [scenario, setScenario] = useState<Scenario>('base');
+  const [flash, setFlash] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fl = (t: string) => {
+    setFlash(t);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setFlash(null), 1900);
+  };
+  const apply = (src: ConnSrc, on: boolean) => {
+    setConn((c) => ({ ...c, [src]: on }));
+    if (on) fl(`한도 +${VAL[src] / 10000}만원`);
+  };
+  const toggle = (src: ConnSrc) => {
+    const on = !conn[src];
+    if (on && src === 'mydata') { setSheet('consent'); return; }
+    apply(src, on);
+  };
+
+  const actions = {
+    nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
+    pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
+    back: () => setPush(null),
+    closeSheet: () => setSheet(null),
+    confirm: () => { apply('mydata', true); setSheet(null); },
+    scen: (s: Scenario) => setScenario(s),
+    toggle,
+  };
+
+  const vals = useMemo(() => {
+    const c = conn;
+    const limit = (Object.keys(VAL) as ConnSrc[]).reduce((a, k) => a + (c[k] ? VAL[k] : 0), 0);
+    const scr = push || tab;
+    const cnt = Object.values(c).filter(Boolean).length;
+    const stage: keyof typeof STAGE_MAP = c.hometax ? '확정' : cnt >= 2 ? '준검증' : '잠정';
+    const sc = SC[scenario];
+    return {
+      scr, conn: c, limit, stage,
+      stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
+      limitWon: limit.toLocaleString('en-US'),
+      scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
+      tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
+      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '세금봉투', retirement: '은퇴 곡선' } as Record<string, string>)[push || ''] || '',
+      showGreeting: !push && tab === 'home',
+      showTabTitle: !push && tab !== 'home',
+      showBackHdr: !!push,
+    };
+  }, [conn, push, tab, scenario]);
+
+  return { tab, push, sheet, scenario, flash, vals, actions };
+}
+
+export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {
+  const value = useAppState(startTab);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}

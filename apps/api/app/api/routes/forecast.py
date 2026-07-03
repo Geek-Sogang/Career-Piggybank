@@ -20,6 +20,7 @@ class IncomeGapOut(BaseModel):
     expected_next_date: str
     window: tuple[str, str]
     observed_deposits: int
+    calibration_runs: int
     reasons: list[str]
 
 
@@ -125,7 +126,13 @@ def get_forecast() -> ForecastResponse:
         base_year=base_year,
         signals=signals,
     )
-    streams = income_streams.decompose(income_txns, months_observed=float(est.months_observed))
+    future_events = [
+        e for e in db.list_expected_events()
+        if not income_dates or e["date"] > max(income_dates)
+    ]
+    streams = income_streams.decompose(
+        income_txns, months_observed=float(est.months_observed), user_events=future_events,
+    )
     composite = income_streams.composite_next(
         streams, after=max(income_dates) if income_dates else "1970-01-01"
     )

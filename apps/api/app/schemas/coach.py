@@ -12,8 +12,19 @@ class CoachChatRequest(BaseModel):
     )
 
 
+class CapturedEvent(BaseModel):
+    """대화에서 수집된 예정 수입 (§6-2⑥) — 파싱만 LLM, 검증·반영은 결정론."""
+
+    date: str
+    amount: float | None
+    label: str
+
+
 class CoachChatResponse(BaseModel):
     reply: str
     source: str = Field(..., description="llm=로컬 LLM 응답 / fallback=결정론 템플릿")
     verified: bool = Field(..., description="숫자 검증(컨텍스트 근거) 통과 여부")
     signals: list[str]
+    captured_event: CapturedEvent | None = Field(
+        None, description="메시지에서 수집된 예정 수입 — 다음 수입 예측(스트림)에 반영됨"
+    )

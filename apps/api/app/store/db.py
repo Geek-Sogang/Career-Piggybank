@@ -42,6 +42,13 @@ CREATE TABLE IF NOT EXISTS tag_dictionary (
   counterparty TEXT PRIMARY KEY,
   kind TEXT NOT NULL, subtype TEXT
 );
+CREATE TABLE IF NOT EXISTS expected_events (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,          -- 예정일 (ISO)
+  amount REAL,                 -- 없을 수 있음 (금액 미상 예정 수입)
+  label TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'coach_chat'
+);
 """
 
 ENVELOPE_NAMES = ("tax", "expense", "spendable", "buffer")
@@ -151,6 +158,22 @@ def envelope_add(split: dict[str, float]) -> None:
 def envelope_set(name: str, balance: float) -> None:
     with get_conn() as c:
         c.execute("INSERT OR REPLACE INTO envelopes VALUES (?,?)", (name, balance))
+
+
+# ── expected events (코치가 수집한 예정 수입 — §6-2⑥) ──
+
+def insert_expected_event(date: str, amount: float | None, label: str, source: str = "coach_chat") -> str:
+    ev_id = uuid.uuid4().hex[:12]
+    with get_conn() as c:
+        c.execute("INSERT INTO expected_events VALUES (?,?,?,?,?)",
+                  (ev_id, date, amount, label, source))
+    return ev_id
+
+
+def list_expected_events() -> list[dict]:
+    with get_conn() as c:
+        rows = c.execute("SELECT * FROM expected_events ORDER BY date").fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── allocations ──

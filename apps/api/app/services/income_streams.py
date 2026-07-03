@@ -90,8 +90,15 @@ def _advance_lag(txns: list[dict]) -> tuple[float, str]:
     return DEFAULT_SETTLEMENT_LAG, f"착수금→잔금 관측 쌍 없음 — 기본값 {DEFAULT_SETTLEMENT_LAG:.0f}일(콜드스타트)"
 
 
-def decompose(income_txns: list[dict], months_observed: float = 0.0) -> IncomeStreams:
-    """income 거래(date·amount·counterparty·subtype) → 스트림 분해 (순수 함수)."""
+def decompose(
+    income_txns: list[dict],
+    months_observed: float = 0.0,
+    user_events: list[dict] | None = None,
+) -> IncomeStreams:
+    """income 거래(date·amount·counterparty·subtype) → 스트림 분해 (순수 함수).
+
+    user_events: 코치가 대화로 수집한 예정 수입(§6-2⑥) — 스트림 D의 구멍을 사람이 메운 것.
+    """
     txns = sorted(income_txns, key=lambda t: t["date"])
     reasons: list[str] = []
     candidates: list[StreamCandidate] = []
@@ -145,6 +152,14 @@ def decompose(income_txns: list[dict], months_observed: float = 0.0) -> IncomeSt
                         source="pending_settlement", label=cp, expected_date=expected.isoformat(),
                         basis=f"'{cp}' 착수금 {t['amount']:,.0f}원 관측 — 잔금 예상 ({lag_basis})",
                     ))
+
+    # 사용자가 직접 알려준 예정 수입 — 스트림 D의 구멍을 대화가 메운다 (가장 강한 후보)
+    for ev in user_events or []:
+        amount_txt = f" {ev['amount']:,.0f}원" if ev.get("amount") else ""
+        candidates.append(StreamCandidate(
+            source="user_reported", label=ev["label"], expected_date=ev["date"],
+            basis=f"코치에게 직접 알려주신 예정 수입: {ev['label']}{amount_txt}",
+        ))
 
     # D. 신규/일회성 — 시점은 못 맞힌다. 도착률만 정직하게
     one_off = [

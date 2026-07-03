@@ -3,6 +3,18 @@
 // 각 호출부가 오프라인 폴백을 쓴다(데모가 죽지 않는 원칙).
 const API_BASE = 'http://localhost:8000';
 
+async function get<T>(path: string, timeoutMs = 10_000): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function post<T>(path: string, body: unknown, timeoutMs = 90_000): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -69,6 +81,26 @@ export const DEMO_CAREER_FACTS = {
 export type Strength = { line: string; chosen_by: 'llm' | 'fallback'; reason: string };
 export function fetchStrength(facts = DEMO_CAREER_FACTS) {
   return post<Strength>('/v1/strength', facts, 120_000);
+}
+
+// ── 뱅크 (영속 원장·봉투) — 가계부 화면의 데이터 소스 ──
+export type Txn = {
+  id: string; date: string; amount: number; direction: 'in' | 'out';
+  counterparty: string; memo: string; kind: string; subtype: string | null;
+  confidence: number; needs_review: boolean; signals: string[];
+};
+export const DEMO_DEPOSIT = { date: '2025-05-27', amount: 3_000_000, counterparty: '△△플랫폼 정산', memo: '' };
+
+export function getTransactions() {
+  return get<Txn[]>('/v1/bank/transactions');
+}
+export function bankDeposit(body = DEMO_DEPOSIT) {
+  return post<{ transaction: Txn; allocation: Allocation | null }>('/v1/bank/deposit', body, 15_000);
+}
+export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living') {
+  return post<{ transaction: Txn; learned: boolean; allocation: Allocation | null }>(
+    `/v1/bank/transactions/${id}/tag`, { kind }, 15_000,
+  );
 }
 
 // 서버 다운 시 오프라인 폴백 제안 (백엔드 라이브 결과와 동일 수치)

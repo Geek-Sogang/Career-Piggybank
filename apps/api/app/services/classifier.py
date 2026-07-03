@@ -34,6 +34,15 @@ BUSINESS_HINTS = (
 )
 # 정산 플랫폼 (긱 플랫폼 정산 채널 — 발주처가 아니라 통로)
 PLATFORM_HINTS = ("크몽", "위시켓", "숨고", "탈잉", "클래스101", "원티드긱스", "페이워크", "플랫폼 정산")
+# 정산 채널명 '형태' — 입금자명에 '정산'을 쓰는 주체는 정산 대행/커머스/페이 채널
+# (특정 상호 등록이 아니라 3.3% 역산과 같은 급의 구조 신호)
+SETTLEMENT_NAME_TOKEN = "정산"
+# 비매출 입금 패턴 — 기관 환급·수당·보험금·중고거래 (매출이 아닌 것이 확실한 채널·맥락)
+NON_REVENUE_NAME_HINTS = (
+    "국세청", "세무서", "공단", "시청", "구청", "손해보험", "생명보험", "화재보험",
+    "당근마켓", "번개장터", "중고나라",
+)
+NON_REVENUE_MEMO_HINTS = ("환급", "환불", "보험금", "수당", "지원금", "중고")
 # 경비성 지출 키워드 (구독/인프라/운영)
 SUBSCRIPTION_HINTS = (
     "figma", "adobe", "aws", "github", "notion", "slack", "vercel", "구독",
@@ -100,6 +109,20 @@ def _classify_in(txn: TxnInput) -> Classification:
         return Classification(
             kind="income", subtype="settlement", confidence=0.9, needs_review=False,
             signals=[f"정산 플랫폼 입금: '{name}'"],
+        )
+
+    # 2.5) 정산 채널명 형태 — 입금자명에 '정산'이 들어가면 정산 대행/커머스/페이 채널
+    if SETTLEMENT_NAME_TOKEN in name:
+        return Classification(
+            kind="income", subtype="settlement", confidence=0.85, needs_review=False,
+            signals=[f"정산 채널명 형태: '{name}' — 입금자명에 '정산'을 쓰는 주체는 정산 통로"],
+        )
+
+    # 2.7) 비매출 입금 패턴 — 기관 환급·수당·보험금·중고거래 (매출 아님이 구조적으로 확실)
+    if any(h in name for h in NON_REVENUE_NAME_HINTS) or any(h in txn.memo for h in NON_REVENUE_MEMO_HINTS):
+        return Classification(
+            kind="living", subtype=None, confidence=0.85, needs_review=False,
+            signals=[f"비매출 입금 패턴: '{name}'{' · ' + txn.memo if txn.memo else ''} — 환급·수당·중고거래 계열"],
         )
 
     # 3) 사업자 형태 + 원천징수 흔적 없음 → 계약금(선금) 의심

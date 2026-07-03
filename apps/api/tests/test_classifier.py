@@ -59,8 +59,8 @@ def test_personal_name_is_not_guessed() -> None:
 
 
 def test_ambiguous_deposit_goes_to_review() -> None:
-    """수기 태그 데모 케이스: 페이 정산은 결정론 신호가 없어 미분류."""
-    c = classify(txn(250_000, "토스페이 정산"))
+    """결정론 신호가 전혀 없는 입금(페이 단순 송금)은 미분류 → 사람에게."""
+    c = classify(txn(250_000, "카카오페이"))
     assert c.kind == "unknown"
     assert c.needs_review is True
 
@@ -98,7 +98,7 @@ client = TestClient(app)
 def test_classify_batch_route() -> None:
     res = client.post("/v1/classify", json={"transactions": [
         {"date": "2026-05-15", "amount": 483_500, "direction": "in", "counterparty": "○○커머스"},
-        {"date": "2026-05-16", "amount": 250_000, "direction": "in", "counterparty": "토스페이 정산"},
+        {"date": "2026-05-16", "amount": 250_000, "direction": "in", "counterparty": "카카오페이"},
         {"date": "2026-05-18", "amount": 18_000, "direction": "out", "counterparty": "Figma"},
     ]})
     assert res.status_code == 200
@@ -107,3 +107,49 @@ def test_classify_batch_route() -> None:
     assert kinds == ["income", "unknown", "expense"]
     assert body["review_count"] == 1
     assert all(r["signals"] for r in body["results"])  # 근거 없는 판정 금지
+
+
+# ---------- 커버리지 확장 룰: 정산 채널명 형태 · 비매출 입금 패턴 ----------
+
+def test_settlement_channel_name_is_income() -> None:
+    """입금자명에 '정산' — 정산 대행/커머스/페이 채널 형태 → income 자동."""
+    for name in ("토스페이 정산", "페이코 정산", "스마트스토어 정산금", "클래스톡 강의정산"):
+        c = classify(TxnInput(date="2026-06-01", amount=250_000, direction="in", counterparty=name))
+        assert (c.kind, c.subtype) == ("income", "settlement")
+        assert c.needs_review is False
+        assert c.confidence < 0.9  # 플랫폼 직접 등록(0.9)보다는 낮게
+
+
+def test_non_revenue_institution_is_living() -> None:
+    """기관 환급·수당·보험금 — 매출 아님이 구조적으로 확실 → living 자동."""
+    cases = [
+        ("국세청", "종합소득세 환급"),
+        ("서울시청", "청년수당"),
+        ("한화손해보험", "보험금 지급"),
+        ("당근마켓", "자전거 판매"),
+    ]
+    for name, memo in cases:
+        c = classify(TxnInput(date="2026-06-01", amount=150_000, direction="in",
+                              counterparty=name, memo=memo))
+        assert c.kind == "living"
+        assert c.needs_review is False
+
+
+def test_memo_refund_hint_is_living() -> None:
+    c = classify(TxnInput(date="2026-06-01", amount=45_000, direction="in",
+                          counterparty="지그재그", memo="환불"))
+    assert c.kind == "living" and c.needs_review is False
+
+
+def test_personal_dutch_pay_memo_still_goes_to_review() -> None:
+    """개인 이름 + '회식비 정산' 메모 — 정산 토큰은 입금자명에만 적용, 여전히 사람에게."""
+    c = classify(TxnInput(date="2026-06-01", amount=45_000, direction="in",
+                          counterparty="김민수", memo="회식비 정산"))
+    assert c.kind == "unknown" and c.needs_review is True
+
+
+def test_reversal_still_beats_settlement_token() -> None:
+    """3.3% 역산이 정산 채널명보다 우선 — 캐스케이드 순서 보존."""
+    c = classify(TxnInput(date="2026-06-01", amount=483_500, direction="in",
+                          counterparty="어딘가 정산"))
+    assert c.confidence == 0.95  # 역산 층에서 잡힘

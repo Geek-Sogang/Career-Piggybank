@@ -145,11 +145,16 @@ API: `POST /v1/allocations/propose` → `POST /v1/allocations/{id}/decision` →
 
 API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 
-## ④ 코치 — 예정 (`app/services/coach.py`)
+## ④ 코치 — `app/services/coach.py`
 
 **역할**: 배분 근거·분류 신호(이미 한국어 문장으로 나옴)를 대화체로 전달, 확인 요청, 질문 응답.
 **하지 않는 것**: **숫자 계산 절대 금지** — 모든 금액은 결정론 엔진이 계산해 완성된 값으로
-프롬프트에 주입하고, LLM은 말만 다듬는다.
+프롬프트([컨텍스트])에 주입하고, LLM은 말만 다듬는다.
+
+- **결정론 숫자 검증기**: 응답의 3자리 이상 숫자가 컨텍스트에 없으면(지어냈으면) 응답을
+  버리고 근거(reasons) 기반 템플릿으로 교체 — 할루시네이션 금액이 사용자에게 닿는 경로 차단.
+- LLM 다운 시에도 근거 템플릿 폴백 — 코치가 죽어도 서비스는 산다.
+- 응답에 `source`(llm/fallback)·`verified` 노출.
 
 - 서빙: Ollama(맥 로컬, 망분리 전제 충족) + **EXAONE 3.5 7.8B Q4_K_M**(LG 한국어 특화
   오픈 모델, `app/core/config.py`의 `ollama_model`) — 분류기 LLM 폴백과 공유.
@@ -165,7 +170,7 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 | `POST /v1/allocations/{id}/decision` | 승인/조정/거절 | ✅ (인메모리) |
 | `GET /v1/allocations/metrics` | 무수정 승인율 KPI | ✅ |
 | `POST /v1/tax-envelope/*` | 세금 결정론 계산 | ✅ (기존) |
-| `POST /v1/coach/chat` | 피기 코치 대화 | ⬜ 예정 |
+| `POST /v1/coach/chat` | 피기 코치 대화 | ✅ (숫자 검증기 포함) |
 
 ## 구현 로드맵
 
@@ -173,7 +178,7 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 2. ✅ 예측기 (PR #3)
 3. ✅ 분류기 1단계 — 결정론 룰 (PR #4)
 4. ✅ 3b: 분류기 2단계 — Ollama + EXAONE 3.5, unknown만 LLM 폴백 (분류→판정 에이전트)
-5. ⬜ 코치 — `/v1/coach/chat` (3b의 Ollama·모델 재사용)
+5. ✅ 코치 — `/v1/coach/chat` (3b의 Ollama·EXAONE 재사용, 결정론 숫자 검증기)
 6. ⬜ 프론트 연동 — RN 가계부·피기 코치 챗을 API에 연결, 데모 시나리오 데이터
 7. ⬜ (여유 시) 조정 성향 반영, 강점 한 줄 생성 등 개인화 +α
 

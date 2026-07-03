@@ -13,6 +13,31 @@ import urllib.request
 from app.core.config import settings
 
 
+def chat_text(system: str, user: str, temperature: float = 0.4) -> str | None:
+    """system+user 프롬프트 → 자유 텍스트 응답 (코치용). 실패 시 None."""
+    payload = json.dumps({
+        "model": settings.ollama_model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "stream": False,
+        "options": {"temperature": temperature},
+    }).encode()
+    req = urllib.request.Request(
+        f"{settings.ollama_base_url}/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=settings.ollama_timeout_s) as res:
+            body = json.load(res)
+        content = body["message"]["content"]
+        return content.strip() if isinstance(content, str) and content.strip() else None
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError, OSError):
+        return None
+
+
 def chat_json(system: str, user: str) -> dict | None:
     """system+user 프롬프트 → JSON 객체 응답 (temperature 0, format=json 강제).
 

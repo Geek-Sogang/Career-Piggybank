@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from app.api.routes.allocations import to_response
 from app.core.config import settings
 from app.schemas.bank import (
+    ClarifyOut,
     DepositRequest,
     DepositResponse,
     EnvelopesResponse,
@@ -13,7 +14,7 @@ from app.schemas.bank import (
     TagResponse,
     TxnOut,
 )
-from app.services import bank_flow, tax_envelope
+from app.services import bank_flow, clarify, tax_envelope
 from app.services.classifier import TxnInput
 from app.store import db
 from app.store.seed import ensure_seed
@@ -41,10 +42,15 @@ def deposit(req: DepositRequest) -> DepositResponse:
         needs_review=c.needs_review, signals=c.signals,
     )
     allocation = None
+    question = None
     if c.kind == "income" and not c.needs_review:
         alloc_id, _ = bank_flow.propose_for_deposit(req.amount, req.date, txn_id)
         allocation = to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
-    return DepositResponse(transaction=TxnOut(**db.get_txn(txn_id)), allocation=allocation)  # type: ignore[arg-type]
+    elif c.needs_review:
+        # 코치의 확인 게이트: "확인해주세요"가 아니라 해소에 필요한 질문 하나를 만들어 건넨다
+        q = clarify.make_question(req.amount, req.counterparty, req.memo, c.signals)
+        question = ClarifyOut(**q.__dict__)
+    return DepositResponse(transaction=TxnOut(**db.get_txn(txn_id)), allocation=allocation, clarify=question)  # type: ignore[arg-type]
 
 
 @router.get("/transactions", response_model=list[TxnOut])
@@ -67,6 +73,19 @@ def tag(txn_id: str, req: TagRequest) -> TagResponse:
         alloc_id, _ = bank_flow.propose_for_deposit(txn["amount"], txn["date"], txn_id)
         allocation = to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
     return TagResponse(transaction=TxnOut(**db.get_txn(txn_id)), learned=True, allocation=allocation)  # type: ignore[arg-type]
+
+
+@router.get("/transactions/{txn_id}/clarify", response_model=ClarifyOut)
+def txn_clarify(txn_id: str) -> ClarifyOut:
+    """미분류(needs_review) 거래의 해소 질문 — 가계부 행·코치 챗이 같은 질문을 쓴다."""
+    _boot()
+    txn = db.get_txn(txn_id)
+    if txn is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    if not txn["needs_review"]:
+        raise HTTPException(status_code=409, detail="transaction is already classified")
+    q = clarify.make_question(txn["amount"], txn["counterparty"], txn["memo"], txn["signals"])
+    return ClarifyOut(**q.__dict__)
 
 
 @router.get("/envelopes", response_model=EnvelopesResponse)

@@ -124,6 +124,57 @@ def test_signals_cold_start_neutral() -> None:
     assert any("콜드스타트" in r for r in s.reasons)
 
 
+# ---------- 연도별 소득 경로 (차트 좌표의 원천) ----------
+
+from app.services.forecast import income_path  # noqa: E402
+
+
+def make_path(signals=None, **kw):
+    args = dict(monthly_incomes=INCOMES, monthly_living_target=1_150_000,
+                income_cv=0.3, months_observed=4, base_year=2025, signals=signals)
+    args.update(kw)
+    return income_path(**args)
+
+
+def test_path_shape_and_ordering() -> None:
+    p = make_path()
+    assert len(p.years) == len(p.base) == len(p.lo) == len(p.hi)
+    assert p.years[0] == 2025 and p.years == sorted(p.years)
+    for lo, base, hi in zip(p.lo, p.base, p.hi):
+        assert lo <= base <= hi  # 신뢰구간이 곡선을 감싼다
+
+
+def test_path_crossing_agrees_with_band() -> None:
+    """경로가 생활비 아래로 내려가는 해 = 은퇴 밴드 안 — 그림과 숫자가 같은 계산."""
+    living = 1_150_000
+    bands, _ = retirement_bands(INCOMES, living, 0.3, 4, 2025)
+    base_band = {b.scenario: b for b in bands}["base"]
+    p = make_path(end_year=base_band.band_end_year + 3)
+    peak_idx = p.years.index(p.peak_year)
+    cross = next(y for y, v in zip(p.years[peak_idx:], p.base[peak_idx:]) if v < living)
+    assert base_band.band_start_year <= cross <= base_band.band_end_year
+
+
+def test_path_covers_band_plus_margin() -> None:
+    bands, _ = retirement_bands(INCOMES, 1_150_000, 0.3, 4, 2025)
+    base_band = {b.scenario: b for b in bands}["base"]
+    p = make_path()  # end_year 미지정 → 밴드 끝 + 3년
+    assert p.years[-1] == base_band.band_end_year + 3
+
+
+def test_path_rises_then_falls_with_healthy_signals() -> None:
+    p = make_path(signals=career_signals(HEALTHY))
+    peak_idx = p.years.index(p.peak_year)
+    assert peak_idx > 0                      # 정점 전 상승 구간이 존재
+    assert p.base[-1] < p.base[peak_idx]     # 정점 후 하락
+
+
+def test_path_early_decline_starts_falling_now() -> None:
+    p = make_path(signals=career_signals(DECLINING))
+    assert p.peak_year == p.years[0]         # 신호 악화 → 첫 해부터 하락 국면
+    assert p.base[1] < p.base[0]
+
+
 # ---------- 라우트 (시드 원장 기반) ----------
 
 def test_forecast_route_with_seed() -> None:
@@ -137,3 +188,9 @@ def test_forecast_route_with_seed() -> None:
     assert 2030 < base["band_start_year"] < 2080  # 상식 범위
     assert body["assumptions"]["method"].startswith("긱워커")
     assert len(body["career_signals"]["reasons"]) >= 2  # 긱워커 신호 근거 노출
+    # 차트 경로: 밴드와 같은 좌표계, 목표선 포함
+    path = body["path"]
+    assert len(path["years"]) == len(path["base"]) == len(path["lo"]) == len(path["hi"])
+    assert path["years"][-1] == base["band_end_year"] + 3
+    assert path["living_target"] > 0
+    assert path["years"][0] <= path["peak_year"] <= path["years"][-1]

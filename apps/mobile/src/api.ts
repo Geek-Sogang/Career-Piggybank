@@ -108,6 +108,8 @@ export type Forecast = {
   income_gap: { median_gap_days: number; expected_next_date: string; window: [string, string]; reasons: string[] };
   retirement: { scenario: 'cons' | 'base' | 'opt'; band_start_year: number; band_end_year: number; label: string }[];
   career_signals: { gap_ratio: number; client_ratio: number; ticket_ratio: number; career_trend: number; reasons: string[] };
+  // 차트가 그대로 그리는 연도별 경로 — 곡선·신뢰구간 띠·정점 전부 이 좌표에서
+  path: { years: number[]; base: number[]; lo: number[]; hi: number[]; peak_year: number; living_target: number };
   monthly_income_level: number;
   income_cv: number;
 };

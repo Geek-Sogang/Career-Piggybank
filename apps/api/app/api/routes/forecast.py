@@ -38,10 +38,22 @@ class CareerSignalsOut(BaseModel):
     reasons: list[str]
 
 
+class IncomePathOut(BaseModel):
+    """차트가 그대로 그리는 연도별 경로 — 곡선·신뢰구간 띠·정점 전부 이 좌표에서 나온다."""
+
+    years: list[int]
+    base: list[float]
+    lo: list[float]
+    hi: list[float]
+    peak_year: int
+    living_target: float
+
+
 class ForecastResponse(BaseModel):
     income_gap: IncomeGapOut
     retirement: list[RetirementBandOut]
     career_signals: CareerSignalsOut
+    path: IncomePathOut
     monthly_income_level: float
     monthly_living_target: float
     income_cv: float
@@ -74,10 +86,23 @@ def get_forecast() -> ForecastResponse:
         base_year=base_year,
         signals=signals,
     )
+    base_band = next(b for b in bands if b.scenario == "base")
+    path = forecast.income_path(
+        monthly_incomes=monthly_incomes,
+        monthly_living_target=est.profile.expected_monthly_living,
+        income_cv=est.profile.income_cv,
+        months_observed=est.months_observed,
+        base_year=base_year,
+        signals=signals,
+        end_year=base_band.band_end_year + 3,
+    )
     return ForecastResponse(
         income_gap=IncomeGapOut(**gap.__dict__),
         retirement=[RetirementBandOut(**b.__dict__) for b in bands],
         career_signals=CareerSignalsOut(**signals.__dict__),
+        path=IncomePathOut(
+            **path.__dict__, living_target=round(est.profile.expected_monthly_living, 2)
+        ),
         monthly_income_level=assumptions["monthly_income_level"],  # type: ignore[arg-type]
         monthly_living_target=round(est.profile.expected_monthly_living, 2),
         income_cv=round(est.profile.income_cv, 4),

@@ -268,3 +268,40 @@ def test_erratic_history_widens_calibrated_window() -> None:
         return g.window_days[1] - g.window_days[0]
     assert erratic.calibration_runs >= 2
     assert width(erratic) > width(regular)
+
+
+# ---------- 하락 국면 연속화 — 임계값 절벽 제거 ----------
+
+from app.services.forecast import CareerSignals, decline_severity  # noqa: E402
+
+
+def test_severity_is_continuous_and_monotonic() -> None:
+    assert decline_severity(0.01) == 0.0
+    assert decline_severity(-0.005) == 0.0
+    assert 0 < decline_severity(-0.015) < 1
+    assert decline_severity(-0.03) == 1.0
+    assert decline_severity(-0.014) <= decline_severity(-0.016)  # 단조
+
+
+def test_no_cliff_around_old_threshold() -> None:
+    """trend −1.4% vs −1.6% — 거의 같은 사람은 거의 같은 밴드 (절벽 없음)."""
+    def band_start(trend: float) -> int:
+        sig = CareerSignals(1.0, 1.0, 1.0, trend, [])
+        bands, _ = retirement_bands([1_200_000] * 6, 1_000_000, 0.3, 6, 2025, sig)
+        return {b.scenario: b for b in bands}["base"].band_start_year
+    assert abs(band_start(-0.014) - band_start(-0.016)) <= 2
+
+
+def test_worse_signal_still_retires_earlier() -> None:
+    """연속화 후에도 방향 보존: 신호가 나쁠수록 은퇴가 이르다."""
+    def base_start(trend: float) -> int:
+        sig = CareerSignals(1.0, 1.0, 1.0, trend, [])
+        bands, _ = retirement_bands([1_200_000] * 6, 1_000_000, 0.3, 6, 2025, sig)
+        return {b.scenario: b for b in bands}["base"].band_start_year
+    assert base_start(-0.03) <= base_start(-0.015) <= base_start(0.0)
+
+
+def test_severity_exposed_in_assumptions() -> None:
+    sig = CareerSignals(1.0, 1.0, 1.0, -0.015, [])
+    _, a = retirement_bands([1_200_000] * 6, 1_000_000, 0.3, 6, 2025, sig)
+    assert 0 < a["decline_severity"] < 1

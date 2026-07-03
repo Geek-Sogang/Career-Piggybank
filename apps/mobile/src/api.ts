@@ -133,6 +133,8 @@ export type Forecast = {
     one_off_per_month: number;
     candidates: { source: string; label: string; expected_date: string; basis: string }[];
     pending_settlements: { counterparty: string; advance_date: string; advance_amount: number; expected_date: string; basis: string }[];
+    // 지연된 계약 — 예측에서 제외되고 코치 질문으로 전환됨
+    stale_settlements: { counterparty: string; advance_date: string; advance_amount: number; question: string }[];
     composite_next: { source: string; label: string; expected_date: string; basis: string } | null;
     reasons: string[];
   };

@@ -153,3 +153,23 @@ def test_reversal_still_beats_settlement_token() -> None:
     c = classify(TxnInput(date="2026-06-01", amount=483_500, direction="in",
                           counterparty="어딘가 정산"))
     assert c.confidence == 0.95  # 역산 층에서 잡힘
+
+
+def test_expense_suspect_outgoing_goes_to_review() -> None:
+    """도서·교육·출장 계열 출금은 생활비로 조용히 찍지 않는다 — 경비 인정은 종소세 직결."""
+    for name, memo in (("교보문고", "개발 서적"), ("패스트캠퍼스", "강의 결제"), ("코레일", "출장 KTX")):
+        c = classify(TxnInput(date="2026-06-15", amount=50_000, direction="out",
+                              counterparty=name, memo=memo))
+        assert c.kind == "unknown" and c.needs_review is True
+
+
+def test_plain_living_outgoing_still_auto() -> None:
+    c = classify(TxnInput(date="2026-06-15", amount=6_500, direction="out", counterparty="스타벅스"))
+    assert c.kind == "living" and c.needs_review is False
+
+
+def test_operating_hint_beats_suspect() -> None:
+    """확정 신호(장비)가 의심 신호보다 우선 — 캐스케이드 순서 보존."""
+    c = classify(TxnInput(date="2026-06-15", amount=250_000, direction="out",
+                          counterparty="쿠팡", memo="모니터 장비"))
+    assert (c.kind, c.subtype) == ("expense", "operating")

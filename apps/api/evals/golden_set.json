@@ -550,6 +550,39 @@
       "expected_subtype": null,
       "allow_review": true,
       "note": "개인 간 송금 — 맥락 없음"
+    },
+    {
+      "date": "2026-06-15",
+      "amount": 28000,
+      "direction": "out",
+      "counterparty": "교보문고",
+      "memo": "개발 서적",
+      "expected_kind": "expense",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "경비 의심(도서) — 생활비로 조용히 찍으면 안 됨, 확인이 정답"
+    },
+    {
+      "date": "2026-06-16",
+      "amount": 180000,
+      "direction": "out",
+      "counterparty": "패스트캠퍼스",
+      "memo": "강의 결제",
+      "expected_kind": "expense",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "경비 의심(교육) — LLM/수기 태그 경로"
+    },
+    {
+      "date": "2026-06-17",
+      "amount": 97000,
+      "direction": "out",
+      "counterparty": "코레일",
+      "memo": "출장 KTX",
+      "expected_kind": "expense",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "경비 의심(출장 교통)"
     }
   ]
 }

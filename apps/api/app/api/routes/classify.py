@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.schemas.classify import ClassificationOut, ClassifyRequest, ClassifyResponse
-from app.services import classifier
+from app.services import classifier, classifier_llm
 from app.services.classifier import TxnInput
 
 router = APIRouter(prefix="/v1/classify", tags=["classify"])
@@ -12,9 +12,10 @@ router = APIRouter(prefix="/v1/classify", tags=["classify"])
 
 @router.post("", response_model=ClassifyResponse)
 def classify_batch(req: ClassifyRequest) -> ClassifyResponse:
-    """거래 배치 분류 (결정론 캐스케이드 — unknown은 추후 로컬 LLM 폴백)."""
+    """거래 배치 분류 — 결정론 캐스케이드, llm_fallback=True면 unknown만 로컬 LLM."""
+    fn = classifier_llm.classify_with_fallback if req.llm_fallback else classifier.classify
     results = [
-        classifier.classify(
+        fn(
             TxnInput(
                 date=t.date, amount=t.amount, direction=t.direction,
                 counterparty=t.counterparty, memo=t.memo,

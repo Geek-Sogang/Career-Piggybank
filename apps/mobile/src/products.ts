@@ -1,6 +1,6 @@
 import { colors } from '@/theme/colors';
 
-export type ProductKey = 'account' | 'emergency' | 'youth' | 'isa' | 'irp' | 'pensionFund';
+export type ProductKey = 'account' | 'emergency' | 'youth' | 'isa' | 'irp' | 'pensionFund' | 'parking';
 
 export type Product = {
   badge: string; badgeBg: string; badgeColor: string;
@@ -57,5 +57,13 @@ export const PRODUCTS: Record<ProductKey, Product> = {
     terms: ['소수점 적립', '보수적 포트폴리오', '연금저축 합산 공제'],
     desc: '유휴금을 소수점으로 꾸준히 적립해 노후를 준비해요. IRP와 합산해 연 900만원까지 세액공제.',
     cta: '가입하기',
+  },
+  parking: {
+    badge: '파', badgeBg: colors.bufferTint, badgeColor: colors.buffer,
+    name: '하나 긱워커 파킹통장', tagline: '하나은행 · 세금·여윳돈 안전 보관',
+    highlight: '연 3.0%', highlightLabel: '우대금리',
+    terms: ['입출금 자유', '5월 종소세 대비 금고', '커리어 점수 우대'],
+    desc: '자동 봉투에 쌓이는 세금·여윳돈을 안전하게 보관하며 이자를 받아요. 언제든 인출할 수 있어 강제성이 없고, 5월 종소세 때 바로 꺼내 쓸 수 있어요. 커리어 점수가 높을수록 우대금리를 더 드려요.',
+    cta: '파킹통장 만들기',
   },
 };

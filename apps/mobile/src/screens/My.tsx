@@ -11,7 +11,7 @@ const MENU: { icon: IconName; color: string; label: string; push: Exclude<Push, 
 ];
 
 export function My() {
-  const { actions } = useApp();
+  const { vals, actions } = useApp();
   return (
     <View style={{ gap: 14 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -26,7 +26,7 @@ export function My() {
       <Card style={{ flexDirection: 'row' }}>
         <MyStat value="12건" label="검증" />
         <MyStat value="확정" label="검증 단계" color={colors.green} borderLeft />
-        <MyStat value="240만" label="환산 한도" borderLeft />
+        <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 
       <Card p={0} style={{ paddingHorizontal: 16 }}>

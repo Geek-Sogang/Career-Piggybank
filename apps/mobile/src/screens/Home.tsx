@@ -6,20 +6,23 @@ import { Card, Mascot, T } from '@/components/ui';
 import { useApp } from '@/store';
 
 export function Home() {
-  const { actions } = useApp();
+  const { vals, actions } = useApp();
   return (
     <View style={{ gap: 14 }}>
-      {/* 잔액 카드 */}
+      {/* 커리어 점수 카드 */}
       <View style={{ borderRadius: 22, padding: 20, paddingBottom: 18, paddingRight: 96, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
-        <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,.82)' }}>내 커리어 저금통</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 9 }}>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: '#fff', opacity: 0.92 }}>₩</Text>
-          <Text style={{ fontSize: 42, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>2,400,000</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,.82)' }}>내 커리어 점수</Text>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, overflow: 'hidden' }}>{vals.ageLabel}</Text>
         </View>
-        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>환산 한도 · 검증된 커리어 자산 기준</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 9 }}>
+          <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', opacity: 0.9 }}>점</Text>
+        </View>
+        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>검증된 커리어로 키우는 신뢰 점수 · {vals.nextAgeLabel}까지 {vals.toNext}점</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 15 }}>
           <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 확정 ✓</Text>
-          <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>이번 달 +50만</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>이번 달 +50점</Text>
         </View>
         <Mascot size={132} style={{ position: 'absolute', right: 2, bottom: -8 }} />
       </View>
@@ -39,8 +42,8 @@ export function Home() {
           <Mascot head size={44} radius={13} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>다음 할 일</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>홈택스 연결하고 검증 완료하기</Text>
-            <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>한도 +70만원 예상 · 약 1분</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>홈택스 연결하고 +30점 받기</Text>
+            <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>검증 완료 · 약 1분</Text>
           </View>
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>

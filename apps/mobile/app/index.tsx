@@ -86,6 +86,16 @@ function Shell() {
         <Screen />
       </ScrollView>
 
+      {/* 피기 코치 상시 플로팅 */}
+      {!push && !sheet && (
+        <Pressable onPress={() => actions.pushScr('chat')} style={{ position: 'absolute', right: 16, bottom: insets.bottom + 76, width: 58, height: 58, borderRadius: 29, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.greenLine, shadowColor: '#0F1217', shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } }}>
+          <Mascot head size={42} radius={21} />
+          <View style={{ position: 'absolute', top: -3, right: -3, backgroundColor: colors.green, borderRadius: 9, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: '#fff' }}>
+            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#fff', letterSpacing: 0.3 }}>AI</Text>
+          </View>
+        </Pressable>
+      )}
+
       {/* 탭바 */}
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
         <TabButton icon="tabHome" label="홈" active={tab === 'home'} onPress={() => actions.nav('home')} />
@@ -126,6 +136,15 @@ function InvestSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
             <Mini name="하나 ISA · 예금형" amt="₩69,688" />
             <Mini name="하나증권 · 소수점" amt="₩29,867" />
+          </View>
+        </View>
+        <View style={{ backgroundColor: colors.greenTint2, borderRadius: 14, padding: 13, marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 11 }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="trending" size={18} color="#fff" sw={2.2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '800', color: colors.ink }}>하나증권 · 장 시작 예약 주문</Text>
+            <Text style={{ fontSize: 11, color: colors.sub, fontWeight: '500', marginTop: 2, lineHeight: 16 }}>밤에 일하는 당신 대신 오전 9시에 걸어둬요. AI는 제안만, 마지막 실행은 직접 확인해요.</Text>
           </View>
         </View>
         <Text style={{ fontSize: 11.5, color: colors.sub3, fontWeight: '500', marginTop: 12, lineHeight: 18 }}>투자는 원금 손실이 발생할 수 있어요. 즉시가용·세금봉투는 건드리지 않아요.</Text>

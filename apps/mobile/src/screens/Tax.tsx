@@ -1,12 +1,15 @@
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
+import { Icon } from '@/components/Icon';
 import { Card, T } from '@/components/ui';
+import { useApp } from '@/store';
 import { splitDeposit, estimateAnnualTax, won } from '@/lib/taxEnvelope';
 
 const DEPOSIT = 500_000;
 const ANNUAL = 30_000_000;
 
 export function Tax() {
+  const { actions } = useApp();
   // 데모 1막: 디자인 숫자 = 결정론 엔진 실제 출력값을 라이브로 계산
   const e = splitDeposit(DEPOSIT, ANNUAL);
   const a = estimateAnnualTax(ANNUAL);
@@ -78,6 +81,16 @@ export function Tax() {
           기납부 3.3% ({won(a.alreadyWithheld).replace('₩', '')}) 차감 → 추가납부 {won(a.additionalDue).replace('₩', '')}
         </Text>
       </View>
+
+      {/* 파킹통장 연결 — 자동 봉투 상품화 */}
+      <Pressable onPress={() => actions.openProduct('parking')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,.85)' }}>이 돈, 어디에 둘까요?</Text>
+          <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#fff', marginTop: 3, letterSpacing: -0.3 }}>하나 긱워커 파킹통장</Text>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,.85)', marginTop: 3 }}>연 3.0% 우대 · 언제든 인출 · 5월 종소세 대비 금고</Text>
+        </View>
+        <Icon name="arrowRight" size={20} color="#fff" sw={2.2} />
+      </Pressable>
     </View>
   );
 }

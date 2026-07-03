@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { colors } from '@/theme/colors';
@@ -28,6 +29,8 @@ export function NestEgg() {
         </View>
       </Card>
 
+      <PensionAICard />
+
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginBottom: -4 }}>추천 연금</Text>
 
       {/* IRP 추천 */}
@@ -51,6 +54,27 @@ export function NestEgg() {
           </View>
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>
+      </Pressable>
+    </View>
+  );
+}
+
+function PensionAICard() {
+  const [linked, setLinked] = useState(false);
+  return (
+    <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 16, padding: 16, gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="trending" size={17} color="#fff" sw={2.2} />
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>하나 AI 연금 솔루션</Text>
+        </View>
+        <Text style={{ fontSize: 10.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>하나원큐 연동</Text>
+      </View>
+      <Text style={{ fontSize: 12.5, color: colors.sub, fontWeight: '500', lineHeight: 19 }}>연금 소득·투자 성향을 분석해 몇 살에 얼마가 모일지 예측하고, 맞춤 노후 포트폴리오를 제안해요.</Text>
+      <Pressable onPress={() => setLinked(true)} style={{ backgroundColor: linked ? '#fff' : colors.green, borderWidth: linked ? 1 : 0, borderColor: colors.green, borderRadius: 11, paddingVertical: 12, alignItems: 'center' }}>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: linked ? colors.green : '#fff' }}>{linked ? '연동 완료 ✓ · 맞춤 분석 중' : '하나원큐 연금 솔루션 연동하기'}</Text>
       </Pressable>
     </View>
   );

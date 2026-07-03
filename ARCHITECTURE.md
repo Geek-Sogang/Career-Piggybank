@@ -44,6 +44,20 @@
    (`adjustment_delta`)은 개인화 재료로 쌓인다. 별도 라벨링 비용 없이 쓸수록 정확해지는 구조
    (기획서 §12 부트스트랩).
 
+## 멀티에이전트 문법 (AI 사용 시 무조건 준수)
+
+LLM을 쓰는 모든 곳은 아래 문법을 따른다. 위반하는 PR은 머지하지 않는다.
+
+- **역할 분리** — 에이전트마다 하나의 일. 분류 에이전트는 분류만, 판정(judge) 에이전트는
+  검증만 한다. 하나의 프롬프트에 여러 역할을 몰지 않는다.
+- **오케스트레이션** — 흐름은 LLM이 아니라 코드가 정한다. 분류 결과(조건 분기)로 다음
+  에이전트를 고르고, 룰이 잡은 거래는 LLM을 호출조차 하지 않는다(캐스케이드).
+- **가드레일** — 위험한 판단은 AI가 판정만, 실행은 사람.
+  · LLM 경로 확신도는 상한(`LLM_CONFIDENCE_CAP=0.75`) — 결정론 룰(0.9~0.95)보다 항상 낮다.
+  · 판정 에이전트가 반려하면 자동 반영 금지(`needs_review`).
+  · **고액 거래(100만원↑)는 AI가 인지만 하고, 판정 결과와 무관하게 사용자에게 직접 물어본다.**
+  · LLM 다운/스키마 위반 시 룰 결과로 안전 폴백 — LLM이 죽어도 서비스는 산다.
+
 ---
 
 ## ① 분류기 — `app/services/classifier.py`
@@ -68,10 +82,11 @@
 - 3.3% 역산은 이 서비스의 검증축(3.3% 신고소득)과 같은 데이터 — **분류기가 곧 검증 엔진**이라는 스토리.
 - `REVIEW_THRESHOLD(0.65)` 미만이면 `needs_review=True` — 프론트 가계부의
   "토스페이 정산 · AI 미분류" 행이 정확히 이 케이스다.
-- **2단계(예정)**: unknown만 로컬 LLM 폴백으로 내려보낸다. 룰 계층은 그대로 유지 —
+- **2단계(구현됨)**: `classifier_llm.py` — unknown만 로컬 LLM 폴백. 분류 에이전트(few-shot)
+  → 판정 에이전트 체인, 위 멀티에이전트 문법의 가드레일 전부 적용. 룰 계층은 그대로 —
   LLM이 죽어도 데모가 안 죽는다.
 
-API: `POST /v1/classify` (배치, `review_count` 포함)
+API: `POST /v1/classify` (배치, `review_count` 포함, `llm_fallback: true`로 LLM 경로 활성화)
 
 ## ② 예측기 — `app/services/spending_profile.py`
 
@@ -123,15 +138,15 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 **하지 않는 것**: **숫자 계산 절대 금지** — 모든 금액은 결정론 엔진이 계산해 완성된 값으로
 프롬프트에 주입하고, LLM은 말만 다듬는다.
 
-- 서빙: Ollama(맥 로컬, 망분리 전제 충족), 한국어 가능 오픈 모델 1개로 통일
-  (분류기 LLM 폴백과 공유). 모델 선정은 3b에서.
+- 서빙: Ollama(맥 로컬, 망분리 전제 충족) + **EXAONE 3.5 7.8B Q4_K_M**(LG 한국어 특화
+  오픈 모델, `app/core/config.py`의 `ollama_model`) — 분류기 LLM 폴백과 공유.
 - 컨텍스트는 원시 거래내역이 아니라 요약된 프로필만 (짧을수록 로컬 모델이 정확·빠름).
 
 ## API 요약
 
 | 엔드포인트 | 역할 | 상태 |
 |---|---|---|
-| `POST /v1/classify` | 거래 배치 분류 | ✅ 룰 1단계 |
+| `POST /v1/classify` | 거래 배치 분류 | ✅ 룰 + LLM 폴백 |
 | `POST /v1/profile/estimate` | 이력 → 프로필 추정 | ✅ |
 | `POST /v1/allocations/propose` | 배분 제안 생성 | ✅ |
 | `POST /v1/allocations/{id}/decision` | 승인/조정/거절 | ✅ (인메모리) |
@@ -143,8 +158,8 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 1. ✅ 배분 엔진 (PR #2)
 2. ✅ 예측기 (PR #3)
 3. ✅ 분류기 1단계 — 결정론 룰 (PR #4)
-4. ⬜ 3b: 분류기 2단계 — Ollama 설치·모델 선정, unknown만 LLM 폴백
-5. ⬜ 코치 — `/v1/coach/chat` (3b의 Ollama 재사용)
+4. ✅ 3b: 분류기 2단계 — Ollama + EXAONE 3.5, unknown만 LLM 폴백 (분류→판정 에이전트)
+5. ⬜ 코치 — `/v1/coach/chat` (3b의 Ollama·모델 재사용)
 6. ⬜ 프론트 연동 — RN 가계부·피기 코치 챗을 API에 연결, 데모 시나리오 데이터
 7. ⬜ (여유 시) 조정 성향 반영, 강점 한 줄 생성 등 개인화 +α
 
@@ -161,3 +176,5 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 | 직군 프리셋 수치 | `PERSONA_PRESETS` | spending_profile |
 | 수기 태그 임계 | `REVIEW_THRESHOLD=0.65` | classifier |
 | 역산 단위/오차 | 만원 / ±5원 | classifier |
+| LLM 확신도 상한 | `LLM_CONFIDENCE_CAP=0.75` | classifier_llm |
+| 고액 직접확인 임계 | `LARGE_TXN_REVIEW=100만원` | classifier_llm |

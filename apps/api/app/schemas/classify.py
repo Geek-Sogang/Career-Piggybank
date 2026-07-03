@@ -16,6 +16,9 @@ class ClassifyTxnIn(BaseModel):
 
 class ClassifyRequest(BaseModel):
     transactions: list[ClassifyTxnIn] = Field(..., min_length=1)
+    llm_fallback: bool = Field(
+        False, description="True면 룰이 못 잡은 unknown만 로컬 LLM(분류→판정 에이전트)으로 폴백"
+    )
 
 
 class ClassificationOut(BaseModel):

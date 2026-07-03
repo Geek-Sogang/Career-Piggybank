@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import allocations, classify, coach, health, profile, tax_envelope
+from app.api.routes import allocations, classify, coach, health, profile, strength, tax_envelope
 from app.core.config import settings
 
 
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(profile.router)
     app.include_router(classify.router)
     app.include_router(coach.router)
+    app.include_router(strength.router)
     return app
 
 

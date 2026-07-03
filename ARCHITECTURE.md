@@ -171,6 +171,7 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 | `GET /v1/allocations/metrics` | 무수정 승인율 KPI | ✅ |
 | `POST /v1/tax-envelope/*` | 세금 결정론 계산 | ✅ (기존) |
 | `POST /v1/coach/chat` | 피기 코치 대화 | ✅ (숫자 검증기 포함) |
+| `POST /v1/strength` | 강점 한 줄 (후보=결정론·LLM=선택만) | ✅ |
 
 ## 구현 로드맵
 
@@ -180,7 +181,10 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 4. ✅ 3b: 분류기 2단계 — Ollama + EXAONE 3.5, unknown만 LLM 폴백 (분류→판정 에이전트)
 5. ✅ 코치 — `/v1/coach/chat` (3b의 Ollama·EXAONE 재사용, 결정론 숫자 검증기)
 6. ⬜ 프론트 연동 — RN 가계부·피기 코치 챗을 API에 연결, 데모 시나리오 데이터
-7. ⬜ (여유 시) 조정 성향 반영, 강점 한 줄 생성 등 개인화 +α
+7. ✅ 강점 한 줄 (`services/strength.py`) — §6-1 개인화 3종 ③. 검증 이력 통계로 후보 문장을
+   결정론 생성(근거 없는 사실은 후보조차 안 만듦), LLM은 번호 선택만(재작성 금지),
+   범위 밖/다운 시 우선순위 룰(시장 검증 신호 우선) 폴백. 저금통 'AI가 본 내 강점'에 연결.
+8. ⬜ (여유 시) 조정 성향 반영, next-best-data 추천, 수기 태그→사전 반영 등 개인화 +α
 
 ## 데모용 상수 (실데이터 보정 필요)
 

@@ -49,7 +49,11 @@ export const DEMO_COACH_CONTEXT = {
   note: '5월 종소세 예상 1,090,000원 중 320,000원 준비됨',
 };
 
-export type CoachReply = { reply: string; source: 'llm' | 'fallback'; verified: boolean };
+export type CoachReply = {
+  reply: string; source: 'llm' | 'fallback'; verified: boolean;
+  // 대화에서 수집된 예정 수입(§6-2⑥) — 파싱만 LLM, 반영은 결정론(예측 스트림)
+  captured_event?: { date: string; amount: number | null; label: string } | null;
+};
 export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT) {
   return post<CoachReply>('/v1/coach/chat', { message, context });
 }

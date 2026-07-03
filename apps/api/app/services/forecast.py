@@ -60,6 +60,7 @@ class IncomeGap:
     expected_next_date: str
     window: tuple[str, str]
     observed_deposits: int
+    calibration_runs: int = 0   # 자기보정에 쓴 워크포워드 백테스트 횟수 (0=분위수 폴백)
     reasons: list[str] = field(default_factory=list)
 
 
@@ -114,8 +115,27 @@ def _quantile(sorted_vals: list[float], q: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (idx - lo)
 
 
+def _walkforward_halfwidth(days: list[date]) -> tuple[float, int] | None:
+    """자기보정(conformal 정신) — 과거로 돌아가 예측해 보고 실제 오차 분포로 창 폭을 정한다.
+
+    i번째 입금을 그 이전 이력만으로 예측했을 때의 |오차|들을 모아 P80을 창 반폭으로.
+    틀려온 만큼 넓어지고, 맞아온 만큼 좁아진다 — 백테스트 2회 미만이면 None(분위수 폴백).
+    """
+    errors: list[float] = []
+    for i in range(3, len(days)):
+        hist_gaps = [float((b - a).days) for a, b in zip(days[:i], days[1:i])]
+        pred = days[i - 1] + timedelta(days=statistics.median(hist_gaps))
+        errors.append(abs(float((days[i] - pred).days)))
+    if len(errors) < 2:
+        return None
+    return _quantile(sorted(errors), 0.8), len(errors)
+
+
 def next_income_window(income_dates: list[str]) -> IncomeGap:
-    """입금 날짜들 → 간격 분포(중앙값·IQR)로 다음 수입 창을 예측 (Croston 1972 분리 원칙)."""
+    """입금 날짜들 → 간격 분포(중앙값·IQR)로 다음 수입 창을 예측 (Croston 1972 분리 원칙).
+
+    이력이 충분하면 창 폭은 분위수 대신 **워크포워드 백테스트 실측 오차**(자기보정)로 정한다.
+    """
     days = sorted(date.fromisoformat(d) for d in income_dates)
     reasons: list[str] = []
     if len(days) < 3:
@@ -129,13 +149,26 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
     reasons.append(
         f"최근 입금 {len(days)}건의 간격 중앙값 {med:.0f}일 (P25~P75: {p25:.0f}~{p75:.0f}일)"
     )
+
+    lo, hi = p25, p75
+    calibration_runs = 0
+    cal = _walkforward_halfwidth(days)
+    if cal is not None:
+        half, calibration_runs = cal
+        lo, hi = max(0.0, med - half), med + half
+        reasons.append(
+            f"창 자기보정: 과거로 돌아가 {calibration_runs}회 예측해 본 실측 오차 P80 ±{half:.0f}일 — "
+            "틀릴수록 넓어지고 맞을수록 좁아져요"
+        )
+
     return IncomeGap(
         median_gap_days=round(med, 1),
-        window_days=(round(p25, 1), round(p75, 1)),
+        window_days=(round(lo, 1), round(hi, 1)),
         last_income_date=last.isoformat(),
         expected_next_date=(last + timedelta(days=med)).isoformat(),
-        window=((last + timedelta(days=p25)).isoformat(), (last + timedelta(days=p75)).isoformat()),
+        window=((last + timedelta(days=lo)).isoformat(), (last + timedelta(days=hi)).isoformat()),
         observed_deposits=len(days),
+        calibration_runs=calibration_runs,
         reasons=reasons,
     )
 

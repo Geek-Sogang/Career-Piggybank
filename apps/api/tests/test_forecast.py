@@ -239,3 +239,32 @@ def test_mc_exposed_in_route() -> None:
     assert mc["runs"] == 1000
     assert mc["band_start_year"] <= mc["median_year"] <= mc["band_end_year"]
     assert 0.0 <= mc["prob_in_base_band"] <= 1.0
+
+
+# ---------- 자기보정 예측 창 (워크포워드 백테스트) ----------
+
+def test_calibration_needs_enough_history() -> None:
+    g = next_income_window(["2025-02-14", "2025-03-15", "2025-04-12", "2025-05-02"])
+    assert g.calibration_runs == 0  # 백테스트 1회뿐 → 분위수 폴백
+
+
+def test_calibrated_window_uses_backtest_errors() -> None:
+    """규칙적 이력(오차 0) → 창이 사실상 점으로 좁아진다 — 맞을수록 좁아짐."""
+    dates = [f"2025-{m:02d}-10" for m in range(1, 8)]  # 매달 10일, 간격 거의 일정
+    g = next_income_window(dates)
+    assert g.calibration_runs >= 2
+    width = g.window_days[1] - g.window_days[0]
+    assert width <= 4  # 실측 오차 P80이 매우 작다
+    assert any("자기보정" in r for r in g.reasons)
+
+
+def test_erratic_history_widens_calibrated_window() -> None:
+    """불규칙 이력 → 실측 오차가 커서 창이 넓어진다 — 틀릴수록 넓어짐."""
+    regular = next_income_window([f"2025-{m:02d}-10" for m in range(1, 8)])
+    erratic = next_income_window(
+        ["2025-01-05", "2025-01-09", "2025-03-02", "2025-03-06", "2025-05-20", "2025-05-28", "2025-07-01"]
+    )
+    def width(g):
+        return g.window_days[1] - g.window_days[0]
+    assert erratic.calibration_runs >= 2
+    assert width(erratic) > width(regular)

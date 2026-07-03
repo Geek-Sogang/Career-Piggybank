@@ -396,6 +396,160 @@
       "expected_subtype": "settlement",
       "allow_review": false,
       "note": "데모 입금 배너 — '플랫폼 정산' 채널 신호"
+    },
+    {
+      "date": "2026-06-01",
+      "amount": 150000,
+      "direction": "in",
+      "counterparty": "페이코 정산",
+      "memo": "",
+      "expected_kind": "income",
+      "expected_subtype": "settlement",
+      "allow_review": true,
+      "note": "미등록 페이 정산 채널 — 룰 미스, LLM 경로"
+    },
+    {
+      "date": "2026-06-02",
+      "amount": 420000,
+      "direction": "in",
+      "counterparty": "스마트스토어 정산금",
+      "memo": "",
+      "expected_kind": "income",
+      "expected_subtype": "settlement",
+      "allow_review": true,
+      "note": "커머스 정산 — LLM 경로"
+    },
+    {
+      "date": "2026-06-03",
+      "amount": 890000,
+      "direction": "in",
+      "counterparty": "유튜브 애드센스",
+      "memo": "",
+      "expected_kind": "income",
+      "expected_subtype": "settlement",
+      "allow_review": true,
+      "note": "해외 플랫폼 광고수익 — 3.3% 앵커 없음(§15 해외소득)"
+    },
+    {
+      "date": "2026-06-04",
+      "amount": 275000,
+      "direction": "in",
+      "counterparty": "클래스톡 강의정산",
+      "memo": "",
+      "expected_kind": "income",
+      "expected_subtype": "settlement",
+      "allow_review": true,
+      "note": "강의 플랫폼 정산 — 미등록 채널"
+    },
+    {
+      "date": "2026-06-05",
+      "amount": 95000,
+      "direction": "in",
+      "counterparty": "프립 체험단 정산",
+      "memo": "",
+      "expected_kind": "income",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "체험단 소액 정산 — 애매"
+    },
+    {
+      "date": "2026-06-06",
+      "amount": 150000,
+      "direction": "in",
+      "counterparty": "김하늘",
+      "memo": "웹사이트 수정 건",
+      "expected_kind": "income",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "개인 이름 + 일 맥락 메모 — income이지만 매출 가드레일로 확인이 정답"
+    },
+    {
+      "date": "2026-06-07",
+      "amount": 88000,
+      "direction": "in",
+      "counterparty": "당근마켓",
+      "memo": "자전거 판매",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "중고거래 판매금 — 매출 아님"
+    },
+    {
+      "date": "2026-06-08",
+      "amount": 65000,
+      "direction": "in",
+      "counterparty": "번개장터",
+      "memo": "",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "중고거래 — 매출 아님"
+    },
+    {
+      "date": "2026-06-09",
+      "amount": 45000,
+      "direction": "in",
+      "counterparty": "지그재그",
+      "memo": "환불",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "쇼핑 환불"
+    },
+    {
+      "date": "2026-06-10",
+      "amount": 156000,
+      "direction": "in",
+      "counterparty": "국세청",
+      "memo": "종합소득세 환급",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "세금 환급 — 매출 아님"
+    },
+    {
+      "date": "2026-06-11",
+      "amount": 300000,
+      "direction": "in",
+      "counterparty": "한화손해보험",
+      "memo": "보험금 지급",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "보험금 — 매출 아님"
+    },
+    {
+      "date": "2026-06-12",
+      "amount": 500000,
+      "direction": "in",
+      "counterparty": "서울시청",
+      "memo": "청년수당",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "정책 수당 — 매출 아님"
+    },
+    {
+      "date": "2026-06-13",
+      "amount": 12000,
+      "direction": "in",
+      "counterparty": "오케이캐쉬백",
+      "memo": "포인트 전환",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "포인트 현금화"
+    },
+    {
+      "date": "2026-06-14",
+      "amount": 35000,
+      "direction": "in",
+      "counterparty": "카카오페이",
+      "memo": "송금",
+      "expected_kind": "living",
+      "expected_subtype": null,
+      "allow_review": true,
+      "note": "개인 간 송금 — 맥락 없음"
     }
   ]
 }

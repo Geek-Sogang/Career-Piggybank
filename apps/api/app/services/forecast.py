@@ -85,6 +85,17 @@ class RetirementBand:
 
 
 @dataclass(frozen=True)
+class IncomePath:
+    """연도별 일감 흐름 경로 — 차트가 그리는 좌표의 원천 (은퇴 밴드와 같은 파라미터로 산출)."""
+
+    years: list[int]         # base_year부터 밴드 뒤 몇 해까지
+    base: list[float]        # 기본 시나리오 월 소득 수준 (원)
+    lo: list[float]          # 신뢰구간 하단 (base × (1−u))
+    hi: list[float]          # 신뢰구간 상단 (base × (1+u))
+    peak_year: int           # 경로 정점 해 (연령 prior 또는 early_decline이면 시작 해)
+
+
+@dataclass(frozen=True)
 class Forecast:
     income_gap: IncomeGap
     retirement: list[RetirementBand]
@@ -214,6 +225,24 @@ def _cross_year(
     return base_year + MAX_HORIZON_YEARS
 
 
+def _derive_params(
+    monthly_incomes: list[float],
+    monthly_living_target: float,
+    income_cv: float,
+    months_observed: int,
+    signals: CareerSignals | None,
+) -> tuple[CareerSignals, float, float, float, bool, float]:
+    """밴드와 경로가 공유하는 파라미터 한 벌 — 두 계산이 어긋나지 않도록 한 곳에서만 유도."""
+    sig = signals or CareerSignals(1.0, 1.0, 1.0, 0.0, [])
+    level = statistics.median(monthly_incomes) if monthly_incomes else monthly_living_target
+    w = min(1.0, months_observed / TREND_BLEND_MONTHS)
+    trend = _personal_annual_trend(monthly_incomes) * w
+    growth = GROWTH_BEFORE_PEAK + trend + sig.career_trend
+    early_decline = sig.career_trend <= EARLY_DECLINE_THRESHOLD
+    u = max(0.02, income_cv / BAND_WIDTH_CV_FRACTION)  # 밴드 폭 — 데이터 쌓일수록 좁아짐
+    return sig, level, trend, growth, early_decline, u
+
+
 def retirement_bands(
     monthly_incomes: list[float],
     monthly_living_target: float,
@@ -227,13 +256,10 @@ def retirement_bands(
     긱워커 전용: 커리어 신호(수주 간격·발주처·단가)가 성장률을 보정하고,
     신호가 악화 임계 아래면 연령 prior를 기다리지 않고 하락 국면을 즉시 시작한다.
     """
-    sig = signals or CareerSignals(1.0, 1.0, 1.0, 0.0, [])
-    level = statistics.median(monthly_incomes) if monthly_incomes else monthly_living_target
+    sig, level, trend, growth, early_decline, u = _derive_params(
+        monthly_incomes, monthly_living_target, income_cv, months_observed, signals
+    )
     w = min(1.0, months_observed / TREND_BLEND_MONTHS)
-    trend = _personal_annual_trend(monthly_incomes) * w
-    growth = GROWTH_BEFORE_PEAK + trend + sig.career_trend
-    early_decline = sig.career_trend <= EARLY_DECLINE_THRESHOLD
-    u = max(0.02, income_cv / BAND_WIDTH_CV_FRACTION)  # 밴드 폭 — 데이터 쌓일수록 좁아짐
 
     scenarios = {"cons": 1.0 - income_cv / 2, "base": 1.0, "opt": 1.0 + income_cv / 2}
     bands = []
@@ -254,3 +280,52 @@ def retirement_bands(
         "method": "긱워커 일감흐름 모델: 커리어 신호(수주간격·발주처·단가) 우선 + Mincer(1974) 연령 prior + 감쇠 외삽(Gardner-McKenzie 1985), 구간 제시(FPP)",
     }
     return bands, assumptions
+
+
+def _yearly_levels(level: float, growth: float, base_year: int, early_decline: bool, n_years: int) -> list[float]:
+    """_cross_year와 같은 점화식으로 연도별 월 소득 수준을 기록 (밴드-경로 일치 보장)."""
+    income, age = level, CURRENT_AGE
+    out = [income]
+    for _ in range(n_years):
+        declining = early_decline or age >= PEAK_AGE
+        rate = -DECLINE_AFTER_PEAK if declining else growth
+        income *= 1.0 + rate
+        age += 1
+        out.append(income)
+    return out
+
+
+def income_path(
+    monthly_incomes: list[float],
+    monthly_living_target: float,
+    income_cv: float,
+    months_observed: int,
+    base_year: int,
+    signals: CareerSignals | None = None,
+    end_year: int | None = None,
+) -> IncomePath:
+    """차트용 연도별 일감 흐름 경로 — retirement_bands와 같은 파라미터·점화식.
+
+    base = 기본 시나리오, lo/hi = ±u 신뢰구간 (밴드 탐색이 쓰는 것과 동일한 폭).
+    end_year 미지정 시 기본 시나리오 밴드 끝 + 3년까지 그린다.
+    """
+    _, level, _, growth, early_decline, u = _derive_params(
+        monthly_incomes, monthly_living_target, income_cv, months_observed, signals
+    )
+    if end_year is None:
+        bands, _ = retirement_bands(
+            monthly_incomes, monthly_living_target, income_cv, months_observed, base_year, signals
+        )
+        end_year = next(b for b in bands if b.scenario == "base").band_end_year + 3
+    n_years = max(1, min(MAX_HORIZON_YEARS, end_year - base_year))
+
+    base = _yearly_levels(level, growth, base_year, early_decline, n_years)
+    years = list(range(base_year, base_year + n_years + 1))
+    peak_idx = max(range(len(base)), key=base.__getitem__)
+    return IncomePath(
+        years=years,
+        base=[round(v, 2) for v in base],
+        lo=[round(v * (1 - u), 2) for v in base],
+        hi=[round(v * (1 + u), 2) for v in base],
+        peak_year=years[peak_idx],
+    )

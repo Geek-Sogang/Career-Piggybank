@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
+import { getForecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, T } from '@/components/ui';
@@ -7,6 +9,16 @@ import { useApp } from '@/store';
 
 export function Home() {
   const { vals, actions } = useApp();
+  // 은퇴 밴드 — 원장 시계열 라이브 계산 (서버 다운 시 정적 폴백)
+  const [band, setBand] = useState('2041 ~ 2044');
+  useEffect(() => {
+    getForecast()
+      .then((f) => {
+        const base = f.retirement.find((b) => b.scenario === 'base');
+        if (base) setBand(base.label);
+      })
+      .catch(() => {});
+  }, []);
   return (
     <View style={{ gap: 14 }}>
       {/* 커리어 점수 카드 */}
@@ -58,7 +70,7 @@ export function Home() {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7 }}>
             <Text style={{ fontSize: 13, fontWeight: '600', color: colors.sub2 }}>예상 은퇴</Text>
-            <Text style={{ fontSize: 21, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>2041 ~ 2044</Text>
+            <Text style={{ fontSize: 21, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>{band}</Text>
           </View>
           <Svg viewBox="0 0 300 60" width="100%" height={56}>
             <Path d="M2 52 C 70 46 150 30 298 12 L 298 30 C 150 44 70 52 2 56 Z" fill="rgba(0,132,133,.10)" />

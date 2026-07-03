@@ -13,10 +13,10 @@ import urllib.request
 from app.core.config import settings
 
 
-def chat_text(system: str, user: str, temperature: float = 0.4) -> str | None:
-    """system+user 프롬프트 → 자유 텍스트 응답 (코치용). 실패 시 None."""
+def chat_text(system: str, user: str, temperature: float = 0.4, model: str | None = None) -> str | None:
+    """system+user 프롬프트 → 자유 텍스트 응답 (코치용 — 한국어 품질 모델). 실패 시 None."""
     payload = json.dumps({
-        "model": settings.ollama_model,
+        "model": model or settings.ollama_model_coach,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -38,13 +38,13 @@ def chat_text(system: str, user: str, temperature: float = 0.4) -> str | None:
         return None
 
 
-def chat_json(system: str, user: str) -> dict | None:
-    """system+user 프롬프트 → JSON 객체 응답 (temperature 0, format=json 강제).
+def chat_json(system: str, user: str, model: str | None = None) -> dict | None:
+    """system+user 프롬프트 → JSON 응답 (판단 태스크용 — 작고 빠른 모델, temp 0, format=json).
 
     Ollama가 없거나 응답이 JSON이 아니면 None.
     """
     payload = json.dumps({
-        "model": settings.ollama_model,
+        "model": model or settings.ollama_model_judgment,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

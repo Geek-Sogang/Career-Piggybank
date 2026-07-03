@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
 
     # 로컬 LLM (Ollama) — 은행 망분리 전제, 외부 AI API 금지
+    # 태스크별 모델: 판단(분류·판정·선택)=작고 빠른 모델, 코치(대화)=한국어 품질 최우선.
+    # 선정 근거 = 골든셋 측정(evals/run_eval) — 감이 아니라 숫자로 교체한다.
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"
+    # 골든셋 측정(7/3): 판단은 2.4B가 정확도 100% 동일·오답 0·2.4배 빠름(16.6s vs 40.3s,
+    # 커버리지 80% vs 82.9% — 1건 더 보수적으로 review). 코치는 언어 품질로 7.8B 유지.
+    ollama_model_coach: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"
+    ollama_model_judgment: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct-GGUF:Q4_K_M"
     ollama_timeout_s: float = 60.0
 
     @property

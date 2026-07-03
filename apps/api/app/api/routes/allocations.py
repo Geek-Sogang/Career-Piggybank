@@ -15,6 +15,7 @@ from app.schemas.allocation import (
     AllocationStatus,
     DecisionRequest,
     EnvelopeSplit,
+    MetricsResponse,
     ProposeRequest,
 )
 from app.services import allocator
@@ -101,6 +102,23 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
         stored.final = None
 
     return _to_response(alloc_id, stored)
+
+
+@router.get("/metrics", response_model=MetricsResponse)
+def metrics() -> MetricsResponse:
+    """무수정 승인율 — 시스템 전체 성능을 한 숫자로 (제안이 정확할수록 안 고침)."""
+    decided = [s for s in _STORE.values() if s.status != "proposed"]
+    confirmed = sum(1 for s in decided if s.status == "confirmed")
+    adjusted = sum(1 for s in decided if s.status == "adjusted")
+    rejected = sum(1 for s in decided if s.status == "rejected")
+    return MetricsResponse(
+        proposals=len(_STORE),
+        decided=len(decided),
+        confirmed=confirmed,
+        adjusted=adjusted,
+        rejected=rejected,
+        no_edit_approval_rate=round(confirmed / len(decided), 4) if decided else None,
+    )
 
 
 @router.get("/{alloc_id}", response_model=AllocationResponse)

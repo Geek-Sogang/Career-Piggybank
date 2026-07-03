@@ -7,6 +7,8 @@
 - **가드레일**: AI는 판정만, 실행은 사람.
   · LLM 경로 확신도는 상한(0.75)을 넘지 못한다 — 룰(0.95)보다 항상 낮게.
   · 판정 에이전트가 반려하면 needs_review.
+  · **LLM의 매출(income) 판정은 자동 반영 금지** — 세금·배분을 트리거하는 위험 판단이라
+    사용자 확인 후 반영 (골든셋에서 개인 입금 오분류로 검증된 가드레일).
   · 고액 거래(100만원↑)는 판정 결과와 무관하게 무조건 needs_review(사용자에게 직접 질문).
   · LLM 다운/응답 깨짐이면 룰 결과(unknown→수기 태그)로 안전 폴백.
 """
@@ -117,6 +119,9 @@ def classify_with_fallback(txn: TxnInput) -> Classification:
     ]
 
     needs_review = not verdict["approve"]
+    if kind == "income":  # 가드레일: 매출 판정은 세금·배분을 트리거하는 위험 판단 → 자동 반영 금지
+        needs_review = True
+        signals.append("AI의 매출(income) 판정은 자동 반영하지 않아요 — 확인 후 배분이 시작돼요")
     if txn.amount >= LARGE_TXN_REVIEW:  # 가드레일: 고액은 AI가 인지만, 결정은 사용자
         needs_review = True
         signals.append(

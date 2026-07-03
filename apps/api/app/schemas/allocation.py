@@ -54,6 +54,17 @@ class AllocationResponse(BaseModel):
     assumptions: dict[str, float]
 
 
+class MetricsResponse(BaseModel):
+    """무수정 승인율 = confirmed/decided — 제안 품질의 핵심 KPI."""
+
+    proposals: int
+    decided: int
+    confirmed: int
+    adjusted: int
+    rejected: int
+    no_edit_approval_rate: float | None
+
+
 class DecisionRequest(BaseModel):
     action: Literal["confirm", "adjust", "reject"]
     adjusted: EnvelopeSplit | None = Field(

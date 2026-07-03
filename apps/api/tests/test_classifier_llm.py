@@ -92,6 +92,19 @@ def test_large_amount_always_asks_user(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any("고액 거래" in s and "직접 확인" in s for s in c.signals)
 
 
+def test_llm_income_verdict_never_auto_applies(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LLM의 매출(income) 판정은 소액·판정 승인이어도 자동 반영 금지 — 배분 트리거는 사람이 연다."""
+    mock_llm(
+        monkeypatch,
+        {"kind": "income", "subtype": "settlement", "confidence": 0.7, "rationale": "매출로 추정"},
+        {"approve": True, "reason": "모순 없음"},
+    )
+    c = classify_with_fallback(txn(300_000, "정하늘"))
+    assert c.kind == "income"
+    assert c.needs_review is True
+    assert any("자동 반영하지 않아요" in s for s in c.signals)
+
+
 def test_llm_down_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     """LLM 다운(None) → 룰 결과(unknown, 수기 태그)로 안전 폴백 — 데모가 죽지 않는다."""
     mock_llm(monkeypatch, None, None)

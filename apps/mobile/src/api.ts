@@ -107,6 +107,7 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
 export type Forecast = {
   income_gap: { median_gap_days: number; expected_next_date: string; window: [string, string]; reasons: string[] };
   retirement: { scenario: 'cons' | 'base' | 'opt'; band_start_year: number; band_end_year: number; label: string }[];
+  career_signals: { gap_ratio: number; client_ratio: number; ticket_ratio: number; career_trend: number; reasons: string[] };
   monthly_income_level: number;
   income_cv: number;
 };

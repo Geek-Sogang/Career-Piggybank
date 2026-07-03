@@ -23,7 +23,13 @@ REFERENCES
   Hypothesis", QJE 112(1). — 소득 불확실성이 클수록 완충 저축이 커진다 →
   allocator의 버퍼 목표 ∝ 변동계수 설계의 이론 근거(기존 엔진 보강).
 - Granger, C.W.J. (1969) "Investigating causal relations...", Econometrica 37. —
-  선행지표 개념: 커리어 활동이 소득에 1~3개월 선행(§6-3) → 활동 추세 가중(데모는 상수).
+  선행지표 개념: 커리어 활동이 소득에 1~3개월 선행(§6-3) → 커리어 신호 가중.
+
+긱워커 전용 설계 (§6-3 "입금만으로는 카뱅도 한다"의 답):
+은퇴를 '정년'이 아니라 **일감 흐름이 생활비 아래로 내려가는 시점**으로 정의하고,
+연령 곡선(Mincer)은 약한 사전분포로만 쓴다. 주 동력은 우리 원장(분류기 라벨)만
+가진 3개 커리어 신호 — ① 수주 간격 추세(간격 확대=일감 감소 선행) ② 발주처 다양성
+추세 ③ 건당 단가 추세. OAuth 활동 시계열(커밋 등)은 실연동 시 4번째 신호로 추가.
 """
 from __future__ import annotations
 
@@ -53,6 +59,20 @@ class IncomeGap:
     expected_next_date: str
     window: tuple[str, str]
     observed_deposits: int
+    reasons: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CareerSignals:
+    """긱워커 전용 커리어 신호 — 원장(분류기 라벨)만 만들 수 있는 데이터.
+
+    각 신호는 후반부/전반부 비율: 1.0 = 유지, >1 = 개선, <1 = 악화 (간격은 반대로 해석).
+    """
+
+    gap_ratio: float            # 수주 간격 후반/전반 (>1 = 간격 벌어짐 = 악화)
+    client_ratio: float         # 고유 발주처 수 후반/전반 (<1 = 다양성 축소)
+    ticket_ratio: float         # 건당 단가 중앙값 후반/전반 (<1 = 단가 하락)
+    career_trend: float         # 종합: 연 성장률 보정치 (± TREND_CLAMP 클램프)
     reasons: list[str] = field(default_factory=list)
 
 
@@ -108,6 +128,56 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
     )
 
 
+GAP_WEIGHT, CLIENT_WEIGHT, TICKET_WEIGHT = 0.5, 0.25, 0.25  # 간격=선행지표 최고 가중(Granger)
+EARLY_DECLINE_THRESHOLD = -0.015  # 커리어 신호가 이보다 나쁘면 하락 국면이 이미 시작된 것으로
+
+
+def _halves(items: list) -> tuple[list, list]:
+    mid = len(items) // 2
+    return items[:mid], items[mid:]
+
+
+def career_signals(income_txns: list[dict]) -> CareerSignals:
+    """income 거래(date·amount·counterparty) → 긱워커 전용 커리어 신호.
+
+    전·후반 비교(강건)로 수주 간격·발주처 다양성·단가의 방향을 읽는다.
+    은퇴 정의가 '정년'이 아니라 '일감 흐름 소멸'이므로, 이 신호가 연령 prior보다 우선한다.
+    """
+    txns = sorted(income_txns, key=lambda t: t["date"])
+    reasons: list[str] = []
+    if len(txns) < 4:
+        return CareerSignals(1.0, 1.0, 1.0, 0.0,
+                             ["income 관측 4건 미만 — 커리어 신호는 중립(콜드스타트)"])
+
+    days = [date.fromisoformat(t["date"]) for t in txns]
+    gaps = [float((b - a).days) for a, b in zip(days, days[1:])]
+    g1, g2 = _halves(gaps)
+    gap_ratio = (statistics.median(g2) / statistics.median(g1)) if g1 and statistics.median(g1) > 0 else 1.0
+
+    t1, t2 = _halves(txns)
+    c1 = len({t["counterparty"] for t in t1}) or 1
+    c2 = len({t["counterparty"] for t in t2}) or 1
+    client_ratio = c2 / c1
+
+    ticket_ratio = statistics.median([t["amount"] for t in t2]) / max(1.0, statistics.median([t["amount"] for t in t1]))
+
+    career_trend = (
+        GAP_WEIGHT * (1.0 / gap_ratio - 1.0)      # 간격 좁아짐(+) / 벌어짐(−)
+        + CLIENT_WEIGHT * (client_ratio - 1.0)
+        + TICKET_WEIGHT * (ticket_ratio - 1.0)
+    )
+    career_trend = max(-TREND_CLAMP, min(TREND_CLAMP, career_trend))
+
+    reasons.append(
+        f"수주 간격 {statistics.median(g1):.0f}일 → {statistics.median(g2):.0f}일 "
+        f"({'좁아지는 중 — 일감 흐름 건강' if gap_ratio < 1 else '벌어지는 중 — 감속 신호' if gap_ratio > 1 else '유지'})"
+    )
+    reasons.append(f"독립 발주처 {c1}곳 → {c2}곳 · 건당 단가 추세 ×{ticket_ratio:.2f}")
+    reasons.append(f"커리어 신호 종합 {career_trend:+.1%}/년 — 연령 곡선보다 우선 반영")
+    return CareerSignals(round(gap_ratio, 3), round(client_ratio, 3), round(ticket_ratio, 3),
+                         round(career_trend, 4), reasons)
+
+
 def _personal_annual_trend(monthly_incomes: list[float]) -> float:
     """전반부 vs 후반부 중앙값 비교(강건) → 연율화 → 클램프 (감쇠 추세 정신)."""
     if len(monthly_incomes) < 4:
@@ -122,16 +192,24 @@ def _personal_annual_trend(monthly_incomes: list[float]) -> float:
     return max(-TREND_CLAMP, min(TREND_CLAMP, annual))
 
 
-def _cross_year(level: float, multiplier: float, target: float, growth: float, base_year: int) -> int:
-    """소득 경로(성장→정점→감쇠 하락)가 목표 생활비 아래로 내려가는 해를 탐색."""
+def _cross_year(
+    level: float, multiplier: float, target: float, growth: float, base_year: int,
+    early_decline: bool = False,
+) -> int:
+    """일감 흐름 경로가 목표 생활비 아래로 내려가는 해를 탐색.
+
+    early_decline=True(커리어 신호 악화)면 연령 prior를 기다리지 않고 지금부터 하락 —
+    긱워커의 은퇴는 정년이 아니라 일감 소멸 시점이기 때문.
+    """
     income = level * multiplier
     age, year = CURRENT_AGE, base_year
     for _ in range(MAX_HORIZON_YEARS):
-        rate = growth if age < PEAK_AGE else -DECLINE_AFTER_PEAK
+        declining = early_decline or age >= PEAK_AGE
+        rate = -DECLINE_AFTER_PEAK if declining else growth
         income *= 1.0 + rate
         age += 1
         year += 1
-        if age >= PEAK_AGE and income < target:
+        if declining and income < target:
             return year
     return base_year + MAX_HORIZON_YEARS
 
@@ -142,19 +220,26 @@ def retirement_bands(
     income_cv: float,
     months_observed: int,
     base_year: int,
+    signals: CareerSignals | None = None,
 ) -> tuple[list[RetirementBand], dict]:
-    """3개 시나리오(보수/기본/낙관) × 신뢰구간 밴드 — 점이 아니라 구간(FPP 원칙)."""
+    """3개 시나리오(보수/기본/낙관) × 신뢰구간 밴드 — 점이 아니라 구간(FPP 원칙).
+
+    긱워커 전용: 커리어 신호(수주 간격·발주처·단가)가 성장률을 보정하고,
+    신호가 악화 임계 아래면 연령 prior를 기다리지 않고 하락 국면을 즉시 시작한다.
+    """
+    sig = signals or CareerSignals(1.0, 1.0, 1.0, 0.0, [])
     level = statistics.median(monthly_incomes) if monthly_incomes else monthly_living_target
     w = min(1.0, months_observed / TREND_BLEND_MONTHS)
     trend = _personal_annual_trend(monthly_incomes) * w
-    growth = GROWTH_BEFORE_PEAK + trend
+    growth = GROWTH_BEFORE_PEAK + trend + sig.career_trend
+    early_decline = sig.career_trend <= EARLY_DECLINE_THRESHOLD
     u = max(0.02, income_cv / BAND_WIDTH_CV_FRACTION)  # 밴드 폭 — 데이터 쌓일수록 좁아짐
 
     scenarios = {"cons": 1.0 - income_cv / 2, "base": 1.0, "opt": 1.0 + income_cv / 2}
     bands = []
     for name, m in scenarios.items():
-        early = _cross_year(level, m * (1 - u), monthly_living_target, growth, base_year)
-        late = _cross_year(level, m * (1 + u), monthly_living_target, growth, base_year)
+        early = _cross_year(level, m * (1 - u), monthly_living_target, growth, base_year, early_decline)
+        late = _cross_year(level, m * (1 + u), monthly_living_target, growth, base_year, early_decline)
         lo, hi = min(early, late), max(early, late)
         bands.append(RetirementBand(scenario=name, band_start_year=lo, band_end_year=hi,
                                     label=f"{lo} ~ {hi}"))
@@ -162,8 +247,10 @@ def retirement_bands(
         "current_age": CURRENT_AGE, "peak_age": PEAK_AGE,
         "growth_before_peak": GROWTH_BEFORE_PEAK, "decline_after_peak": DECLINE_AFTER_PEAK,
         "personal_trend_annual": round(trend, 4), "trend_blend_weight": round(w, 3),
+        "career_trend_annual": sig.career_trend, "early_decline": str(early_decline),
+        "gap_ratio": sig.gap_ratio, "client_ratio": sig.client_ratio, "ticket_ratio": sig.ticket_ratio,
         "band_width": round(u, 4), "income_cv": round(income_cv, 4),
         "monthly_income_level": round(level, 2),
-        "method": "Mincer(1974) 연령-소득 prior + 감쇠 개인추세(Gardner-McKenzie 1985) 외삽, 구간 제시(FPP)",
+        "method": "긱워커 일감흐름 모델: 커리어 신호(수주간격·발주처·단가) 우선 + Mincer(1974) 연령 prior + 감쇠 외삽(Gardner-McKenzie 1985), 구간 제시(FPP)",
     }
     return bands, assumptions

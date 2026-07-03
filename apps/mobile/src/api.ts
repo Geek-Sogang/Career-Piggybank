@@ -61,6 +61,16 @@ export function decideAllocation(id: string, action: 'confirm' | 'adjust' | 'rej
   return post<Allocation>(`/v1/allocations/${id}/decision`, { action, adjusted }, 15_000);
 }
 
+// 강점 한 줄 — 후보는 백엔드 결정론, LLM은 선택만 (§6-1 개인화 3종 ③)
+export const DEMO_CAREER_FACTS = {
+  verified_count: 12, months_active: 24, repeat_client_rate: 0.8,
+  settlement_growth: 3.0, top_skill: 'React 커머스',
+};
+export type Strength = { line: string; chosen_by: 'llm' | 'fallback'; reason: string };
+export function fetchStrength(facts = DEMO_CAREER_FACTS) {
+  return post<Strength>('/v1/strength', facts, 120_000);
+}
+
 // 서버 다운 시 오프라인 폴백 제안 (백엔드 라이브 결과와 동일 수치)
 export const OFFLINE_ALLOCATION: Allocation = {
   id: 'offline',

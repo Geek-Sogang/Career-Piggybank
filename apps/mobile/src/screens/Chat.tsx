@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { coachChat } from '@/api';
+import { coachChat, DEMO_COACH_CONTEXT } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
@@ -14,8 +14,10 @@ const OFFLINE_REPLIES = [
   '알겠어요! 다음 정산 들어오면 바로 알려드릴게요.',
 ];
 
+const won = (v: number) => `₩${v.toLocaleString('en-US')}`;
+
 export function Chat() {
-  const { actions } = useApp();
+  const { lastAlloc, actions } = useApp();
   const [text, setText] = useState('');
   const [extra, setExtra] = useState<{ from: 'bot' | 'me'; text: string }[]>([]);
   const [thinking, setThinking] = useState(false);
@@ -31,7 +33,9 @@ export function Chat() {
     toEnd();
     let reply: string;
     try {
-      reply = (await coachChat(t)).reply; // 로컬 LLM(EXAONE) — 숫자는 결정론 검증기 통과분만
+      // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
+      const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;
+      reply = (await coachChat(t, context)).reply;
     } catch {
       reply = OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length];
     }
@@ -71,6 +75,19 @@ export function Chat() {
           </View>
         </View>
         <Me>좋아요 👍</Me>
+        {/* 입금 이벤트 — 코치가 먼저 말 걸기 (숫자는 결정론 엔진 출력 그대로, 코치는 전달만) */}
+        {lastAlloc && (
+          <>
+            <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: '#E5E8EB', paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>방금</Text>
+            <Bot>
+              💰 {won(lastAlloc.deposit)} 입금이 들어왔어요! 평소의 {lastAlloc.windfall.toFixed(1)}배 큰 금액이라 제가 배분을 제안드렸어요.
+            </Bot>
+            <Bot>
+              세금 {won(lastAlloc.split.tax)} · 경비 {won(lastAlloc.split.expense)} · 생활비 {won(lastAlloc.split.spendable)} · 여윳돈 {won(lastAlloc.split.buffer)}{'\n'}
+              {lastAlloc.confirmed ? '승인해 주신 그대로 봉투에 담아뒀어요 ✓' : '가계부에서 확인해 주시면 봉투에 담을게요!'}
+            </Bot>
+          </>
+        )}
         {extra.map((m, i) => (m.from === 'bot' ? <Bot key={i}>{m.text}</Bot> : <Me key={i}>{m.text}</Me>))}
         {thinking && <Bot>피기가 생각 중이에요 …</Bot>}
       </ScrollView>

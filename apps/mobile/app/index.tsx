@@ -117,22 +117,28 @@ function Shell() {
 // 입금 도착 → 배분 제안 시트 — 백엔드 파이프라인(예측→배분→코치 확인) 라이브 데모.
 // 서버가 꺼져 있으면 동일 수치의 오프라인 제안으로 폴백(데모가 죽지 않는 원칙).
 function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
+  const { actions } = useApp();
   const [alloc, setAlloc] = useState<Allocation | null>(null);
   const [offline, setOffline] = useState(false);
   const [done, setDone] = useState(false);
+  // 같은 사건을 코치 챗·잠금화면 알림이 이어 말하도록 스토어에 기록
+  const note = (a: Allocation, confirmed: boolean) =>
+    actions.noteAllocation({ deposit: a.deposit, windfall: a.windfall_ratio, split: a.proposed, confirmed });
   useEffect(() => {
     // 실제 입금 플로우: 백엔드가 원장 기록 + 분류 + 저장 이력 기반 제안까지 수행
     bankDeposit()
       .then((r) => {
-        if (r.allocation) setAlloc(r.allocation);
-        else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); }
+        if (r.allocation) { setAlloc(r.allocation); note(r.allocation, false); }
+        else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, false); }
       })
-      .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); });
+      .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const confirm = async () => {
     if (!alloc) return;
     if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); } catch {} }
+    note(alloc, true);
     setDone(true);
   };
 

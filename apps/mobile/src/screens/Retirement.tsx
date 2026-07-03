@@ -74,8 +74,10 @@ export function Retirement() {
 
       <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
-          <Text style={{ fontWeight: '800', color: colors.ink2 }}>예측 기준</Text>{'\n'}
-          월 적립 추세 + 커리어 성장률을 외삽해 자산 곡선을 그려요. 입금 데이터가 쌓일수록 신뢰구간이 좁아집니다.
+          <Text style={{ fontWeight: '800', color: colors.ink2 }}>예측 기준 — 긱워커 전용 커리어 신호</Text>{'\n'}
+          {fc
+            ? fc.career_signals.reasons.map((r) => `· ${r}`).join('\n')
+            : '수주 간격·발주처 다양성·단가 추세(우리 원장만 가진 신호)가 연령 곡선보다 우선 반영돼요. 입금 데이터가 쌓일수록 신뢰구간이 좁아집니다.'}
         </Text>
       </View>
 

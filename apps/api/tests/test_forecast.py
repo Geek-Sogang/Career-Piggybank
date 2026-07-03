@@ -77,6 +77,53 @@ def test_trend_is_clamped() -> None:
     assert abs(a["personal_trend_annual"]) <= 0.03 + 1e-9
 
 
+# ---------- 긱워커 전용 커리어 신호 ----------
+
+from app.services.forecast import career_signals  # noqa: E402
+
+
+def make_income(dates_clients_amounts):
+    return [{"date": d, "counterparty": c, "amount": a} for d, c, a in dates_clients_amounts]
+
+
+HEALTHY = make_income([
+    ("2025-01-10", "A사", 800_000), ("2025-02-12", "B스튜디오", 900_000),
+    ("2025-03-10", "C컴퍼니", 1_000_000), ("2025-03-30", "D랩", 1_100_000),
+    ("2025-04-15", "E사", 1_200_000), ("2025-04-28", "F사", 1_300_000),
+])  # 간격 좁아지고 단가 오르는 건강한 흐름
+
+DECLINING = make_income([
+    ("2025-01-05", "A사", 1_500_000), ("2025-01-20", "B사", 1_400_000),
+    ("2025-02-05", "C사", 1_300_000), ("2025-03-20", "A사", 900_000),
+    ("2025-05-15", "A사", 700_000), ("2025-07-20", "A사", 500_000),
+])  # 간격 벌어지고 발주처 줄고 단가 하락
+
+
+def test_signals_read_direction() -> None:
+    h, d = career_signals(HEALTHY), career_signals(DECLINING)
+    assert h.career_trend > 0 > d.career_trend
+    assert d.gap_ratio > 1 > 0  # 간격 벌어짐
+    assert d.client_ratio < 1   # 발주처 축소
+    assert any("일감" in r or "감속" in r for r in d.reasons)
+
+
+def test_declining_career_retires_earlier() -> None:
+    """같은 소득 수준이어도 커리어 신호가 나쁘면 은퇴 밴드가 앞당겨진다 — 긱워커 전용의 핵심."""
+    incomes = [1_200_000] * 6
+    healthy_bands, _ = retirement_bands(incomes, 1_000_000, 0.3, 6, 2025, career_signals(HEALTHY))
+    declining_bands, a = retirement_bands(incomes, 1_000_000, 0.3, 6, 2025, career_signals(DECLINING))
+    hb = {b.scenario: b for b in healthy_bands}["base"]
+    db_ = {b.scenario: b for b in declining_bands}["base"]
+    assert db_.band_start_year < hb.band_start_year
+    assert a["early_decline"] == "True"  # 악화 신호 → 연령 prior 무시하고 즉시 하락 국면
+
+
+def test_signals_cold_start_neutral() -> None:
+    s = career_signals(make_income([("2025-01-10", "A사", 500_000)]))
+    assert s.career_trend == 0.0
+    assert any("콜드스타트" in r for r in s.reasons)
+
+
 # ---------- 라우트 (시드 원장 기반) ----------
 
 def test_forecast_route_with_seed() -> None:
@@ -88,4 +135,5 @@ def test_forecast_route_with_seed() -> None:
     assert len(body["retirement"]) == 3
     base = next(b for b in body["retirement"] if b["scenario"] == "base")
     assert 2030 < base["band_start_year"] < 2080  # 상식 범위
-    assert body["assumptions"]["method"].startswith("Mincer")
+    assert body["assumptions"]["method"].startswith("긱워커")
+    assert len(body["career_signals"]["reasons"]) >= 2  # 긱워커 신호 근거 노출

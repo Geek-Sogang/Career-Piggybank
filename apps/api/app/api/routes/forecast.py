@@ -30,9 +30,18 @@ class RetirementBandOut(BaseModel):
     label: str
 
 
+class CareerSignalsOut(BaseModel):
+    gap_ratio: float
+    client_ratio: float
+    ticket_ratio: float
+    career_trend: float
+    reasons: list[str]
+
+
 class ForecastResponse(BaseModel):
     income_gap: IncomeGapOut
     retirement: list[RetirementBandOut]
+    career_signals: CareerSignalsOut
     monthly_income_level: float
     monthly_living_target: float
     income_cv: float
@@ -44,13 +53,14 @@ def get_forecast() -> ForecastResponse:
     """원장의 income 시계열로 다음 수입 창(Croston식)과 은퇴 밴드(Mincer prior 외삽)를 산출."""
     _boot()
     txns = db.list_txns()
-    income_dates = [t["date"] for t in txns if t["kind"] == "income" and t["direction"] == "in"]
+    income_txns = [t for t in txns if t["kind"] == "income" and t["direction"] == "in"]
+    income_dates = [t["date"] for t in income_txns]
 
     by_month: dict[str, float] = defaultdict(float)
-    for t in txns:
-        if t["kind"] == "income" and t["direction"] == "in":
-            by_month[t["date"][:7]] += t["amount"]
+    for t in income_txns:
+        by_month[t["date"][:7]] += t["amount"]
     monthly_incomes = [by_month[m] for m in sorted(by_month)]
+    signals = forecast.career_signals(income_txns)  # 긱워커 전용 신호 — 우리 원장만 가능
 
     est = bank_flow.profile_from_store()
     base_year = int(max(income_dates)[:4]) if income_dates else 2025
@@ -62,10 +72,12 @@ def get_forecast() -> ForecastResponse:
         income_cv=est.profile.income_cv,
         months_observed=est.months_observed,
         base_year=base_year,
+        signals=signals,
     )
     return ForecastResponse(
         income_gap=IncomeGapOut(**gap.__dict__),
         retirement=[RetirementBandOut(**b.__dict__) for b in bands],
+        career_signals=CareerSignalsOut(**signals.__dict__),
         monthly_income_level=assumptions["monthly_income_level"],  # type: ignore[arg-type]
         monthly_living_target=round(est.profile.expected_monthly_living, 2),
         income_cv=round(est.profile.income_cv, 4),

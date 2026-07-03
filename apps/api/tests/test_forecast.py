@@ -305,3 +305,17 @@ def test_severity_exposed_in_assumptions() -> None:
     sig = CareerSignals(1.0, 1.0, 1.0, -0.015, [])
     _, a = retirement_bands([1_200_000] * 6, 1_000_000, 0.3, 6, 2025, sig)
     assert 0 < a["decline_severity"] < 1
+
+
+# ---------- 미확정 라벨은 예측에 들어가지 않는다 (7/4 검증 발견) ----------
+
+def test_unreviewed_income_excluded_from_forecast() -> None:
+    """needs_review인 income(고액 가드레일 등)은 확정 전까지 예측·pending에 반영 금지."""
+    ensure_seed()
+    from app.store import db
+    db.insert_txn(date="2025-05-26", amount=2_500_000, direction="in",
+                  counterparty="박준형", memo="착수금", kind="income", subtype="advance",
+                  confidence=0.75, needs_review=True, signals=["고액 — 직접 확인 요청"])
+    body = client.get("/v1/forecast").json()
+    assert not any(p["counterparty"] == "박준형" for p in body["streams"]["pending_settlements"])
+    assert not any("박준형" in c["label"] for c in body["streams"]["candidates"])

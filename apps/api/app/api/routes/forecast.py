@@ -113,7 +113,12 @@ def get_forecast() -> ForecastResponse:
     """원장의 income 시계열로 다음 수입 창(Croston식)과 은퇴 밴드(Mincer prior 외삽)를 산출."""
     _boot()
     txns = db.list_txns()
-    income_txns = [t for t in txns if t["kind"] == "income" and t["direction"] == "in"]
+    # 미확정(needs_review) 라벨은 예측에 들어가지 않는다 — 확신 없으면 반영 금지 원칙은
+    # 분류만이 아니라 그 라벨을 소비하는 모든 통계에 적용된다 (7/4 검증에서 발견)
+    income_txns = [
+        t for t in txns
+        if t["kind"] == "income" and t["direction"] == "in" and not t["needs_review"]
+    ]
     income_dates = [t["date"] for t in income_txns]
 
     by_month: dict[str, float] = defaultdict(float)

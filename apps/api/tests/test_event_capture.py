@@ -73,3 +73,10 @@ def test_chat_captures_event_and_forecast_reflects_it(monkeypatch: pytest.Monkey
     assert len(reported) == 1
     assert reported[0]["expected_date"] == "2025-06-03"
     assert "직접 알려주신" in reported[0]["basis"]
+
+
+def test_month_overflow_date_is_corrected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LLM의 달 경계 산수 실수('2025-05-33')를 달력이 교정 — 검증에서 발견된 실사례."""
+    mock_parser(monkeypatch, {"has_event": True, "date": "2025-05-33", "amount": 1_500_000, "label": "잔금"})
+    ev = capture("다음 주에 잔금 150만원 들어와요", "2025-05-26")
+    assert ev is not None and ev.date == "2025-06-02"

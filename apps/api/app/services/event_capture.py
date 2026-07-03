@@ -33,6 +33,25 @@ JSON만 출력한다: {"has_event": true|false, "date": "YYYY-MM-DD"|null, "amou
 기준일: {today}"""
 
 _NUM = re.compile(r"\d[\d,]*")
+_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
+def _parse_date_lenient(raw: str) -> date | None:
+    """LLM의 달 경계 산수 실수를 달력이 교정 — '2025-05-33' → 2025-06-02 (결정론).
+
+    LLM은 '기준일+7일'을 계산하다 달을 넘기는 실수를 한다. 일(day) 초과분은
+    다음 달로 이월해 준다. 월이 1~12를 벗어나면 교정하지 않는다(무효).
+    """
+    m = _DATE.match(raw.strip())
+    if not m:
+        return None
+    year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if not (1 <= month <= 12 and 1 <= day <= 62):
+        return None
+    try:
+        return date(year, month, 1) + timedelta(days=day - 1)
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -67,10 +86,12 @@ def capture(message: str, today: str) -> ExpectedEvent | None:
     raw_date = out.get("date")
     if not isinstance(raw_date, str):
         return None
+    d = _parse_date_lenient(raw_date)
     try:
-        d = date.fromisoformat(raw_date)
         base = date.fromisoformat(today)
     except ValueError:
+        return None
+    if d is None:
         return None
     if not (base < d <= base + timedelta(days=MAX_FUTURE_DAYS)):
         return None  # 과거·1년 초과는 예정 수입이 아니다

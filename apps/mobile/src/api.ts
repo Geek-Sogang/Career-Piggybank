@@ -20,7 +20,7 @@ async function post<T>(path: string, body: unknown, timeoutMs = 90_000): Promise
   }
 }
 
-// ── 데모 시나리오 데이터 (김도현 페르소나 — 백엔드 골든 데모와 동일 수치) ──
+// ── 데모 시나리오 데이터 (조대흠 페르소나 — 백엔드 골든 데모와 동일 수치) ──
 export const DEMO_PROFILE = {
   annual_gross: 30_000_000,
   expected_monthly_expense: 400_000,
@@ -31,7 +31,7 @@ export const DEMO_PROFILE = {
 
 // 코치에게 주입하는 컨텍스트 — 숫자는 전부 결정론 엔진 출력(코치는 인용만)
 export const DEMO_COACH_CONTEXT = {
-  user: '김도현 · 프리랜스 개발자 · 커리어 점수 320점(세 살)',
+  user: '조대흠 · 프리랜스 개발자 · 커리어 점수 320점(세 살)',
   profile: DEMO_PROFILE,
   envelopes: { tax: 320_000, expense: 400_000, spendable: 1_200_000, buffer: 99_555 },
   note: '5월 종소세 예상 1,090,000원 중 320,000원 준비됨',

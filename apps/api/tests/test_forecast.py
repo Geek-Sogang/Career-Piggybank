@@ -194,3 +194,48 @@ def test_forecast_route_with_seed() -> None:
     assert path["years"][-1] == base["band_end_year"] + 3
     assert path["living_target"] > 0
     assert path["years"][0] <= path["peak_year"] <= path["years"][-1]
+
+
+# ---------- 몬테카를로 은퇴 시뮬레이션 (부트스트랩, seed 고정) ----------
+
+from app.services.forecast import monte_carlo_retirement  # noqa: E402
+
+
+def make_mc(incomes=INCOMES, cv=0.3, seed=42, runs=500, signals=None):
+    return monte_carlo_retirement(incomes, 1_150_000, cv, 4, 2025, signals, runs=runs, seed=seed)
+
+
+def test_mc_is_reproducible_with_seed() -> None:
+    """같은 seed = 같은 분포 — 감사 재현성 (temperature 0과 같은 정신)."""
+    a, b = make_mc(seed=7), make_mc(seed=7)
+    assert a.years == b.years
+
+
+def test_mc_quantiles_ordered() -> None:
+    m = make_mc()
+    assert 2025 < m.band_start_year <= m.median_year <= m.band_end_year
+    assert len(m.years) == m.runs
+
+
+def test_mc_more_volatile_income_widens_band() -> None:
+    """변동이 큰 원장 → 미래 분포가 넓어진다 — 들쭉날쭉함이 입력이 되는 증거."""
+    calm = make_mc(incomes=[1_200_000] * 8, runs=800)
+    wild = make_mc(incomes=[200_000, 2_600_000, 300_000, 2_400_000] * 2, runs=800)
+    calm_width = calm.band_end_year - calm.band_start_year
+    wild_width = wild.band_end_year - wild.band_start_year
+    assert wild_width >= calm_width
+
+
+def test_mc_declining_signals_shift_distribution_earlier() -> None:
+    healthy = make_mc(signals=career_signals(HEALTHY))
+    declining = make_mc(signals=career_signals(DECLINING))
+    assert declining.median_year < healthy.median_year
+
+
+def test_mc_exposed_in_route() -> None:
+    ensure_seed()
+    body = client.get("/v1/forecast").json()
+    mc = body["mc"]
+    assert mc["runs"] == 1000
+    assert mc["band_start_year"] <= mc["median_year"] <= mc["band_end_year"]
+    assert 0.0 <= mc["prob_in_base_band"] <= 1.0

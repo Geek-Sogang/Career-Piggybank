@@ -21,7 +21,9 @@ export function Retirement() {
         <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>예상 은퇴 시점</Text>
         <Text style={{ fontSize: 32, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{liveBand ?? vals.scLabel}</Text>
         <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '600', marginTop: 3 }}>
-          {vals.scSub} · 신뢰구간 밴드{fc ? ' · 내 입금 시계열 기반' : ''}
+          {fc
+            ? `미래 ${fc.mc.runs.toLocaleString('en-US')}개 시뮬레이션 — 90%가 ${fc.mc.band_end_year}년 이전 은퇴선 도달 · 내 입금 시계열 기반`
+            : `${vals.scSub} · 신뢰구간 밴드`}
         </Text>
       </View>
 

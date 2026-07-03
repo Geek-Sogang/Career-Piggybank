@@ -76,12 +76,23 @@ class StreamsOut(BaseModel):
     reasons: list[str]
 
 
+class MonteCarloOut(BaseModel):
+    """부트스트랩 몬테카를로 — 미래를 1,000번 살아본 은퇴 해 분포 (seed 고정, 재현 가능)."""
+
+    runs: int
+    band_start_year: int          # P10
+    median_year: int              # P50
+    band_end_year: int            # P90
+    prob_in_base_band: float      # 결정론 기본 밴드 안에 떨어진 미래의 비율
+
+
 class ForecastResponse(BaseModel):
     income_gap: IncomeGapOut
     retirement: list[RetirementBandOut]
     career_signals: CareerSignalsOut
     path: IncomePathOut
     streams: StreamsOut
+    mc: MonteCarloOut
     monthly_income_level: float
     monthly_living_target: float
     income_cv: float
@@ -120,6 +131,16 @@ def get_forecast() -> ForecastResponse:
     )
 
     base_band = next(b for b in bands if b.scenario == "base")
+    mc = forecast.monte_carlo_retirement(
+        monthly_incomes=monthly_incomes,
+        monthly_living_target=est.profile.expected_monthly_living,
+        income_cv=est.profile.income_cv,
+        months_observed=est.months_observed,
+        base_year=base_year,
+        signals=signals,
+    )
+    in_band = sum(1 for y in mc.years if base_band.band_start_year <= y <= base_band.band_end_year)
+
     path = forecast.income_path(
         monthly_incomes=monthly_incomes,
         monthly_living_target=est.profile.expected_monthly_living,
@@ -144,6 +165,10 @@ def get_forecast() -> ForecastResponse:
             pending_settlements=[PendingSettlementOut(**p.__dict__) for p in streams.pending_settlements],
             composite_next=StreamCandidateOut(**composite.__dict__) if composite else None,
             reasons=streams.reasons,
+        ),
+        mc=MonteCarloOut(
+            runs=mc.runs, band_start_year=mc.band_start_year, median_year=mc.median_year,
+            band_end_year=mc.band_end_year, prob_in_base_band=round(in_band / mc.runs, 3),
         ),
         monthly_income_level=assumptions["monthly_income_level"],  # type: ignore[arg-type]
         monthly_living_target=round(est.profile.expected_monthly_living, 2),

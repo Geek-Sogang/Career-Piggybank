@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Career Piggybank",
+    "slug": "career-piggybank",
+    "scheme": "careerpiggybank",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "net.careerpiggybank.app"
+    },
+    "android": {
+      "package": "net.careerpiggybank.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

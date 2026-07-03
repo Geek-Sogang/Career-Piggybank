@@ -1,0 +1,27 @@
+# ── Node / Expo ──
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+expo-env.d.ts
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ── 환경/비밀 (절대 커밋 금지) ──
+.env
+.env.local
+.env.*.local
+
+# ── OS / 에디터 ──
+.DS_Store
+.idea/
+.vscode/
+*.log

@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { coachChat } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { useApp } from '@/store';
 
-const REPLIES = [
+// 백엔드(로컬 LLM) 미가동 시 오프라인 폴백 — 데모가 죽지 않는 원칙
+const OFFLINE_REPLIES = [
   '네, 확인했어요! 세금봉투에 자동으로 반영해둘게요. 👍',
   '좋은 질문이에요. 여윳돈은 버퍼를 채운 뒤 보수적으로만 굴릴게요.',
   '알겠어요! 다음 정산 들어오면 바로 알려드릴게요.',
@@ -16,15 +18,26 @@ export function Chat() {
   const { actions } = useApp();
   const [text, setText] = useState('');
   const [extra, setExtra] = useState<{ from: 'bot' | 'me'; text: string }[]>([]);
+  const [thinking, setThinking] = useState(false);
   const scroll = useRef<ScrollView>(null);
+  const toEnd = () => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
 
-  const send = () => {
+  const send = async () => {
     const t = text.trim();
-    if (!t) return;
-    const reply = REPLIES[extra.length % REPLIES.length];
-    setExtra((e) => [...e, { from: 'me', text: t }, { from: 'bot', text: reply }]);
+    if (!t || thinking) return;
+    setExtra((e) => [...e, { from: 'me', text: t }]);
     setText('');
-    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
+    setThinking(true);
+    toEnd();
+    let reply: string;
+    try {
+      reply = (await coachChat(t)).reply; // 로컬 LLM(EXAONE) — 숫자는 결정론 검증기 통과분만
+    } catch {
+      reply = OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length];
+    }
+    setThinking(false);
+    setExtra((e) => [...e, { from: 'bot', text: reply }]);
+    toEnd();
   };
 
   return (
@@ -59,6 +72,7 @@ export function Chat() {
         </View>
         <Me>좋아요 👍</Me>
         {extra.map((m, i) => (m.from === 'bot' ? <Bot key={i}>{m.text}</Bot> : <Me key={i}>{m.text}</Me>))}
+        {thinking && <Bot>피기가 생각 중이에요 …</Bot>}
       </ScrollView>
 
       <View style={{ height: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 6, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3 }}>
@@ -83,7 +97,7 @@ function Bot({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '86%' }}>
       <Mascot head size={28} radius={14} style={{ backgroundColor: '#fff' }} />
-      <View style={{ backgroundColor: '#fff', borderRadius: 16, borderTopLeftRadius: 4, padding: 12, paddingHorizontal: 14, shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }}>
+      <View style={{ flexShrink: 1, backgroundColor: '#fff', borderRadius: 16, borderTopLeftRadius: 4, padding: 12, paddingHorizontal: 14, shadowColor: '#111827', shadowOpacity: 0.05, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }}>
         <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.ink }}>{children}</Text>
       </View>
     </View>

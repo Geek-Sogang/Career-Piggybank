@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { decideAllocation, proposeAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
@@ -107,7 +109,92 @@ function Shell() {
       {/* 시트 */}
       {sheet === 'consent' && <ConsentSheet onConfirm={actions.confirm} onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'invest' && <InvestSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {sheet === 'allocation' && <AllocationSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
     </SafeAreaView>
+  );
+}
+
+// 입금 도착 → 배분 제안 시트 — 백엔드 파이프라인(예측→배분→코치 확인) 라이브 데모.
+// 서버가 꺼져 있으면 동일 수치의 오프라인 제안으로 폴백(데모가 죽지 않는 원칙).
+function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
+  const [alloc, setAlloc] = useState<Allocation | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    proposeAllocation(3_000_000)
+      .then(setAlloc)
+      .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); });
+  }, []);
+
+  const confirm = async () => {
+    if (!alloc) return;
+    if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); } catch {} }
+    setDone(true);
+  };
+
+  const ENV: { key: keyof EnvelopeSplit; label: string; color: string }[] = [
+    { key: 'tax', label: '세금봉투', color: colors.tax },
+    { key: 'expense', label: '경비봉투', color: colors.expense },
+    { key: 'spendable', label: '즉시가용', color: colors.spendable },
+    { key: 'buffer', label: '여윳돈', color: colors.buffer },
+  ];
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        {!alloc ? (
+          <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '600', textAlign: 'center', paddingVertical: 30 }}>피기가 배분을 계산하고 있어요 …</Text>
+        ) : done ? (
+          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+            <Mascot head size={56} radius={17} />
+            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>봉투에 반영했어요 ✓</Text>
+            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500' }}>승인해 주신 그대로 4개 봉투에 나눠 담았어요</Text>
+            <Pressable onPress={onClose} style={{ alignSelf: 'stretch', backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>확인</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Mascot head size={44} radius={13} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>₩{alloc.deposit.toLocaleString('en-US')} 도착!</Text>
+                <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>
+                  평소의 {alloc.windfall_ratio.toFixed(1)}배 큰 입금이에요. 이렇게 나눌까요?
+                </Text>
+              </View>
+              {offline && (
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.sub2, backgroundColor: '#F1F2F4', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>오프라인</Text>
+              )}
+            </View>
+            <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
+              {ENV.map((e) => (
+                <View key={e.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: e.color }} />
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{e.label}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>₩{alloc.proposed[e.key].toLocaleString('en-US')}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ marginTop: 12, gap: 5 }}>
+              {alloc.reasons.slice(0, 4).map((r, i) => (
+                <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>나중에</Text>
+              </Pressable>
+              <Pressable onPress={confirm} style={{ flex: 2, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 반영</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 

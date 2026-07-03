@@ -1,18 +1,39 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
+import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { useApp, type Scenario } from '@/store';
 
 export function Retirement() {
   const { vals, scenario, actions } = useApp();
+  // 원장 시계열 라이브 예측 — 서버 다운 시 정적 시나리오 폴백 (데모 불사)
+  const [fc, setFc] = useState<Forecast | null>(null);
+  useEffect(() => {
+    getForecast().then(setFc).catch(() => {});
+  }, []);
+  const liveBand = fc?.retirement.find((b) => b.scenario === scenario)?.label;
   return (
     <View style={{ gap: 16 }}>
       <View>
         <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>예상 은퇴 시점</Text>
-        <Text style={{ fontSize: 32, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{vals.scLabel}</Text>
-        <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '600', marginTop: 3 }}>{vals.scSub} · 신뢰구간 68%</Text>
+        <Text style={{ fontSize: 32, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{liveBand ?? vals.scLabel}</Text>
+        <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '600', marginTop: 3 }}>
+          {vals.scSub} · 신뢰구간 밴드{fc ? ' · 내 입금 시계열 기반' : ''}
+        </Text>
       </View>
+
+      {/* 다음 수입 예측 — 입금 간격 분포 기반 (Croston식 분리) */}
+      {fc && (
+        <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 14, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Icon name="trending" size={18} color={colors.green} sw={2.2} />
+          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>
+            다음 수입 예상: <Text style={{ fontWeight: '800' }}>{fc.income_gap.expected_next_date.slice(5).replace('-', '/')}</Text>
+            {' '}(입금 간격 중앙값 {Math.round(fc.income_gap.median_gap_days)}일 기준)
+          </Text>
+        </View>
+      )}
 
       {/* 차트 */}
       <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 18, padding: 16, paddingBottom: 14 }}>
@@ -25,7 +46,7 @@ export function Retirement() {
           </Svg>
           {/* 시나리오 신뢰구간 밴드 */}
           <View style={{ position: 'absolute', top: 4, bottom: 18, left: `${vals.scLeft * 100}%`, width: `${vals.scWidth * 100}%`, backgroundColor: 'rgba(0,132,133,.13)', borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: colors.green, borderStyle: 'dashed', borderRadius: 2 }}>
-            <Text style={{ position: 'absolute', top: -8, alignSelf: 'center', fontSize: 10, fontWeight: '800', color: colors.greenDark, backgroundColor: colors.greenTint, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>{vals.scLabel}</Text>
+            <Text style={{ position: 'absolute', top: -8, alignSelf: 'center', fontSize: 10, fontWeight: '800', color: colors.greenDark, backgroundColor: colors.greenTint, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>{liveBand ?? vals.scLabel}</Text>
           </View>
           <Text style={{ position: 'absolute', left: 10, top: '44%', fontSize: 10, fontWeight: '700', color: colors.faint, backgroundColor: '#fff', paddingHorizontal: 4 }}>목표 자산</Text>
         </View>

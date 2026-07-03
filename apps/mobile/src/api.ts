@@ -103,6 +103,17 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
   );
 }
 
+// ── 예측 (원장 시계열 → 다음 수입 창 + 은퇴 밴드) — 전부 결정론, 논문 근거는 백엔드 주석 ──
+export type Forecast = {
+  income_gap: { median_gap_days: number; expected_next_date: string; window: [string, string]; reasons: string[] };
+  retirement: { scenario: 'cons' | 'base' | 'opt'; band_start_year: number; band_end_year: number; label: string }[];
+  monthly_income_level: number;
+  income_cv: number;
+};
+export function getForecast() {
+  return get<Forecast>('/v1/forecast');
+}
+
 // 서버 다운 시 오프라인 폴백 제안 (백엔드 라이브 결과와 동일 수치)
 export const OFFLINE_ALLOCATION: Allocation = {
   id: 'offline',

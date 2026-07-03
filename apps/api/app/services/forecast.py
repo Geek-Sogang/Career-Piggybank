@@ -33,6 +33,7 @@ REFERENCES
 """
 from __future__ import annotations
 
+import random
 import statistics
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -280,6 +281,72 @@ def retirement_bands(
         "method": "긱워커 일감흐름 모델: 커리어 신호(수주간격·발주처·단가) 우선 + Mincer(1974) 연령 prior + 감쇠 외삽(Gardner-McKenzie 1985), 구간 제시(FPP)",
     }
     return bands, assumptions
+
+
+@dataclass(frozen=True)
+class MonteCarlo:
+    """부트스트랩 몬테카를로 은퇴 시뮬레이션 결과 — 미래를 runs번 살아본 분포.
+
+    은퇴설계 실무 표준 기법(뱅가드·미래에셋류 시뮬레이터와 같은 계열)을 우리 데이터에 맞게:
+    - 미래 소득 수준·연간 변동을 **내 월 소득의 경험 분포에서 재표집**(가정 분포 없음)
+    - 성장률·하락 국면은 결정론 점화식과 동일 (커리어 신호·early_decline 반영)
+    - seed 고정 → 같은 입력 = 같은 분포 (재현성·감사 대응, temperature 0과 같은 정신)
+    """
+
+    runs: int
+    band_start_year: int   # P10 — 1,000개 미래 중 이르게 은퇴한 쪽 10%
+    median_year: int       # P50
+    band_end_year: int     # P90
+    years: list[int] = field(default_factory=list)  # 전체 표본 (route가 확률 계산 후 폐기)
+
+
+def monte_carlo_retirement(
+    monthly_incomes: list[float],
+    monthly_living_target: float,
+    income_cv: float,
+    months_observed: int,
+    base_year: int,
+    signals: CareerSignals | None = None,
+    runs: int = 1000,
+    seed: int = 42,
+) -> MonteCarlo:
+    """미래를 runs번 시뮬레이션해 은퇴 해의 분포를 얻는다 (순수 함수, seed 고정).
+
+    각 미래: ① 연 소득 수준 = 월 소득 12개 부트스트랩 재표집 평균
+             ② 매년 경험적 변동 곱(내 월 소득 / 중앙값 비율에서 재표집) — 순서 위험 반영
+             ③ 성장·하락은 결정론 점화식과 동일한 파라미터
+             ④ 하락 국면에서 (변동 반영) 소득이 생활비 아래로 → 그 해를 기록
+    """
+    _sig, level, _trend, growth, early_decline, _u = _derive_params(
+        monthly_incomes, monthly_living_target, income_cv, months_observed, signals
+    )
+    rng = random.Random(seed)
+    pool = [m for m in monthly_incomes if m > 0] or [level]
+    ratios = [m / level for m in pool] if level > 0 else [1.0]
+
+    years_out: list[int] = []
+    for _ in range(runs):
+        income = statistics.mean(rng.choice(pool) for _ in range(12))  # ① 수준 재표집
+        age, year = CURRENT_AGE, base_year
+        retired = None
+        for _ in range(MAX_HORIZON_YEARS):
+            declining = early_decline or age >= PEAK_AGE
+            rate = -DECLINE_AFTER_PEAK if declining else growth
+            effective = income * rng.choice(ratios)                     # ② 그 해의 변동
+            income *= 1.0 + rate                                        # ③ 추세
+            age += 1
+            year += 1
+            if declining and effective < monthly_living_target:         # ④ 교차
+                retired = year
+                break
+        years_out.append(retired if retired is not None else base_year + MAX_HORIZON_YEARS)
+
+    years_out.sort()
+    q = lambda p: years_out[min(runs - 1, int(p * (runs - 1)))]  # noqa: E731
+    return MonteCarlo(
+        runs=runs, band_start_year=q(0.10), median_year=q(0.50), band_end_year=q(0.90),
+        years=years_out,
+    )
 
 
 def _yearly_levels(level: float, growth: float, base_year: int, early_decline: bool, n_years: int) -> list[float]:

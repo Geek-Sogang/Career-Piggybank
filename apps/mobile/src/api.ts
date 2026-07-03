@@ -132,6 +132,8 @@ export type Forecast = {
     composite_next: { source: string; label: string; expected_date: string; basis: string } | null;
     reasons: string[];
   };
+  // 부트스트랩 몬테카를로 — 미래 1,000개의 은퇴 해 분포 (seed 고정, 재현 가능)
+  mc: { runs: number; band_start_year: number; median_year: number; band_end_year: number; prob_in_base_band: number };
   monthly_income_level: number;
   income_cv: number;
 };

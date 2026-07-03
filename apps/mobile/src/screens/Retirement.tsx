@@ -25,14 +25,30 @@ export function Retirement() {
         </Text>
       </View>
 
-      {/* 다음 수입 예측 — 입금 간격 분포 기반 (Croston식 분리) */}
+      {/* 다음 수입 예측 — 스트림 분해 합성(플랫폼 주기·재수주 리듬·진행 중 계약), 없으면 간격 통계 폴백 */}
       {fc && (
-        <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 14, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Icon name="trending" size={18} color={colors.green} sw={2.2} />
-          <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>
-            다음 수입 예상: <Text style={{ fontWeight: '800' }}>{fc.income_gap.expected_next_date.slice(5).replace('-', '/')}</Text>
-            {' '}(입금 간격 중앙값 {Math.round(fc.income_gap.median_gap_days)}일 기준)
-          </Text>
+        <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 14, padding: 13, gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Icon name="trending" size={18} color={colors.green} sw={2.2} />
+            <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>
+              다음 수입 예상: <Text style={{ fontWeight: '800' }}>{(fc.streams.composite_next?.expected_date ?? fc.income_gap.expected_next_date).slice(5).replace('-', '/')}</Text>
+              {'  '}
+              <Text style={{ color: colors.sub2, fontWeight: '500' }}>
+                {fc.streams.composite_next
+                  ? fc.streams.composite_next.basis
+                  : `입금 간격 중앙값 ${Math.round(fc.income_gap.median_gap_days)}일 기준`}
+              </Text>
+            </Text>
+          </View>
+          {/* 진행 중 계약 — 착수금은 왔고 잔금은 아직 (원장이 아는 미래) */}
+          {fc.streams.pending_settlements.map((p) => (
+            <View key={p.counterparty + p.advance_date} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6, overflow: 'hidden' }}>진행 중 계약</Text>
+              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink }}>
+                {p.counterparty} 잔금 예상 {p.expected_date.slice(5).replace('-', '/')} <Text style={{ color: colors.sub2, fontWeight: '500' }}>(착수금 {p.advance_date.slice(5).replace('-', '/')} 관측)</Text>
+              </Text>
+            </View>
+          ))}
         </View>
       )}
 

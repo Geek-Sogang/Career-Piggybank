@@ -38,8 +38,8 @@ def profile_from_store(persona: str = "developer") -> ProfileEstimate:
     txns = [
         Txn(date=t["date"], amount=t["amount"], kind=t["kind"])  # type: ignore[arg-type]
         for t in db.list_txns()
-        if t["kind"] in ("income", "expense", "living")
-    ]
+        if t["kind"] in ("income", "expense", "living") and not t["needs_review"]
+    ]  # 미확정 라벨은 프로필 통계에서 제외 — 확인 후에만 반영
     return spending_profile.estimate(txns, persona)
 
 
@@ -61,7 +61,10 @@ def buffer_adjustment_bias() -> float:
 
 def context_from_store() -> AllocationContext:
     """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
-    income_txns = [t for t in db.list_txns() if t["kind"] == "income" and t["direction"] == "in"]
+    income_txns = [
+        t for t in db.list_txns()
+        if t["kind"] == "income" and t["direction"] == "in" and not t["needs_review"]
+    ]
     gap = forecast.next_income_window([t["date"] for t in income_txns]) if income_txns else None
     signals = forecast.career_signals(income_txns)
     return AllocationContext(

@@ -140,6 +140,18 @@ API: `POST /v1/profile/estimate` — 응답 `profile`을 그대로 `/v1/allocati
 - **제안/승인 상태기계**: `proposed → confirmed / adjusted / rejected`.
   조정 시 합계=입금액 검증, 조정분 `adjustment_delta` 기록(개인화 피드백).
 
+**컨텍스트 인식 배분** (`AllocationContext`, §6-2④) — 수주 주기·커리어·행동 신호가
+파라미터를 보정한다. 신호는 통계(forecast·원장)가 만들고 보정은 룰이 한다 — AI 없음:
+
+| 신호 | 원천 | 보정 룰 |
+|---|---|---|
+| 수주 주기 | `next_income_window` 간격 중앙값 | 공백 45일 → 즉시가용을 1.5개월치까지 확보 (1~2개월 클램프) |
+| 커리어 추세 | `career_signals` early_decline | 버퍼 목표 +1개월 (6개월 클램프) |
+| 조정 성향(행동) | 최근 조정 5건의 버퍼 델타 중앙값 | 즉시가용→여윳돈 선반영 (2건 미만 무시·입금액 20% 상한·세금 불가침) |
+
+전 가정은 `assumptions`(living_months·expected_gap_days·early_decline·buffer_bias_applied)로
+노출 — "조정 2회 → 다음 제안이 습관을 선반영"이 통합 테스트로 고정돼 있다.
+
 API: `POST /v1/allocations/propose` → `POST /v1/allocations/{id}/decision` → `GET /v1/allocations/{id}`
 
 ## 세금 엔진 — `app/services/tax_envelope.py` (기존)

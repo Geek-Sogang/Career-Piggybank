@@ -186,3 +186,70 @@ def test_double_decision_is_409_and_reject_flow() -> None:
 
 def test_unknown_id_is_404() -> None:
     assert client.get("/v1/allocations/nope").status_code == 404
+
+
+# ---------- 컨텍스트 인식 배분 (수주 주기·커리어 추세·조정 성향) ----------
+
+from app.services.allocator import (  # noqa: E402
+    BIAS_CAP_FRACTION,
+    BUFFER_MONTHS_MAX,
+    EARLY_DECLINE_EXTRA_MONTHS,
+    LIVING_MONTHS_MAX,
+    AllocationContext,
+)
+
+
+def test_no_context_is_backward_compatible() -> None:
+    """context 미지정 = 기존 동작 그대로 (하위 호환)."""
+    base = propose(3_000_000, PROFILE)
+    neutral = propose(3_000_000, PROFILE, context=AllocationContext())
+    assert (base.tax, base.expense, base.spendable, base.buffer) == \
+           (neutral.tax, neutral.expense, neutral.spendable, neutral.buffer)
+
+
+def test_long_income_gap_secures_more_living() -> None:
+    """수주 공백 45일 → 생활비를 1.5개월치까지 확보 (§6-2④)."""
+    p = propose(3_000_000, PROFILE, context=AllocationContext(expected_gap_days=45))
+    assert p.assumptions["living_months"] == pytest.approx(1.5)
+    assert p.spendable == pytest.approx(PROFILE.expected_monthly_living * 1.5)
+    assert any("다음 수입까지" in r for r in p.reasons)
+    assert p.tax + p.expense + p.spendable + p.buffer == pytest.approx(p.deposit, abs=0.02)
+
+
+def test_short_gap_never_reduces_living() -> None:
+    """공백이 짧아도(24일) 생활비 확보는 1개월치 밑으로 줄이지 않는다."""
+    p = propose(3_000_000, PROFILE, context=AllocationContext(expected_gap_days=24))
+    assert p.assumptions["living_months"] == 1.0
+
+
+def test_gap_capped_at_two_months() -> None:
+    p = propose(10_000_000, PROFILE, context=AllocationContext(expected_gap_days=120))
+    assert p.assumptions["living_months"] == LIVING_MONTHS_MAX
+
+
+def test_early_decline_thickens_buffer_target() -> None:
+    """커리어 신호 악화 → 버퍼 목표 +1개월 (상한 6개월 클램프)."""
+    base = propose(3_000_000, PROFILE)
+    declined = propose(3_000_000, PROFILE, context=AllocationContext(early_decline=True))
+    assert declined.assumptions["buffer_target_months"] == pytest.approx(
+        min(BUFFER_MONTHS_MAX, base.assumptions["buffer_target_months"] + EARLY_DECLINE_EXTRA_MONTHS)
+    )
+    assert any("감속 추세" in r for r in declined.reasons)
+
+
+def test_buffer_bias_shifts_spendable_to_buffer() -> None:
+    """조정 성향(행동): 버퍼를 늘려온 습관을 선반영 — 세금·경비는 불가침."""
+    base = propose(3_000_000, PROFILE)
+    biased = propose(3_000_000, PROFILE, context=AllocationContext(buffer_bias=200_000))
+    assert biased.tax == base.tax and biased.expense == base.expense
+    assert biased.spendable == pytest.approx(base.spendable - 200_000)
+    assert biased.buffer == pytest.approx(base.buffer + 200_000)
+    assert biased.assumptions["buffer_bias_applied"] == pytest.approx(200_000)
+    assert any("미리 여윳돈으로" in r for r in biased.reasons)
+
+
+def test_buffer_bias_is_capped() -> None:
+    """선반영 상한 = 입금액의 20% — 습관이 커도 제안이 폭주하지 않는다."""
+    p = propose(1_000_000, PROFILE, context=AllocationContext(buffer_bias=900_000))
+    assert p.assumptions["buffer_bias_applied"] <= 1_000_000 * BIAS_CAP_FRACTION + 0.01
+    assert p.tax + p.expense + p.spendable + p.buffer == pytest.approx(p.deposit, abs=0.02)

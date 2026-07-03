@@ -123,3 +123,53 @@ def test_seed_runs_once() -> None:
     assert ensure_seed() is True
     assert ensure_seed() is False
     assert len(db.list_txns()) == 13
+
+
+# ---------- 컨텍스트 인식 배분 — 행동(조정 성향) 학습 루프 ----------
+
+def _deposit_and_adjust(amount: float, counterparty: str, buffer_extra: float) -> None:
+    """입금 → 제안 받기 → 버퍼를 buffer_extra만큼 늘려 조정 확정."""
+    res = client.post("/v1/bank/deposit", json={
+        "date": "2025-05-25", "amount": amount, "counterparty": counterparty,
+    })
+    alloc = res.json()["allocation"]
+    split = dict(alloc["proposed"])
+    move = min(buffer_extra, split["spendable"])
+    split["spendable"] -= move
+    split["buffer"] += move
+    r = client.post(f"/v1/allocations/{alloc['id']}/decision",
+                    json={"action": "adjust", "adjusted": split})
+    assert r.status_code == 200
+
+
+def test_adjustment_habit_feeds_next_proposal() -> None:
+    """버퍼를 늘리는 조정 2회 → 다음 제안이 그 습관을 선반영한다 (행동 데이터 루프)."""
+    seed()
+    from app.services import bank_flow
+    assert bank_flow.buffer_adjustment_bias() == 0.0       # 이력 없음 → 중립
+
+    _deposit_and_adjust(483_500, "역산클라이언트A", 100_000)
+    assert bank_flow.buffer_adjustment_bias() == 0.0       # 1건은 노이즈 — 아직 중립
+
+    _deposit_and_adjust(967_000, "역산클라이언트B", 100_000)
+    assert bank_flow.buffer_adjustment_bias() == pytest.approx(100_000, abs=1)
+
+    res = client.post("/v1/bank/deposit", json={
+        "date": "2025-05-26", "amount": 1_934_000, "counterparty": "역산클라이언트C",
+    })
+    alloc = res.json()["allocation"]
+    meta_reasons = alloc["reasons"]
+    assert any("미리 여윳돈으로" in r for r in meta_reasons)
+
+
+def test_context_assumptions_exposed_in_proposal() -> None:
+    """수주 주기·커리어·행동 가정이 제안 meta에 노출된다 (숨은 계산 금지)."""
+    seed()
+    res = client.post("/v1/bank/deposit", json={
+        "date": "2025-05-25", "amount": 483_500, "counterparty": "뉴클라이언트",
+    })
+    alloc_id = res.json()["allocation"]["id"]
+    stored = db.get_allocation(alloc_id)
+    a = stored["meta"]["assumptions"]
+    for key in ("living_months", "expected_gap_days", "early_decline", "buffer_bias_applied"):
+        assert key in a

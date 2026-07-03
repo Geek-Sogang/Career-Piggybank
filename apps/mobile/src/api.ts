@@ -97,8 +97,17 @@ export const DEMO_DEPOSIT = { date: '2025-05-27', amount: 3_000_000, counterpart
 export function getTransactions() {
   return get<Txn[]>('/v1/bank/transactions');
 }
+// 확인 질문 — AI가 확신 없을 때 코치가 던지는 해소 질문 (§6-2⑥). 탭 = 수기 태그와 1:1
+export type Clarify = {
+  question: string;
+  options: { kind: 'income' | 'expense' | 'living'; label: string }[];
+  source: 'llm' | 'fallback';
+};
+export function getClarify(txnId: string) {
+  return get<Clarify>(`/v1/bank/transactions/${txnId}/clarify`, 90_000); // 로컬 LLM 생성 대기
+}
 export function bankDeposit(body = DEMO_DEPOSIT) {
-  return post<{ transaction: Txn; allocation: Allocation | null }>('/v1/bank/deposit', body, 15_000);
+  return post<{ transaction: Txn; allocation: Allocation | null; clarify: Clarify | null }>('/v1/bank/deposit', body, 15_000);
 }
 export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living') {
   return post<{ transaction: Txn; learned: boolean; allocation: Allocation | null }>(

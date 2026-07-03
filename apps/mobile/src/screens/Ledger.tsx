@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { getTransactions, tagTransaction, type Txn } from '@/api';
+import { getClarify, getTransactions, tagTransaction, type Clarify, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
-import { Card, T } from '@/components/ui';
+import { Card, Mascot, T } from '@/components/ui';
 import { useApp } from '@/store';
 
 export function Ledger() {
@@ -156,14 +156,24 @@ function TxRow({ badge, bg, color, title, tag, tagColor, amount, amountColor, la
   );
 }
 
-// 미분류 거래 수기 태그 — 태그하면 백엔드 사전이 학습, 같은 상대는 다음부터 자동 분류
+// 미분류 거래 수기 태그 — 코치가 해소 질문을 던지고(§6-2⑥), 탭 한 번이 곧 수기 태그.
+// 태그하면 백엔드 사전이 학습, 같은 상대는 다음부터 자동 분류
+const KIND_COLOR: Record<'income' | 'expense' | 'living', string> = {
+  income: colors.spendable, expense: colors.expense, living: colors.sub2,
+};
+
 function LiveTagRow({ txn, onTagged, last }: { txn: Txn; onTagged: () => void; last?: boolean }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const OPTS: { label: string; kind: 'income' | 'expense' | 'living'; color: string }[] = [
-    { label: '일감 매출', kind: 'income', color: colors.spendable },
-    { label: '경비', kind: 'expense', color: colors.expense },
-    { label: '개인', kind: 'living', color: colors.sub2 },
+  const [clarify, setClarify] = useState<Clarify | null>(null);
+  const toggle = () => {
+    setOpen((o) => !o);
+    if (!clarify) getClarify(txn.id).then(setClarify).catch(() => {}); // 실패 시 칩만 (폴백)
+  };
+  const OPTS: { label: string; kind: 'income' | 'expense' | 'living' }[] = clarify?.options ?? [
+    { label: '일감 매출', kind: 'income' },
+    { label: '경비', kind: 'expense' },
+    { label: '개인', kind: 'living' },
   ];
   const doTag = async (kind: 'income' | 'expense' | 'living') => {
     setBusy(true);
@@ -177,7 +187,7 @@ function LiveTagRow({ txn, onTagged, last }: { txn: Txn; onTagged: () => void; l
   };
   return (
     <View style={{ borderBottomWidth: last ? 0 : 1, borderBottomColor: colors.line2 }}>
-      <Pressable onPress={() => setOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 }}>
+      <Pressable onPress={toggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 }}>
         <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.bufferTint, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 12, fontWeight: '800', color: colors.buffer }}>{txn.counterparty.slice(0, 2)}</Text>
         </View>
@@ -188,12 +198,23 @@ function LiveTagRow({ txn, onTagged, last }: { txn: Txn; onTagged: () => void; l
         <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.ink, ...T.num }}>+₩{txn.amount.toLocaleString('en-US')}</Text>
       </Pressable>
       {open && !busy && (
-        <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 14, paddingLeft: 50 }}>
-          {OPTS.map((o) => (
-            <Pressable key={o.kind} onPress={() => doTag(o.kind)} style={{ paddingVertical: 7, paddingHorizontal: 13, borderRadius: 9, borderWidth: 1.4, borderColor: o.color, backgroundColor: '#fff' }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: o.color }}>{o.label}</Text>
-            </Pressable>
-          ))}
+        <View style={{ paddingBottom: 14, paddingLeft: 50, gap: 9 }}>
+          {/* 코치의 해소 질문 — "확인해주세요"가 아니라 답하기 쉬운 구체 질문 */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingRight: 8 }}>
+            <Mascot head size={26} radius={8} />
+            <View style={{ flexShrink: 1, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, borderTopLeftRadius: 3, paddingVertical: 8, paddingHorizontal: 11 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.ink, lineHeight: 17 }}>
+                {clarify ? clarify.question : '피기가 질문을 만드는 중…'}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {OPTS.map((o) => (
+              <Pressable key={o.kind} onPress={() => doTag(o.kind)} style={{ paddingVertical: 7, paddingHorizontal: 13, borderRadius: 9, borderWidth: 1.4, borderColor: KIND_COLOR[o.kind], backgroundColor: '#fff' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: KIND_COLOR[o.kind] }}>{o.label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       )}
     </View>

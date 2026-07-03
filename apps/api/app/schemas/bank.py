@@ -30,10 +30,26 @@ class TxnOut(BaseModel):
     signals: list[str]
 
 
+class ClarifyOption(BaseModel):
+    kind: Literal["income", "expense", "living"]
+    label: str
+
+
+class ClarifyOut(BaseModel):
+    """확인 질문 — 코치가 3채널로 전달, 탭 = 수기 태그 API (§6-2⑥)."""
+
+    question: str
+    options: list[ClarifyOption]
+    source: Literal["llm", "fallback"]
+
+
 class DepositResponse(BaseModel):
     transaction: TxnOut
     allocation: AllocationResponse | None = Field(
         None, description="income으로 확정 분류된 입금만 배분 제안이 생성됨"
+    )
+    clarify: ClarifyOut | None = Field(
+        None, description="분류가 확신 없을 때(needs_review) 코치가 던질 해소 질문"
     )
 
 

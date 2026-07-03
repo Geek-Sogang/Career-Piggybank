@@ -58,7 +58,7 @@ function Shell() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Mascot head size={38} radius={19} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
-              <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>김도현님</Text>
+              <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
               <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자</Text>
             </View>
           </View>

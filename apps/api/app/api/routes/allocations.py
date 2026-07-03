@@ -1,129 +1,113 @@
 """봉투 배분 라우트 — 제안 생성과 사용자 결정(승인/조정/거절)을 분리.
 
 엔진 출력은 '제안' 상태로 저장되고, 사용자의 결정이 있어야 확정된다(AI 제안·실행은 사람).
-저장소는 데모용 인메모리 — 실서비스에서는 DB로 교체.
+**승인/조정된 배분만 봉투 잔액을 실제로 바꾼다** — 저장소는 SQLite(app/store/db.py).
 """
 from __future__ import annotations
-
-import uuid
-from dataclasses import dataclass
 
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.allocation import (
     AllocationResponse,
-    AllocationStatus,
     DecisionRequest,
     EnvelopeSplit,
     MetricsResponse,
     ProposeRequest,
 )
 from app.services import allocator
-from app.services.allocator import AllocationProposal, EnvelopeBalances, SpendingProfile
+from app.services.allocator import EnvelopeBalances, SpendingProfile
+from app.store import db
 
 router = APIRouter(prefix="/v1/allocations", tags=["allocations"])
 
 
-@dataclass
-class _Stored:
-    proposal: AllocationProposal
-    status: AllocationStatus = "proposed"
-    final: EnvelopeSplit | None = None
-
-
-_STORE: dict[str, _Stored] = {}
-
-
-def _to_response(alloc_id: str, s: _Stored) -> AllocationResponse:
-    p = s.proposal
-    proposed = EnvelopeSplit(tax=p.tax, expense=p.expense, spendable=p.spendable, buffer=p.buffer)
+def to_response(a: dict) -> AllocationResponse:
+    p, final, meta = a["proposed"], a["final"], a["meta"]
     delta = None
-    if s.final is not None:
-        delta = EnvelopeSplit(
-            tax=round(s.final.tax - p.tax, 2),
-            expense=round(s.final.expense - p.expense, 2),
-            spendable=round(s.final.spendable - p.spendable, 2),
-            buffer=round(s.final.buffer - p.buffer, 2),
-        )
+    if final is not None:
+        delta = EnvelopeSplit(**{k: round(final[k] - p[k], 2) for k in p})
     return AllocationResponse(
-        id=alloc_id,
-        status=s.status,
-        deposit=p.deposit,
-        proposed=proposed,
-        final=s.final,
+        id=a["id"], status=a["status"], deposit=a["deposit"],
+        proposed=EnvelopeSplit(**p),
+        final=EnvelopeSplit(**final) if final is not None else None,
         adjustment_delta=delta,
-        buffer_target=p.buffer_target,
-        invest_available=p.invest_available,
-        windfall_ratio=p.windfall_ratio,
-        needs_confirmation=p.needs_confirmation,
-        reasons=p.reasons,
-        assumptions=p.assumptions,
+        buffer_target=meta.get("buffer_target", 0),
+        invest_available=meta.get("invest_available", 0),
+        windfall_ratio=meta.get("windfall_ratio", 0),
+        needs_confirmation=meta.get("needs_confirmation", False),
+        reasons=meta.get("reasons", []),
+        assumptions=meta.get("assumptions", {}),
     )
 
 
 @router.post("/propose", response_model=AllocationResponse)
 def propose(req: ProposeRequest) -> AllocationResponse:
     """입금 1건 → 폭포수 룰 배분 제안 생성 (봉투에는 아직 반영 안 됨)."""
-    proposal = allocator.propose(
+    p = allocator.propose(
         req.deposit,
         SpendingProfile(**req.profile.model_dump()),
         EnvelopeBalances(**req.balances.model_dump()),
     )
-    alloc_id = uuid.uuid4().hex[:12]
-    _STORE[alloc_id] = _Stored(proposal=proposal)
-    return _to_response(alloc_id, _STORE[alloc_id])
+    alloc_id = db.insert_allocation(
+        req.deposit,
+        {"tax": p.tax, "expense": p.expense, "spendable": p.spendable, "buffer": p.buffer},
+        meta={
+            "buffer_target": p.buffer_target, "invest_available": p.invest_available,
+            "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
+            "reasons": p.reasons, "assumptions": p.assumptions,
+        },
+    )
+    return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
 
 
 @router.post("/{alloc_id}/decision", response_model=AllocationResponse)
 def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
-    """제안에 대한 사용자 결정 — confirm(그대로) / adjust(고쳐서) / reject(안 나눔)."""
-    stored = _STORE.get(alloc_id)
+    """confirm(그대로) / adjust(고쳐서) / reject — 확정분만 봉투 잔액에 반영."""
+    stored = db.get_allocation(alloc_id)
     if stored is None:
         raise HTTPException(status_code=404, detail="allocation not found")
-    if stored.status != "proposed":
-        raise HTTPException(status_code=409, detail=f"already decided: {stored.status}")
+    if stored["status"] != "proposed":
+        raise HTTPException(status_code=409, detail=f"already decided: {stored['status']}")
 
-    p = stored.proposal
     if req.action == "confirm":
-        stored.status = "confirmed"
-        stored.final = EnvelopeSplit(tax=p.tax, expense=p.expense, spendable=p.spendable, buffer=p.buffer)
+        final = stored["proposed"]
+        db.decide_allocation(alloc_id, "confirmed", final)
+        db.envelope_add(final)  # 사람의 승인 후에만 돈이 움직인다
     elif req.action == "adjust":
         if req.adjusted is None:
             raise HTTPException(status_code=422, detail="adjusted split is required for action=adjust")
         a = req.adjusted
         try:
-            allocator.validate_adjustment(p.deposit, a.tax, a.expense, a.spendable, a.buffer)
+            allocator.validate_adjustment(stored["deposit"], a.tax, a.expense, a.spendable, a.buffer)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
-        stored.status = "adjusted"
-        stored.final = a
+        final = a.model_dump()
+        db.decide_allocation(alloc_id, "adjusted", final)
+        db.envelope_add(final)
     else:  # reject
-        stored.status = "rejected"
-        stored.final = None
+        db.decide_allocation(alloc_id, "rejected", None)
 
-    return _to_response(alloc_id, stored)
+    return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
 
 
 @router.get("/metrics", response_model=MetricsResponse)
 def metrics() -> MetricsResponse:
     """무수정 승인율 — 시스템 전체 성능을 한 숫자로 (제안이 정확할수록 안 고침)."""
-    decided = [s for s in _STORE.values() if s.status != "proposed"]
-    confirmed = sum(1 for s in decided if s.status == "confirmed")
-    adjusted = sum(1 for s in decided if s.status == "adjusted")
-    rejected = sum(1 for s in decided if s.status == "rejected")
+    allocs = db.list_allocations()
+    decided = [a for a in allocs if a["status"] != "proposed"]
+    confirmed = sum(1 for a in decided if a["status"] == "confirmed")
+    adjusted = sum(1 for a in decided if a["status"] == "adjusted")
+    rejected = sum(1 for a in decided if a["status"] == "rejected")
     return MetricsResponse(
-        proposals=len(_STORE),
-        decided=len(decided),
-        confirmed=confirmed,
-        adjusted=adjusted,
-        rejected=rejected,
+        proposals=len(allocs), decided=len(decided),
+        confirmed=confirmed, adjusted=adjusted, rejected=rejected,
         no_edit_approval_rate=round(confirmed / len(decided), 4) if decided else None,
     )
 
 
 @router.get("/{alloc_id}", response_model=AllocationResponse)
 def get_allocation(alloc_id: str) -> AllocationResponse:
-    stored = _STORE.get(alloc_id)
+    stored = db.get_allocation(alloc_id)
     if stored is None:
         raise HTTPException(status_code=404, detail="allocation not found")
-    return _to_response(alloc_id, stored)
+    return to_response(stored)

@@ -4,7 +4,10 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import allocations, classify, coach, health, profile, strength, tax_envelope
+from app.api.routes import allocations, bank, classify, coach, health, profile, strength, tax_envelope
+from app.core.config import settings as app_settings
+from app.store import db as store_db
+from app.store.seed import ensure_seed
 from app.core.config import settings
 
 
@@ -28,6 +31,14 @@ def create_app() -> FastAPI:
     app.include_router(classify.router)
     app.include_router(coach.router)
     app.include_router(strength.router)
+    app.include_router(bank.router)
+
+    @app.on_event("startup")
+    def _startup() -> None:
+        store_db.init_db()
+        if app_settings.demo_seed:
+            ensure_seed()
+
     return app
 
 

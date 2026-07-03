@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     ollama_model_judgment: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct-GGUF:Q4_K_M"
     ollama_timeout_s: float = 60.0
 
+    # 영속 저장소 (SQLite) — 데모 스코프 단일 사용자
+    db_path: str = "data/piggybank.db"
+    demo_seed: bool = True  # 시작 시 조대흠 데모 데이터 시드 (테스트에선 끔)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

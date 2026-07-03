@@ -4,7 +4,6 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.routes import allocations as alloc_routes
 from app.main import app
 
 client = TestClient(app)
@@ -19,13 +18,6 @@ REQ = {
         "avg_deposit": 800_000,
     },
 }
-
-
-@pytest.fixture(autouse=True)
-def clean_store():
-    alloc_routes._STORE.clear()
-    yield
-    alloc_routes._STORE.clear()
 
 
 def _decide(action: str, adjusted: dict | None = None) -> None:

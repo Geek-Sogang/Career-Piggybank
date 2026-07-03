@@ -135,7 +135,7 @@ def test_llm_income_verdict_never_auto_applies(monkeypatch: pytest.MonkeyPatch) 
 def test_llm_down_falls_back_to_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     """LLM 전원 다운(None) → 룰 결과(unknown, 수기 태그)로 안전 폴백 — 데모가 죽지 않는다."""
     mock_llm(monkeypatch, [None, None, None], None)
-    c = classify_with_fallback(txn(250_000, "토스페이 정산"))
+    c = classify_with_fallback(txn(250_000, "카카오페이"))
     assert c.kind == "unknown"
     assert c.needs_review is True
     assert any("응답 없음" in s for s in c.signals)
@@ -145,7 +145,7 @@ def test_invalid_llm_schema_treated_as_down(monkeypatch: pytest.MonkeyPatch) -> 
     """스키마 위반(kind 오타 등)은 응답 없음과 동일하게 처리."""
     bad = {"kind": "revenue", "confidence": 0.9}
     mock_llm(monkeypatch, [bad, bad, bad], {"approve": True, "reason": ""})
-    c = classify_with_fallback(txn(250_000, "토스페이 정산"))
+    c = classify_with_fallback(txn(250_000, "카카오페이"))
     assert c.kind == "unknown"
     assert c.needs_review is True
 

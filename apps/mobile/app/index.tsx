@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { decideAllocation, proposeAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
+import { bankDeposit, decideAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
@@ -121,8 +121,12 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
   const [offline, setOffline] = useState(false);
   const [done, setDone] = useState(false);
   useEffect(() => {
-    proposeAllocation(3_000_000)
-      .then(setAlloc)
+    // 실제 입금 플로우: 백엔드가 원장 기록 + 분류 + 저장 이력 기반 제안까지 수행
+    bankDeposit()
+      .then((r) => {
+        if (r.allocation) setAlloc(r.allocation);
+        else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); }
+      })
       .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); });
   }, []);
 

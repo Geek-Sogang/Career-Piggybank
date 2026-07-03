@@ -33,7 +33,7 @@ BUSINESS_HINTS = (
     "studio", "company", "inc", "llc", "lab", "agency", "partners",
 )
 # 정산 플랫폼 (긱 플랫폼 정산 채널 — 발주처가 아니라 통로)
-PLATFORM_HINTS = ("크몽", "위시켓", "숨고", "탈잉", "클래스101", "원티드긱스", "페이워크")
+PLATFORM_HINTS = ("크몽", "위시켓", "숨고", "탈잉", "클래스101", "원티드긱스", "페이워크", "플랫폼 정산")
 # 경비성 지출 키워드 (구독/인프라/운영)
 SUBSCRIPTION_HINTS = (
     "figma", "adobe", "aws", "github", "notion", "slack", "vercel", "구독",

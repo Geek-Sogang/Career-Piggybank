@@ -65,6 +65,13 @@ class PendingSettlementOut(BaseModel):
     basis: str
 
 
+class StaleSettlementOut(BaseModel):
+    counterparty: str
+    advance_date: str
+    advance_amount: float
+    question: str
+
+
 class StreamsOut(BaseModel):
     """소득 물줄기 분해 — 분류기 라벨(플랫폼·advance)이 예측의 전처리가 된다."""
 
@@ -73,6 +80,7 @@ class StreamsOut(BaseModel):
     one_off_per_month: float
     candidates: list[StreamCandidateOut]
     pending_settlements: list[PendingSettlementOut]
+    stale_settlements: list[StaleSettlementOut]
     composite_next: StreamCandidateOut | None
     reasons: list[str]
 
@@ -130,8 +138,10 @@ def get_forecast() -> ForecastResponse:
         e for e in db.list_expected_events()
         if not income_dates or e["date"] > max(income_dates)
     ]
+    as_of = max((t["date"] for t in txns), default=None)
     streams = income_streams.decompose(
-        income_txns, months_observed=float(est.months_observed), user_events=future_events,
+        income_txns, months_observed=float(est.months_observed),
+        user_events=future_events, as_of=as_of,
     )
     composite = income_streams.composite_next(
         streams, after=max(income_dates) if income_dates else "1970-01-01"
@@ -170,6 +180,7 @@ def get_forecast() -> ForecastResponse:
             one_off_per_month=streams.one_off_per_month,
             candidates=[StreamCandidateOut(**c.__dict__) for c in streams.candidates],
             pending_settlements=[PendingSettlementOut(**p.__dict__) for p in streams.pending_settlements],
+            stale_settlements=[StaleSettlementOut(**st.__dict__) for st in streams.stale_settlements],
             composite_next=StreamCandidateOut(**composite.__dict__) if composite else None,
             reasons=streams.reasons,
         ),

@@ -48,6 +48,12 @@ SUBSCRIPTION_HINTS = (
     "figma", "adobe", "aws", "github", "notion", "slack", "vercel", "구독",
 )
 OPERATING_HINTS = ("호스팅", "도메인", "서버", "사무", "장비", "프린트", "택배", "임대료", "작업실")
+# 경비 '의심' 신호 — 확정은 못 하지만 생활비로 조용히 찍으면 안 되는 것들 (도서·교육·출장 계열).
+# 경비 인정은 종소세에 직결되므로, 애매하면 자동 결정하지 않고 LLM/사람에게 넘긴다.
+EXPENSE_SUSPECT_HINTS = (
+    "서적", "도서", "교육", "강의", "수강", "세미나", "컨퍼런스", "학원",
+    "항공", "출장", "ktx",
+)
 
 _PERSONAL_NAME = re.compile(r"^[가-힣]{2,4}$")  # 한글 2~4자만 → 개인 이름 형태
 
@@ -161,6 +167,13 @@ def _classify_out(txn: TxnInput) -> Classification:
         return Classification(
             kind="expense", subtype="operating", confidence=0.75, needs_review=False,
             signals=[f"운영비 키워드: '{txn.counterparty}'"],
+        )
+    # 경비 의심 — 도서·교육·출장 계열은 생활비로 조용히 찍지 않는다 (종소세 경비 인정 직결).
+    # unknown으로 넘겨 LLM 배심원단/수기 태그가 판단하게 한다 — 출금에도 2층 경로 개방.
+    if any(h in text for h in EXPENSE_SUSPECT_HINTS):
+        return Classification(
+            kind="unknown", subtype=None, confidence=0.45, needs_review=True,
+            signals=[f"경비 의심 신호: '{txn.counterparty}'{' · ' + txn.memo if txn.memo else ''} — 사업 경비인지 확인 필요"],
         )
     # 기본값: 개인 생활 지출 (긱워커 지출의 대부분) — 확신은 낮게 유지
     return Classification(

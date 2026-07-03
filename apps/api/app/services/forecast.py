@@ -155,6 +155,8 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
     cal = _walkforward_halfwidth(days)
     if cal is not None:
         half, calibration_runs = cal
+        if calibration_runs < 5:  # 소표본 보호 — P80이 사실상 max가 되는 구간은 분위수와 혼합
+            half = 0.5 * half + 0.5 * ((p75 - p25) / 2)
         lo, hi = max(0.0, med - half), med + half
         reasons.append(
             f"창 자기보정: 과거로 돌아가 {calibration_runs}회 예측해 본 실측 오차 P80 ±{half:.0f}일 — "
@@ -174,7 +176,29 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
 
 
 GAP_WEIGHT, CLIENT_WEIGHT, TICKET_WEIGHT = 0.5, 0.25, 0.25  # 간격=선행지표 최고 가중(Granger)
-EARLY_DECLINE_THRESHOLD = -0.015  # 커리어 신호가 이보다 나쁘면 하락 국면이 이미 시작된 것으로
+EARLY_DECLINE_THRESHOLD = -0.015  # (호환용 기준점) 배분 엔진의 버퍼 +1개월 판단에 사용
+
+# 하락 국면 연속화 — 임계값 절벽(−1.4%와 −1.6%가 은퇴 몇 년 차이) 대신 비례 전환.
+SOFT_DECLINE_START = -0.005   # 이보다 나쁘면 하락 기여가 '비례해서' 시작
+FULL_DECLINE_AT = -0.03       # 클램프 한계 — 여기서 완전 하락 국면(severity=1)
+
+
+def decline_severity(career_trend: float) -> float:
+    """커리어 신호 → 하락 국면 진입 정도 0~1 (연속 — 절벽 없음).
+
+    0 = 기존 성장 경로 그대로, 1 = 연령을 기다리지 않고 즉시 −8% 하락 국면.
+    지난달 −1.4% → 이번 달 −1.6%가 은퇴 밴드를 몇 년씩 점프시키는 절벽 효과를 없앤다.
+    """
+    if career_trend >= SOFT_DECLINE_START:
+        return 0.0
+    return min(1.0, (SOFT_DECLINE_START - career_trend) / (SOFT_DECLINE_START - FULL_DECLINE_AT))
+
+
+def _year_rate(age: int, growth: float, severity: float) -> float:
+    """그 해의 소득 변화율 — 정점 이후는 하락, 이전은 성장↔하락을 severity로 혼합."""
+    if age >= PEAK_AGE:
+        return -DECLINE_AFTER_PEAK
+    return (1.0 - severity) * growth - severity * DECLINE_AFTER_PEAK
 
 
 def _halves(items: list) -> tuple[list, list]:
@@ -239,22 +263,21 @@ def _personal_annual_trend(monthly_incomes: list[float]) -> float:
 
 def _cross_year(
     level: float, multiplier: float, target: float, growth: float, base_year: int,
-    early_decline: bool = False,
+    severity: float = 0.0,
 ) -> int:
     """일감 흐름 경로가 목표 생활비 아래로 내려가는 해를 탐색.
 
-    early_decline=True(커리어 신호 악화)면 연령 prior를 기다리지 않고 지금부터 하락 —
-    긱워커의 은퇴는 정년이 아니라 일감 소멸 시점이기 때문.
+    severity(0~1)만큼 하락 국면이 비례해서 앞당겨진다 — 신호 악화가 연속적으로 반영되고,
+    긱워커의 은퇴는 정년이 아니라 일감 소멸 시점이기 때문. (절벽 스위치 아님)
     """
     income = level * multiplier
     age, year = CURRENT_AGE, base_year
     for _ in range(MAX_HORIZON_YEARS):
-        declining = early_decline or age >= PEAK_AGE
-        rate = -DECLINE_AFTER_PEAK if declining else growth
+        rate = _year_rate(age, growth, severity)
         income *= 1.0 + rate
         age += 1
         year += 1
-        if declining and income < target:
+        if rate < 0 and income < target:
             return year
     return base_year + MAX_HORIZON_YEARS
 
@@ -265,16 +288,16 @@ def _derive_params(
     income_cv: float,
     months_observed: int,
     signals: CareerSignals | None,
-) -> tuple[CareerSignals, float, float, float, bool, float]:
+) -> tuple[CareerSignals, float, float, float, float, float]:
     """밴드와 경로가 공유하는 파라미터 한 벌 — 두 계산이 어긋나지 않도록 한 곳에서만 유도."""
     sig = signals or CareerSignals(1.0, 1.0, 1.0, 0.0, [])
     level = statistics.median(monthly_incomes) if monthly_incomes else monthly_living_target
     w = min(1.0, months_observed / TREND_BLEND_MONTHS)
     trend = _personal_annual_trend(monthly_incomes) * w
     growth = GROWTH_BEFORE_PEAK + trend + sig.career_trend
-    early_decline = sig.career_trend <= EARLY_DECLINE_THRESHOLD
+    severity = decline_severity(sig.career_trend)
     u = max(0.02, income_cv / BAND_WIDTH_CV_FRACTION)  # 밴드 폭 — 데이터 쌓일수록 좁아짐
-    return sig, level, trend, growth, early_decline, u
+    return sig, level, trend, growth, severity, u
 
 
 def retirement_bands(
@@ -290,7 +313,7 @@ def retirement_bands(
     긱워커 전용: 커리어 신호(수주 간격·발주처·단가)가 성장률을 보정하고,
     신호가 악화 임계 아래면 연령 prior를 기다리지 않고 하락 국면을 즉시 시작한다.
     """
-    sig, level, trend, growth, early_decline, u = _derive_params(
+    sig, level, trend, growth, severity, u = _derive_params(
         monthly_incomes, monthly_living_target, income_cv, months_observed, signals
     )
     w = min(1.0, months_observed / TREND_BLEND_MONTHS)
@@ -298,8 +321,8 @@ def retirement_bands(
     scenarios = {"cons": 1.0 - income_cv / 2, "base": 1.0, "opt": 1.0 + income_cv / 2}
     bands = []
     for name, m in scenarios.items():
-        early = _cross_year(level, m * (1 - u), monthly_living_target, growth, base_year, early_decline)
-        late = _cross_year(level, m * (1 + u), monthly_living_target, growth, base_year, early_decline)
+        early = _cross_year(level, m * (1 - u), monthly_living_target, growth, base_year, severity)
+        late = _cross_year(level, m * (1 + u), monthly_living_target, growth, base_year, severity)
         lo, hi = min(early, late), max(early, late)
         bands.append(RetirementBand(scenario=name, band_start_year=lo, band_end_year=hi,
                                     label=f"{lo} ~ {hi}"))
@@ -307,7 +330,8 @@ def retirement_bands(
         "current_age": CURRENT_AGE, "peak_age": PEAK_AGE,
         "growth_before_peak": GROWTH_BEFORE_PEAK, "decline_after_peak": DECLINE_AFTER_PEAK,
         "personal_trend_annual": round(trend, 4), "trend_blend_weight": round(w, 3),
-        "career_trend_annual": sig.career_trend, "early_decline": str(early_decline),
+        "career_trend_annual": sig.career_trend,
+        "early_decline": str(severity >= 1.0), "decline_severity": round(severity, 3),
         "gap_ratio": sig.gap_ratio, "client_ratio": sig.client_ratio, "ticket_ratio": sig.ticket_ratio,
         "band_width": round(u, 4), "income_cv": round(income_cv, 4),
         "monthly_income_level": round(level, 2),
@@ -350,7 +374,7 @@ def monte_carlo_retirement(
              ③ 성장·하락은 결정론 점화식과 동일한 파라미터
              ④ 하락 국면에서 (변동 반영) 소득이 생활비 아래로 → 그 해를 기록
     """
-    _sig, level, _trend, growth, early_decline, _u = _derive_params(
+    _sig, level, _trend, growth, severity, _u = _derive_params(
         monthly_incomes, monthly_living_target, income_cv, months_observed, signals
     )
     rng = random.Random(seed)
@@ -363,13 +387,12 @@ def monte_carlo_retirement(
         age, year = CURRENT_AGE, base_year
         retired = None
         for _ in range(MAX_HORIZON_YEARS):
-            declining = early_decline or age >= PEAK_AGE
-            rate = -DECLINE_AFTER_PEAK if declining else growth
+            rate = _year_rate(age, growth, severity)
             effective = income * rng.choice(ratios)                     # ② 그 해의 변동
             income *= 1.0 + rate                                        # ③ 추세
             age += 1
             year += 1
-            if declining and effective < monthly_living_target:         # ④ 교차
+            if rate < 0 and effective < monthly_living_target:          # ④ 교차
                 retired = year
                 break
         years_out.append(retired if retired is not None else base_year + MAX_HORIZON_YEARS)
@@ -382,14 +405,12 @@ def monte_carlo_retirement(
     )
 
 
-def _yearly_levels(level: float, growth: float, base_year: int, early_decline: bool, n_years: int) -> list[float]:
+def _yearly_levels(level: float, growth: float, base_year: int, severity: float, n_years: int) -> list[float]:
     """_cross_year와 같은 점화식으로 연도별 월 소득 수준을 기록 (밴드-경로 일치 보장)."""
     income, age = level, CURRENT_AGE
     out = [income]
     for _ in range(n_years):
-        declining = early_decline or age >= PEAK_AGE
-        rate = -DECLINE_AFTER_PEAK if declining else growth
-        income *= 1.0 + rate
+        income *= 1.0 + _year_rate(age, growth, severity)
         age += 1
         out.append(income)
     return out
@@ -409,7 +430,7 @@ def income_path(
     base = 기본 시나리오, lo/hi = ±u 신뢰구간 (밴드 탐색이 쓰는 것과 동일한 폭).
     end_year 미지정 시 기본 시나리오 밴드 끝 + 3년까지 그린다.
     """
-    _, level, _, growth, early_decline, u = _derive_params(
+    _, level, _, growth, severity, u = _derive_params(
         monthly_incomes, monthly_living_target, income_cv, months_observed, signals
     )
     if end_year is None:
@@ -419,7 +440,7 @@ def income_path(
         end_year = next(b for b in bands if b.scenario == "base").band_end_year + 3
     n_years = max(1, min(MAX_HORIZON_YEARS, end_year - base_year))
 
-    base = _yearly_levels(level, growth, base_year, early_decline, n_years)
+    base = _yearly_levels(level, growth, base_year, severity, n_years)
     years = list(range(base_year, base_year + n_years + 1))
     peak_idx = max(range(len(base)), key=base.__getitem__)
     return IncomePath(

@@ -27,6 +27,7 @@ from app.services.classifier import SETTLEMENT_NAME_TOKEN, _looks_platform
 
 MIN_OBS_FOR_RHYTHM = 2          # 채널/발주처 리듬 추정에 필요한 최소 관측
 DEFAULT_SETTLEMENT_LAG = 30.0   # 착수금→잔금 관측 쌍이 없을 때 기본 간격(일)
+STALE_LAG_MULTIPLIER = 2.0      # 예상 lag의 2배가 지나도 잔금이 없으면 '지연' — 추적을 멈추고 사람에게 묻는다
 
 
 @dataclass(frozen=True)
@@ -51,12 +52,23 @@ class PendingSettlement:
 
 
 @dataclass(frozen=True)
+class StaleSettlement:
+    """지연된 계약 — 잔금이 예상보다 오래 안 들어옴. 예측을 오염시키는 대신 질문이 된다."""
+
+    counterparty: str
+    advance_date: str
+    advance_amount: float
+    question: str      # 코치가 던질 확인 질문 (결정론 템플릿)
+
+
+@dataclass(frozen=True)
 class IncomeStreams:
     platform_channels: int
     repeat_clients: int
     one_off_per_month: float          # 신규/일회성 도착률 (건/월)
     candidates: list[StreamCandidate] = field(default_factory=list)
     pending_settlements: list[PendingSettlement] = field(default_factory=list)
+    stale_settlements: list[StaleSettlement] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
 
 
@@ -94,6 +106,7 @@ def decompose(
     income_txns: list[dict],
     months_observed: float = 0.0,
     user_events: list[dict] | None = None,
+    as_of: str | None = None,
 ) -> IncomeStreams:
     """income 거래(date·amount·counterparty·subtype) → 스트림 분해 (순수 함수).
 
@@ -134,24 +147,40 @@ def decompose(
                 basis=f"'{cp}' 재수주 리듬 {gap:.0f}일 (관측 {len(dates)}건)",
             ))
 
-    # C. 착수금→잔금 — 진행 중 계약 추적 (원장이 이미 아는 미래)
+    # C. 착수금→잔금 — 진행 중 계약 추적 (원장이 이미 아는 미래).
+    #    예상 lag의 2배가 지나도 안 들어오면 '지연' — 예측 후보에서 빼고 코치 질문으로 전환
+    #    (오염된 예측을 방치하는 대신, 모르게 된 것을 사람에게 묻는다 = 확인 게이트 문법)
     lag, lag_basis = _advance_lag(txns)
+    ref = date.fromisoformat(as_of) if as_of else (
+        date.fromisoformat(txns[-1]["date"]) if txns else None
+    )
     pending: list[PendingSettlement] = []
+    stale: list[StaleSettlement] = []
     for cp, items in by_cp.items():
         for i, t in enumerate(items):
             if t.get("subtype") == "advance":
                 settled = any(x.get("subtype") != "advance" for x in items[i + 1:])
-                if not settled:
-                    adv = date.fromisoformat(t["date"])
-                    expected = adv + timedelta(days=lag)
-                    pending.append(PendingSettlement(
+                if settled:
+                    continue
+                adv = date.fromisoformat(t["date"])
+                expected = adv + timedelta(days=lag)
+                if ref is not None and ref > adv + timedelta(days=lag * STALE_LAG_MULTIPLIER):
+                    stale.append(StaleSettlement(
                         counterparty=cp, advance_date=t["date"], advance_amount=t["amount"],
-                        expected_date=expected.isoformat(), basis=lag_basis,
+                        question=(
+                            f"'{cp}' 잔금이 예상({expected.isoformat()})보다 오래 걸리고 있어요 — "
+                            "들어왔는데 다른 이름이었나요, 아니면 아직인가요?"
+                        ),
                     ))
-                    candidates.append(StreamCandidate(
-                        source="pending_settlement", label=cp, expected_date=expected.isoformat(),
-                        basis=f"'{cp}' 착수금 {t['amount']:,.0f}원 관측 — 잔금 예상 ({lag_basis})",
-                    ))
+                    continue
+                pending.append(PendingSettlement(
+                    counterparty=cp, advance_date=t["date"], advance_amount=t["amount"],
+                    expected_date=expected.isoformat(), basis=lag_basis,
+                ))
+                candidates.append(StreamCandidate(
+                    source="pending_settlement", label=cp, expected_date=expected.isoformat(),
+                    basis=f"'{cp}' 착수금 {t['amount']:,.0f}원 관측 — 잔금 예상 ({lag_basis})",
+                ))
 
     # 사용자가 직접 알려준 예정 수입 — 스트림 D의 구멍을 대화가 메운다 (가장 강한 후보)
     for ev in user_events or []:
@@ -179,12 +208,16 @@ def decompose(
     if one_off and months_observed > 0:
         reasons.append("신규 발주는 원장에 신호가 없어요 — 진행 중인 영업은 코치에게 알려주시면 반영해요")
 
+    if stale:
+        reasons.append(f"지연된 계약 {len(stale)}건 — 예측에서 제외하고 코치가 확인을 요청해요")
+
     return IncomeStreams(
         platform_channels=len(platform_names),
         repeat_clients=len(repeat_names),
         one_off_per_month=rate,
         candidates=candidates,
         pending_settlements=pending,
+        stale_settlements=stale,
         reasons=reasons,
     )
 

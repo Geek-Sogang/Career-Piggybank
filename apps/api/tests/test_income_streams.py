@@ -115,3 +115,27 @@ def test_forecast_streams_after_advance_deposit() -> None:
     assert len(pend) == 1
     assert any(c["source"] == "pending_settlement" for c in st["candidates"])
     assert any("물줄기 분해" in r for r in st["reasons"])
+
+
+# ---------- 지연된 계약 — 예측 오염 대신 코치 질문으로 전환 ----------
+
+def test_stale_advance_becomes_question_not_candidate() -> None:
+    """lag×2가 지나도 잔금이 없으면 후보에서 빠지고 질문이 된다."""
+    s = decompose(
+        [txn("2025-01-01", "㈜비욘드", 3_000_000, subtype="advance")],
+        months_observed=4, as_of="2025-04-01",  # 기본 lag 30일 × 2 = 60일 훌쩍 경과
+    )
+    assert s.pending_settlements == []
+    assert not any(c.source == "pending_settlement" for c in s.candidates)
+    assert len(s.stale_settlements) == 1
+    assert "오래 걸리고" in s.stale_settlements[0].question
+    assert any("지연된 계약" in r for r in s.reasons)
+
+
+def test_fresh_advance_stays_pending() -> None:
+    s = decompose(
+        [txn("2025-05-01", "㈜비욘드", 3_000_000, subtype="advance")],
+        months_observed=1, as_of="2025-05-20",  # 아직 60일 안 지남
+    )
+    assert len(s.pending_settlements) == 1
+    assert s.stale_settlements == []

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { bankDeposit, decideAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
+import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
@@ -193,6 +194,18 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                 <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
               ))}
             </View>
+            {/* 하나 상품 훅 — 선택은 백엔드 룰, 탭하면 상품 상세로 */}
+            {(alloc.product_hooks ?? []).map((h) => (
+              <Pressable
+                key={h.product_id}
+                onPress={() => actions.openProduct(h.product_id as ProductKey)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>하나 상품</Text>
+                <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
+                <Icon name="chevronRight" size={15} color={colors.green} sw={2.2} />
+              </Pressable>
+            ))}
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
               <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
                 <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>나중에</Text>

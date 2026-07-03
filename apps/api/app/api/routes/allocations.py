@@ -12,9 +12,10 @@ from app.schemas.allocation import (
     DecisionRequest,
     EnvelopeSplit,
     MetricsResponse,
+    ProductHook,
     ProposeRequest,
 )
-from app.services import allocator
+from app.services import allocator, product_match
 from app.services.allocator import EnvelopeBalances, SpendingProfile
 from app.store import db
 
@@ -37,6 +38,7 @@ def to_response(a: dict) -> AllocationResponse:
         needs_confirmation=meta.get("needs_confirmation", False),
         reasons=meta.get("reasons", []),
         assumptions=meta.get("assumptions", {}),
+        product_hooks=[ProductHook(**h) for h in meta.get("product_hooks", [])],
     )
 
 
@@ -55,6 +57,7 @@ def propose(req: ProposeRequest) -> AllocationResponse:
             "buffer_target": p.buffer_target, "invest_available": p.invest_available,
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
+            "product_hooks": product_match.hooks_for(p),
         },
     )
     return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]

@@ -39,6 +39,15 @@ class EnvelopeSplit(BaseModel):
     buffer: float
 
 
+class ProductHook(BaseModel):
+    """배분 → 하나 상품 연결 훅 — 선택은 룰, 문구는 결정론 템플릿 (product_match)."""
+
+    product_id: str   # 모바일 products.ts ProductKey와 1:1
+    envelope: str
+    name: str
+    line: str
+
+
 class AllocationResponse(BaseModel):
     id: str
     status: AllocationStatus
@@ -52,6 +61,7 @@ class AllocationResponse(BaseModel):
     needs_confirmation: bool
     reasons: list[str]
     assumptions: dict[str, float]
+    product_hooks: list[ProductHook] = []  # 봉투별 하나 상품 안내 (최대 2)
 
 
 class MetricsResponse(BaseModel):

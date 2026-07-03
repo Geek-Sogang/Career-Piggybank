@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import statistics
 
-from app.services import allocator, classifier, classifier_llm, forecast, spending_profile
+from app.services import allocator, classifier, classifier_llm, forecast, product_match, spending_profile
 from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
 from app.services.classifier import Classification, TxnInput
 from app.services.spending_profile import ProfileEstimate, Txn
@@ -80,7 +80,8 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
         spendable=allocated["spendable"],
         buffer=db.envelope_balances()["buffer"],
     )
-    p = allocator.propose(deposit, est.profile, balances, context_from_store())
+    ctx = context_from_store()
+    p = allocator.propose(deposit, est.profile, balances, ctx)
     alloc_id = db.insert_allocation(
         deposit,
         {"tax": p.tax, "expense": p.expense, "spendable": p.spendable, "buffer": p.buffer},
@@ -89,6 +90,7 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "profile_notes": est.notes, "months_observed": est.months_observed,
+            "product_hooks": product_match.hooks_for(p, ctx),
         },
         txn_id=txn_id,
     )

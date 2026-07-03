@@ -173,3 +173,15 @@ def test_context_assumptions_exposed_in_proposal() -> None:
     a = stored["meta"]["assumptions"]
     for key in ("living_months", "expected_gap_days", "early_decline", "buffer_bias_applied"):
         assert key in a
+
+
+def test_deposit_proposal_carries_product_hooks() -> None:
+    """실플로우 제안에 하나 상품 훅이 실린다 (개인화 ② 상품 CTA)."""
+    seed()
+    res = client.post("/v1/bank/deposit", json={
+        "date": "2025-05-25", "amount": 483_500, "counterparty": "뉴클라이언트",
+    })
+    alloc = res.json()["allocation"]
+    hooks = alloc.get("product_hooks", [])
+    assert 1 <= len(hooks) <= 2
+    assert all("하나" in h["name"] for h in hooks)

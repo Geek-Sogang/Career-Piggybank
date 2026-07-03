@@ -55,6 +55,8 @@ export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT)
 }
 
 export type EnvelopeSplit = { tax: number; expense: number; spendable: number; buffer: number };
+// 배분 → 하나 상품 훅 — 선택은 백엔드 룰, product_id는 products.ts ProductKey와 1:1
+export type ProductHook = { product_id: string; envelope: string; name: string; line: string };
 export type Allocation = {
   id: string;
   status: 'proposed' | 'confirmed' | 'adjusted' | 'rejected';
@@ -63,6 +65,7 @@ export type Allocation = {
   windfall_ratio: number;
   needs_confirmation: boolean;
   reasons: string[];
+  product_hooks?: ProductHook[];
 };
 
 export function proposeAllocation(deposit: number, profile = DEMO_PROFILE) {
@@ -131,5 +134,11 @@ export const OFFLINE_ALLOCATION: Allocation = {
     '즉시가용 1,200,000원: 이번 달 생활비까지 채워요',
     '여윳돈 1,291,100원: 소득 변동에 대비해 버퍼 목표까지 더 모아요',
     '이번 입금은 평소(800,000원)의 3.8배 — 코치가 확인을 요청해요',
+  ],
+  product_hooks: [
+    {
+      product_id: 'parking', envelope: 'tax', name: '하나 긱워커 파킹통장',
+      line: '세금봉투 108,900원은 하나 긱워커 파킹통장(연 3.0%)에 두면 5월 종소세 때까지 이자가 붙어요',
+    },
   ],
 };

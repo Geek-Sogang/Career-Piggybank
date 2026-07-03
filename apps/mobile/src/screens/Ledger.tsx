@@ -9,6 +9,20 @@ export function Ledger() {
   const { actions } = useApp();
   return (
     <View style={{ gap: 14 }}>
+      {/* 새 입금 도착 — 배분 제안 데모 트리거 (백엔드 파이프라인 라이브) */}
+      <Pressable onPress={() => actions.openSheet('allocation')}>
+        <View style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="coin" size={22} color="#fff" sw={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,.85)' }}>방금 · △△플랫폼 정산</Text>
+            <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 }}>+₩3,000,000 도착 — 나눠볼까요?</Text>
+          </View>
+          <Icon name="chevronRight" size={20} color="rgba(255,255,255,.8)" sw={2.2} />
+        </View>
+      </Pressable>
+
       {/* 월 요약 */}
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.api.routes.bank import _boot
-from app.services import bank_flow, forecast
+from app.services import bank_flow, forecast, income_streams
 from app.store import db
 
 router = APIRouter(prefix="/v1/forecast", tags=["forecast"])
@@ -49,11 +49,39 @@ class IncomePathOut(BaseModel):
     living_target: float
 
 
+class StreamCandidateOut(BaseModel):
+    source: str
+    label: str
+    expected_date: str
+    basis: str
+
+
+class PendingSettlementOut(BaseModel):
+    counterparty: str
+    advance_date: str
+    advance_amount: float
+    expected_date: str
+    basis: str
+
+
+class StreamsOut(BaseModel):
+    """소득 물줄기 분해 — 분류기 라벨(플랫폼·advance)이 예측의 전처리가 된다."""
+
+    platform_channels: int
+    repeat_clients: int
+    one_off_per_month: float
+    candidates: list[StreamCandidateOut]
+    pending_settlements: list[PendingSettlementOut]
+    composite_next: StreamCandidateOut | None
+    reasons: list[str]
+
+
 class ForecastResponse(BaseModel):
     income_gap: IncomeGapOut
     retirement: list[RetirementBandOut]
     career_signals: CareerSignalsOut
     path: IncomePathOut
+    streams: StreamsOut
     monthly_income_level: float
     monthly_living_target: float
     income_cv: float
@@ -86,6 +114,11 @@ def get_forecast() -> ForecastResponse:
         base_year=base_year,
         signals=signals,
     )
+    streams = income_streams.decompose(income_txns, months_observed=float(est.months_observed))
+    composite = income_streams.composite_next(
+        streams, after=max(income_dates) if income_dates else "1970-01-01"
+    )
+
     base_band = next(b for b in bands if b.scenario == "base")
     path = forecast.income_path(
         monthly_incomes=monthly_incomes,
@@ -102,6 +135,15 @@ def get_forecast() -> ForecastResponse:
         career_signals=CareerSignalsOut(**signals.__dict__),
         path=IncomePathOut(
             **path.__dict__, living_target=round(est.profile.expected_monthly_living, 2)
+        ),
+        streams=StreamsOut(
+            platform_channels=streams.platform_channels,
+            repeat_clients=streams.repeat_clients,
+            one_off_per_month=streams.one_off_per_month,
+            candidates=[StreamCandidateOut(**c.__dict__) for c in streams.candidates],
+            pending_settlements=[PendingSettlementOut(**p.__dict__) for p in streams.pending_settlements],
+            composite_next=StreamCandidateOut(**composite.__dict__) if composite else None,
+            reasons=streams.reasons,
         ),
         monthly_income_level=assumptions["monthly_income_level"],  # type: ignore[arg-type]
         monthly_living_target=round(est.profile.expected_monthly_living, 2),

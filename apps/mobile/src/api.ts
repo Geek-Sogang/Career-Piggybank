@@ -122,6 +122,16 @@ export type Forecast = {
   career_signals: { gap_ratio: number; client_ratio: number; ticket_ratio: number; career_trend: number; reasons: string[] };
   // 차트가 그대로 그리는 연도별 경로 — 곡선·신뢰구간 띠·정점 전부 이 좌표에서
   path: { years: number[]; base: number[]; lo: number[]; hi: number[]; peak_year: number; living_target: number };
+  // 소득 물줄기 분해 — 분류 라벨(플랫폼·착수금)이 예측의 전처리가 된다
+  streams: {
+    platform_channels: number;
+    repeat_clients: number;
+    one_off_per_month: number;
+    candidates: { source: string; label: string; expected_date: string; basis: string }[];
+    pending_settlements: { counterparty: string; advance_date: string; advance_amount: number; expected_date: string; basis: string }[];
+    composite_next: { source: string; label: string; expected_date: string; basis: string } | null;
+    reasons: string[];
+  };
   monthly_income_level: number;
   income_cv: number;
 };

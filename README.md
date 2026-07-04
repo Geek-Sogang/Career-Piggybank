@@ -54,3 +54,6 @@ make mobile     # Expo 실행
 ## 보안
 - 비밀값은 `.env`(gitignore)로만. 마이데이터/홈택스/OAuth 키는 절대 커밋 금지.
 - 예시는 각 앱의 `.env.example` 참고.
+
+## 기여
+버그 제보나 제안은 GitHub Issues로 남겨주세요.

@@ -234,6 +234,19 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
   오픈 모델, `app/core/config.py`의 `ollama_model`) — 분류기 LLM 폴백과 공유.
 - 컨텍스트는 원시 거래내역이 아니라 요약된 프로필만 (짧을수록 로컬 모델이 정확·빠름).
 
+### ④′ 코치 오케스트레이터 (PR D) — 흐름은 코드, 판단은 에이전트, 말은 코치
+
+챗 1건: **⑧ 인텐트 라우터**(`agents/intent_router` — 룰 캐스케이드 → 2.4B, 메뉴 게이트,
+폴백=qa) → **라이브 컨텍스트**(`services/coach_live` — 잔액·세금부족분·스트림 근거·프로필
+노트·페르소나 신선도·인텐트별 상세를 결정론 조립, 정적 컨텍스트 갭 제거) →
+report_income이면 예정 수입 파서(**못 잡으면 되묻는다** — 조용한 무시 제거) → ⑨ 발화.
+
+**어젠다 큐**(`services/coach_agenda`): 이벤트 로그의 미발화 행(spoken=0)을 트리아지
+코드 룰로 — 조정/거절→후속 질문(행동축 플라이휠 입구, p1), 잔금 지연 계약→질문(p1,
+스트림 상태에서 합성 — 원장이 갱신되면 스스로 사라짐), 입금→묶음 브리핑(p2),
+저신호(태그·목표개설·페이싱)는 침묵. 발화문은 결정론 템플릿 — LLM이 죽어도 벨은 산다.
+`GET /v1/coach/agenda`(조회) · `POST /v1/coach/agenda/consume`(spoken 처리 = 사람이 봤다).
+
 ## API 요약
 
 | 엔드포인트 | 역할 | 상태 |
@@ -244,7 +257,8 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 | `POST /v1/allocations/{id}/decision` | 승인/조정/거절 | ✅ (인메모리) |
 | `GET /v1/allocations/metrics` | 무수정 승인율 KPI | ✅ |
 | `POST /v1/tax-envelope/*` | 세금 결정론 계산 | ✅ (기존) |
-| `POST /v1/coach/chat` | 피기 코치 대화 | ✅ (숫자 검증기 포함) |
+| `POST /v1/coach/chat` | 피기 코치 대화 (⑧ 인텐트 라우팅 + 라이브 컨텍스트 + 숫자 검증기) | ✅ |
+| `GET /v1/coach/agenda` · `POST /v1/coach/agenda/consume` | 벨 인박스 — 미발화 사건 트리아지·소비 | ✅ |
 | `POST /v1/strength` | 강점 한 줄 (후보=결정론·LLM=선택만) | ✅ |
 | `POST /v1/products/match` | ⑥ 상품 매칭 (후보=적합성 veto 결정론 → 선택=LLM 게이트 3종 → 폴백=룰) — 핫패스 아님 | ✅ |
 

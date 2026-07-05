@@ -28,3 +28,6 @@ class CoachChatResponse(BaseModel):
     captured_event: CapturedEvent | None = Field(
         None, description="메시지에서 수집된 예정 수입 — 다음 수입 예측(스트림)에 반영됨"
     )
+    intent: dict | None = Field(
+        None, description="⑧ 인텐트 라우터의 분기 결과 {intent, source, signal} — 감사용"
+    )

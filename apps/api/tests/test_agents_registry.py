@@ -103,4 +103,5 @@ def test_list_agents_endpoint():
     assert impl["profile_read"] is True
     assert impl["envelope_recommend"] is True
     assert impl["amount_pacing"] is True
-    assert impl["intent_router"] is False
+    assert impl["intent_router"] is True    # PR D에서 구현 — 정직 표기 갱신
+    assert impl["product_match"] is True    # PR #38에서 AI 승격

@@ -154,7 +154,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         ),
         fallback="Q&A(코치 답변)로",
         module="app.agents.intent_router",
-        implemented=False,
+        implemented=True,
         pr="PR D",
     ),
     AgentSpec(
@@ -172,6 +172,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         module="app.services.coach",
         implemented=True,
         is_mouth=True,
+        notes=("컨텍스트=coach_live(라이브 조립 — 고아 출력 연결), 선발화=coach_agenda(트리아지 코드 룰, GET /v1/coach/agenda)",),
     ),
 )
 

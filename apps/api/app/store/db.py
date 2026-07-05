@@ -85,7 +85,17 @@ CREATE TABLE IF NOT EXISTS profile_snapshots (
   axes TEXT,                   -- 프로필 판독 결과 JSON (PR B에서 채움 — 판단+근거 로그)
   model_id TEXT,
   fallback_used INTEGER NOT NULL DEFAULT 0,
-  seq INTEGER
+  seq INTEGER,
+  source_txn_count INTEGER     -- 판독 당시 원장 크기 — 신선도(staleness) 판정의 기준점
+);
+CREATE TABLE IF NOT EXISTS policy_state (
+  context_key TEXT NOT NULL,   -- 단일 사용자 데모는 'global' — 미래 컨텍스트 분화용
+  arm_id TEXT NOT NULL,        -- 안전 분위수 arm (P60/P75/P90)
+  alpha REAL NOT NULL DEFAULT 0,  -- 관측된 보상 합 — 사전분포는 저장 안 함(페르소나가 매번 공급)
+  beta REAL NOT NULL DEFAULT 0,   -- 관측된 (1−보상) 합
+  pulls INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (context_key, arm_id)
 );
 """
 
@@ -103,6 +113,10 @@ def get_conn() -> sqlite3.Connection:
 def init_db() -> None:
     with get_conn() as c:
         c.executescript(_SCHEMA)
+        # 기존 DB 마이그레이션 — CREATE IF NOT EXISTS는 기존 테이블에 컬럼을 못 더한다
+        cols = {r[1] for r in c.execute("PRAGMA table_info(profile_snapshots)")}
+        if "source_txn_count" not in cols:
+            c.execute("ALTER TABLE profile_snapshots ADD COLUMN source_txn_count INTEGER")
         for name in ENVELOPE_NAMES:
             c.execute("INSERT OR IGNORE INTO envelopes(name, balance) VALUES (?, 0)", (name,))
 
@@ -233,12 +247,18 @@ def get_allocation(alloc_id: str) -> dict | None:
     return _alloc_dict(row) if row else None
 
 
-def decide_allocation(alloc_id: str, status: str, final: dict | None) -> None:
+def decide_allocation(alloc_id: str, status: str, final: dict | None) -> bool:
+    """proposed → 결정 상태 전이 — 원자적 조건부 UPDATE.
+
+    WHERE status='proposed'가 check-then-act 레이스를 막는다: 동시 결정 2건이 와도
+    한 건만 True — 봉투 이중 입금·정책 이중 보상이 구조적으로 불가능해진다.
+    """
     with get_conn() as c:
-        c.execute(
-            "UPDATE allocations SET status=?, final=? WHERE id=?",
+        cur = c.execute(
+            "UPDATE allocations SET status=?, final=? WHERE id=? AND status='proposed'",
             (status, json.dumps(final) if final is not None else None, alloc_id),
         )
+        return cur.rowcount > 0
 
 
 def list_allocations() -> list[dict]:
@@ -322,15 +342,19 @@ def _event_dict(r: sqlite3.Row) -> dict:
 def insert_snapshot(
     trigger: str, factsheet: dict, axes: dict | None = None,
     model_id: str | None = None, fallback_used: bool = False,
+    source_txn_count: int | None = None,
 ) -> str:
     snap_id = uuid.uuid4().hex[:12]
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with get_conn() as c:
         c.execute(
-            "INSERT INTO profile_snapshots VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO profile_snapshots"
+            "(id, ts, trigger, factsheet, axes, model_id, fallback_used, seq, source_txn_count)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
             (snap_id, ts, trigger, json.dumps(factsheet, ensure_ascii=False),
              json.dumps(axes, ensure_ascii=False) if axes is not None else None,
-             model_id, int(fallback_used), _next_seq(c, "profile_snapshots")),
+             model_id, int(fallback_used), _next_seq(c, "profile_snapshots"),
+             source_txn_count),
         )
     return snap_id
 
@@ -413,6 +437,36 @@ def get_pacing(pid: str) -> dict | None:
     return d
 
 
-def decide_pacing(pid: str, status: str) -> None:
+def decide_pacing(pid: str, status: str) -> bool:
+    """proposed → 결정 상태 전이 — decide_allocation과 같은 원자적 레이스 가드."""
     with get_conn() as c:
-        c.execute("UPDATE pacing_proposals SET status=? WHERE id=?", (status, pid))
+        cur = c.execute(
+            "UPDATE pacing_proposals SET status=? WHERE id=? AND status='proposed'",
+            (status, pid),
+        )
+        return cur.rowcount > 0
+
+
+# ── policy state (학습 배분 정책의 관측 누적 — 사전분포는 페르소나가 매번 공급) ──
+
+def policy_state(context_key: str = "global") -> dict[str, dict]:
+    """arm별 관측 상태 — {arm_id: {alpha, beta, pulls}}. 없는 arm은 관측 0."""
+    with get_conn() as c:
+        rows = c.execute(
+            "SELECT arm_id, alpha, beta, pulls FROM policy_state WHERE context_key=?",
+            (context_key,),
+        ).fetchall()
+    return {r["arm_id"]: {"alpha": r["alpha"], "beta": r["beta"], "pulls": r["pulls"]} for r in rows}
+
+
+def policy_reward(context_key: str, arm_id: str, reward: float) -> None:
+    """보상 1건 반영 — alpha += r, beta += (1−r), pulls += 1 (사람의 결정이 원천)."""
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO policy_state VALUES (?,?,?,?,?,?) "
+            "ON CONFLICT(context_key, arm_id) DO UPDATE SET "
+            "alpha = alpha + excluded.alpha, beta = beta + excluded.beta, "
+            "pulls = pulls + 1, updated_at = excluded.updated_at",
+            (context_key, arm_id, reward, 1.0 - reward, 1, ts),
+        )

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     db_path: str = "data/piggybank.db"
     demo_seed: bool = True  # 시작 시 조대흠 데모 데이터 시드 (테스트에선 끔)
 
+    # 학습 배분 정책 — 탐색(Thompson 샘플링)은 기본 꺼짐(사후 평균 argmax).
+    # 오프라인 백테스트에서 고정 정책을 이기면 켠다(백테스트 게이트) — 데모 중 켜지 않는다.
+    policy_exploration: bool = False
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

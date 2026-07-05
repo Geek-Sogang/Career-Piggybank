@@ -262,3 +262,23 @@ def factsheet_dict(facts: list[Fact]) -> dict:
         "count": len(facts),
         "facts": [f.as_dict() for f in facts],
     }
+
+
+STALE_NEW_TXNS = 5  # 스냅샷 이후 새 거래가 이만큼 쌓이면 페르소나 재판독을 권한다 (정의)
+
+
+def snapshot_staleness(snap: dict | None, txn_count_now: int) -> dict | None:
+    """페르소나 스냅샷 신선도 — 원장은 최신인데 축은 예전일 수 있다 (다운스트림 경고용).
+
+    스냅샷이 없으면 None(페르소나 자체가 없음). 구버전 스냅샷(원장 크기 기록 없음)은
+    stale=None — 판정 불가를 정직하게 표기하고 재판독을 권한다. 판정만 하고
+    재판독을 자동 실행하지는 않는다(LLM 호출은 명시적 트리거로만 — 핫패스 보호).
+    """
+    if snap is None:
+        return None
+    src = snap.get("source_txn_count")
+    if src is None:
+        return {"new_txns": None, "stale": None, "threshold": STALE_NEW_TXNS,
+                "note": "스냅샷에 원장 크기 기록이 없어 신선도를 판정할 수 없어요 — 재판독을 권해요"}
+    new = max(0, txn_count_now - int(src))
+    return {"new_txns": new, "stale": new >= STALE_NEW_TXNS, "threshold": STALE_NEW_TXNS}

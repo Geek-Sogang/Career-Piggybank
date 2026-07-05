@@ -46,12 +46,14 @@ def create_goal(req: GoalCreate) -> dict:
 def recommend() -> dict:
     """봉투 추천(⑤a) — 팩트+페르소나 근거의 후보 목록. 개설은 사용자가 /goals로."""
     _boot()
-    sheet = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    txns = db.list_txns()
+    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
     snap = db.latest_snapshot()
     axes = snap["axes"] if snap else None
     ideas = envelope_recommend.recommend(sheet, axes, db.list_goals())
     return {
         "recommendations": [i.as_dict() for i in ideas],
         "persona_used": axes is not None,
+        "persona_staleness": facts_svc.snapshot_staleness(snap, len(txns)),
         "note": "추천은 판정일 뿐 — 개설(POST /v1/envelopes/goals)은 사용자의 결정",
     }

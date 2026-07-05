@@ -168,10 +168,34 @@ career_trend ≤ −1.5%면 즉시 하락 국면(early_decline). 밴드폭 u = m
 ```
 
 - "많이 들어온 달은 여윳돈 비중이 커진다"는 별도 로직이 아니라 폭포수의 성질로 나온다.
-- 버퍼 목표 = 생활비 × (1 + 4×CV) 개월, 1~6개월 클램프. 목표 초과분 = `invest_available`
+- **버퍼 목표 = 학습 배분 정책이 고른다** (`allocation_policy.py`, 아래 ③′) — 안전 분위수
+  arm(P60/P75/P90) × 관측된 수입 공백 분포. 목표 초과분 = `invest_available`
   (여윳돈 투자 제안 가능액 — 즉시가용·세금봉투는 절대 건드리지 않음).
+  배선점은 라이브 입금 플로우(`/bank/deposit`·income 수기태그의 `propose_for_deposit`)뿐 —
+  레거시 stateless `/allocations/propose`는 요청이 원장 없이 와서 공식 유지(정책·보상 미배선).
 - **제안/승인 상태기계**: `proposed → confirmed / adjusted / rejected`.
   조정 시 합계=입금액 검증, 조정분 `adjustment_delta` 기록(개인화 피드백).
+
+### ③′ 학습 배분 정책 — `app/services/allocation_policy.py`
+
+**역할**: 버퍼 안전 수준(어느 분위수의 가뭄까지 대비할지) 선택 — 사용자 반응으로 배우는
+온라인 학습(Beta-Thompson 사후분포). LLM 아님(산수) — 그래서 services/에 산다.
+**하지 않는 것**: 배분 원화(폭포수 잔여 계산 그대로), 세금·경비(불가침), 실행(사람 승인).
+
+```
+값은 측정에서   버퍼 개월 = 내 수입 공백 분포의 분위수 ÷ 30 (자유 계수 0)
+선택은 학습에서  P60/P75/P90 중 무엇을 겨냥할지만 학습 (유일한 취향 문제)
+prior는 페르소나  ④ 프로필 판독의 위험감내 축 → informed prior (관측 0건 = 페르소나 정책)
+보상은 사람에서  confirm=1 · adjust=1−버퍼편집비율 · reject=0 (결정 1건 = 보상 1건)
+콜드스타트 수축  공백 8건 미만은 기존 공식(1+4×CV)과 혼합 — 공식은 사전분포로 강등
+탐색은 게이트 뒤  기본 꺼짐(사후평균 argmax·동률은 안전한 쪽) — 백테스트를 이기면 켠다
+```
+
+모든 선택은 `meta["policy"]`(arm·사후분포·수축 가중·근거)로 배분에 실려 감사 가능하고,
+결정 시 보상이 이벤트 로그(`policy_arm`·`policy_reward`)에 남는다. **거절 기준 2~4건**이면
+선택이 바뀐다(승인·조정은 보상이 높아 천천히 — 통상 조정만으로는 안 바뀜. 보상은 제안
+전체 수용도의 프록시라 방향 신호(buffer_delta) 활용은 백로그, 공백 관측 0건이면
+무영향 무보상) — "학습은 보정이지 출발점이 아니다."
 
 **컨텍스트 인식 배분** (`AllocationContext`, §6-2④) — 수주 주기·커리어·행동 신호가
 파라미터를 보정한다. 신호는 통계(forecast·원장)가 만들고 보정은 룰이 한다 — AI 없음:
@@ -243,7 +267,7 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 
 | 상수 | 값 | 위치 |
 |---|---|---|
-| 버퍼 개월 = 1 + 4×CV (1~6 클램프) | `BUFFER_CV_SLOPE=4` | allocator |
+| 버퍼 개월 공식(1+4×CV)은 학습 정책의 콜드스타트 사전분포로 강등 — 공백 8건↑이면 분위수×학습 arm이 대체 | `BUFFER_CV_SLOPE=4` → `allocation_policy` | allocator·allocation_policy |
 | 코치 확인 임계 = 평균 입금 × 1.5 | `WINDFALL_RATIO=1.5` | allocator |
 | 콜드스타트 졸업 | `COLD_START_MONTHS=3` | spending_profile |
 | 직군 프리셋 수치 | `PERSONA_PRESETS` | spending_profile |

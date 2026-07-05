@@ -7,8 +7,17 @@
 from __future__ import annotations
 
 import statistics
+from dataclasses import replace
 
-from app.services import allocator, classifier, classifier_llm, forecast, product_match, spending_profile
+from app.services import (
+    allocation_policy,
+    allocator,
+    classifier,
+    classifier_llm,
+    forecast,
+    product_match,
+    spending_profile,
+)
 from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
 from app.services.classifier import Classification, TxnInput
 from app.services.spending_profile import ProfileEstimate, Txn
@@ -59,12 +68,17 @@ def buffer_adjustment_bias() -> float:
     return max(0.0, statistics.median(deltas))
 
 
-def context_from_store() -> AllocationContext:
-    """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
-    income_txns = [
+def _income_txns() -> list[dict]:
+    """확정 income 거래만 — 미확정 라벨은 어떤 통계에도 못 들어간다 (원칙)."""
+    return [
         t for t in db.list_txns()
         if t["kind"] == "income" and t["direction"] == "in" and not t["needs_review"]
     ]
+
+
+def context_from_store() -> AllocationContext:
+    """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
+    income_txns = _income_txns()
     gap = forecast.next_income_window([t["date"] for t in income_txns]) if income_txns else None
     signals = forecast.career_signals(income_txns)
     return AllocationContext(
@@ -75,7 +89,11 @@ def context_from_store() -> AllocationContext:
 
 
 def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[str, AllocationProposal]:
-    """저장된 프로필·컨텍스트·이번 달 배분 이력·버퍼 잔액 기준으로 제안 생성 후 DB 기록."""
+    """저장된 프로필·컨텍스트·이번 달 배분 이력·버퍼 잔액 기준으로 제안 생성 후 DB 기록.
+
+    버퍼 목표는 학습 배분 정책이 고른다(안전 분위수 — 페르소나 prior + 반응 사후분포).
+    정책 기록은 meta["policy"]로 남아, 사람의 결정(승인/조정/거절)이 보상으로 귀속된다.
+    """
     est = profile_from_store()
     allocated = db.month_allocated(date[:7])
     balances = EnvelopeBalances(
@@ -84,6 +102,13 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
         buffer=db.envelope_balances()["buffer"],
     )
     ctx = context_from_store()
+    snap = db.latest_snapshot()
+    policy = allocation_policy.choose(
+        income_dates=[t["date"] for t in _income_txns()],
+        axes=snap["axes"] if snap else None,
+        fallback_months=allocator.buffer_target_months(est.profile.income_cv),
+    )
+    ctx = replace(ctx, buffer_months_override=policy.months, buffer_months_reason=policy.reason)
     p = allocator.propose(deposit, est.profile, balances, ctx)
     alloc_id = db.insert_allocation(
         deposit,
@@ -94,6 +119,7 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "reasons": p.reasons, "assumptions": p.assumptions,
             "profile_notes": est.notes, "months_observed": est.months_observed,
             "product_hooks": product_match.hooks_for(p, ctx),
+            "policy": policy.as_dict(),
         },
         txn_id=txn_id,
     )

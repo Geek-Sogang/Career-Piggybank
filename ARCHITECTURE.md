@@ -246,6 +246,7 @@ API: `POST /v1/tax-envelope/annual`, `POST /v1/tax-envelope/split`
 | `POST /v1/tax-envelope/*` | 세금 결정론 계산 | ✅ (기존) |
 | `POST /v1/coach/chat` | 피기 코치 대화 | ✅ (숫자 검증기 포함) |
 | `POST /v1/strength` | 강점 한 줄 (후보=결정론·LLM=선택만) | ✅ |
+| `POST /v1/products/match` | ⑥ 상품 매칭 (후보=적합성 veto 결정론 → 선택=LLM 게이트 3종 → 폴백=룰) — 핫패스 아님 | ✅ |
 
 ## 구현 로드맵
 

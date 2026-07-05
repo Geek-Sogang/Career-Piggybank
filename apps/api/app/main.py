@@ -15,6 +15,7 @@ from app.api.routes import (
     forecast,
     pacing,
     health,
+    products,
     profile,
     strength,
     tax_envelope,
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(facts.router)
     app.include_router(envelopes.router)
     app.include_router(pacing.router)
+    app.include_router(products.router)
 
     @app.on_event("startup")
     def _startup() -> None:

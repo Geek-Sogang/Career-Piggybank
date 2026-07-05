@@ -15,7 +15,7 @@ from app.schemas.allocation import (
     ProductHook,
     ProposeRequest,
 )
-from app.services import allocator, product_match
+from app.services import allocation_policy, allocator, product_match
 from app.services.allocator import EnvelopeBalances, SpendingProfile
 from app.store import db
 
@@ -72,9 +72,12 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
     if stored["status"] != "proposed":
         raise HTTPException(status_code=409, detail=f"already decided: {stored['status']}")
 
+    # 상태 전이(원자적 조건부 UPDATE)를 먼저 따내고, 성공한 쪽만 돈을 움직인다 —
+    # 동시 결정 2건(더블탭·재시도)이 와도 봉투 입금·정책 보상은 정확히 1번
     if req.action == "confirm":
         final = stored["proposed"]
-        db.decide_allocation(alloc_id, "confirmed", final)
+        if not db.decide_allocation(alloc_id, "confirmed", final):
+            raise HTTPException(status_code=409, detail="already decided (concurrent)")
         db.envelope_add(final)  # 사람의 승인 후에만 돈이 움직인다
     elif req.action == "adjust":
         if req.adjusted is None:
@@ -85,10 +88,12 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
         final = a.model_dump()
-        db.decide_allocation(alloc_id, "adjusted", final)
+        if not db.decide_allocation(alloc_id, "adjusted", final):
+            raise HTTPException(status_code=409, detail="already decided (concurrent)")
         db.envelope_add(final)
     else:  # reject
-        db.decide_allocation(alloc_id, "rejected", None)
+        if not db.decide_allocation(alloc_id, "rejected", None):
+            raise HTTPException(status_code=409, detail="already decided (concurrent)")
 
     # 행동 계측 — 결정(승인/조정/거절)과 조정 방향은 행동축·플라이휠의 원천
     decided = db.get_allocation(alloc_id)
@@ -97,9 +102,20 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
         buffer_delta = round(
             float(decided["final"].get("buffer", 0)) - float(decided["proposed"].get("buffer", 0)), 2
         )
-    db.log_event("allocation_decided", ref_id=alloc_id, payload={
-        "action": req.action, "buffer_delta": buffer_delta,
-    })
+    payload: dict = {"action": req.action, "buffer_delta": buffer_delta}
+
+    # 학습 정책 보상 — 이 제안을 만든 arm에 결정을 귀속 (온라인 학습이 닫히는 지점).
+    # 원자적 상태 전이(위의 조건부 UPDATE)를 따낸 요청만 여기 도달 — 결정 1건 = 보상 1건.
+    # 공백 관측 0건이면 arm이 출력에 영향을 준 게 없으므로 귀속하지 않는다 (무영향 무보상).
+    policy_meta = decided["meta"].get("policy") if decided else None
+    if policy_meta and decided and policy_meta.get("observed_gaps", 0) > 0:
+        reward = allocation_policy.reward_for(
+            req.action, decided["proposed"], decided["final"], decided["deposit"]
+        )
+        allocation_policy.update(policy_meta["arm_id"], reward)
+        payload.update({"policy_arm": policy_meta["arm_id"], "policy_reward": round(reward, 4)})
+
+    db.log_event("allocation_decided", ref_id=alloc_id, payload=payload)
     return to_response(decided)  # type: ignore[arg-type]
 
 

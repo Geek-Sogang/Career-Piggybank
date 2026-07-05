@@ -42,7 +42,8 @@ def read_persona(trigger: str = "manual") -> dict:
     입금 핫패스가 아니다(축당 수 초) — 온보딩·수동·소득 패턴 변화 때 부른다.
     """
     _boot()
-    sheet = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    txns = db.list_txns()
+    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
     reading = profile_read.read_profile(sheet)
     snap_id = db.insert_snapshot(
         trigger=trigger,
@@ -50,6 +51,7 @@ def read_persona(trigger: str = "manual") -> dict:
         axes=reading["axes"],
         model_id=reading["model_id"],
         fallback_used=reading["fallback_count"] > 0,
+        source_txn_count=len(txns),  # 신선도(staleness) 판정의 기준점
     )
     return {"snapshot_id": snap_id, "trigger": trigger, **reading}
 
@@ -61,4 +63,5 @@ def latest_persona() -> dict:
     snap = db.latest_snapshot()
     if snap is None or snap["axes"] is None:
         raise HTTPException(status_code=404, detail="no persona snapshot — POST /v1/profile/read first")
-    return snap
+    # 신선도 게이트 — 원장은 자랐는데 축은 예전이면 다운스트림이 알아야 한다 (판정만, 자동 재판독 없음)
+    return {**snap, "staleness": facts_svc.snapshot_staleness(snap, len(db.list_txns()))}

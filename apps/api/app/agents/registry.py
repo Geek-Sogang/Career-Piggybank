@@ -115,7 +115,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         label="⑥ 상품 매칭",
         specialty="배분 상태와 프로필에 맞는 하나은행 상품을 고른다",
         output="상품 훅 최대 2개(상품·한 줄 문구) — 가입은 사람이",
-        model="룰(현재) → LLM 승격 예정, 문구는 결정론 템플릿",
+        model="룰 기반 적합성 엔진 (LLM 아님), 문구는 결정론 템플릿",
         cadence="배분 제안 생성 시",
         guardrails=(
             "적합성 veto — 부적합 상품(위험감내 밖) 차단",
@@ -125,7 +125,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         fallback="룰 선택 유지(현행)",
         module="app.services.product_match",
         implemented=True,
-        notes=("현행 구현은 룰 — LLM 승격은 PR C에서 프로필 연동과 함께",),
+        notes=("현행 구현은 룰 — 페르소나(profile_snapshots) 미연동. LLM·프로필 연동 승격은 백로그(어느 PR에도 미착수, 정직 표기)",),
     ),
     AgentSpec(
         id="strength_pick",

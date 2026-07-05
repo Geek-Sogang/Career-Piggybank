@@ -33,9 +33,11 @@ class DecisionRequest(BaseModel):
 def propose(req: ProposeRequest) -> dict:
     _boot()
     goals = db.list_goals()
-    sheet = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    txns = db.list_txns()
+    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
     snap = db.latest_snapshot()
     axes = snap["axes"] if snap else None
+    staleness = facts_svc.snapshot_staleness(snap, len(txns))
 
     judgment = amount_pacing.judge(goals, sheet, axes)          # 판단 (⑤b — 번호만)
 
@@ -53,10 +55,12 @@ def propose(req: ProposeRequest) -> dict:
         "goals": [{"id": g.goal_id, "name": g.name, "base": g.base,
                    "stance": g.stance, "amount": g.amount} for g in plan.goals],
         "buffer_first": plan.buffer_first,
+        "persona_staleness": staleness,
     })
     return {"id": pid, "status": "proposed", "available": req.available,
             "split": plan.split(), "reasons": list(plan.reasons),
-            "judgment": judgment.as_dict()}
+            "judgment": judgment.as_dict(),
+            "persona_staleness": staleness}
 
 
 @router.post("/{pid}/decision")
@@ -71,6 +75,10 @@ def decide(pid: str, req: DecisionRequest) -> dict:
     if req.action not in ("confirm", "reject"):
         raise HTTPException(status_code=422, detail="action must be confirm|reject")
 
+    # 상태 전이를 원자적으로 먼저 따내고(레이스 가드), 성공한 쪽만 잔액을 움직인다
+    status = "confirmed" if req.action == "confirm" else "rejected"
+    if not db.decide_pacing(pid, status):
+        raise HTTPException(status_code=409, detail="already decided (concurrent)")
     if req.action == "confirm":
         for key, amount in stored["split"].items():
             if amount <= 0:
@@ -79,9 +87,6 @@ def decide(pid: str, req: DecisionRequest) -> dict:
                 db.envelope_add({"buffer": amount})
             else:
                 db.goal_add_balance(key, amount)
-        db.decide_pacing(pid, "confirmed")
-    else:
-        db.decide_pacing(pid, "rejected")
 
     db.log_event("pacing_decided", ref_id=pid, payload={"action": req.action})
     return {"id": pid, "status": "confirmed" if req.action == "confirm" else "rejected"}

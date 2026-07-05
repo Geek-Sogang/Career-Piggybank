@@ -40,6 +40,10 @@ class AllocationContext:
     expected_gap_days: float | None = None  # 다음 수입까지 예상 간격(중앙값, 일)
     early_decline: bool = False             # 커리어 신호 악화(수주 간격↑·발주처↓·단가↓)
     buffer_bias: float = 0.0                # 조정 성향: 사용자가 버퍼로 늘려온 중앙값(원, ≥0)
+    # 학습 배분 정책(allocation_policy)이 고른 버퍼 목표 개월 — None이면 기존 공식(하위 호환).
+    # 이 엔진은 정책을 모른다: 값과 근거 문장만 받는다 (판단은 밖, 여기는 산수).
+    buffer_months_override: float | None = None
+    buffer_months_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -150,7 +154,12 @@ def propose(
     # 4) 여윳돈 — 남는 전부. 반올림 오차도 여기서 흡수해 합계 == 입금액 보장.
     #    커리어 추세 보정: 신호 악화(수주 간격↑·발주처↓·단가↓)면 버퍼 목표를 더 두껍게
     buffer = round(deposit - tax - expense - spendable, 2)
-    months = buffer_target_months(profile.income_cv)
+    if ctx.buffer_months_override is not None:
+        months = min(BUFFER_MONTHS_MAX, max(BUFFER_MONTHS_MIN, ctx.buffer_months_override))
+        if ctx.buffer_months_reason:
+            reasons.append(ctx.buffer_months_reason)
+    else:
+        months = buffer_target_months(profile.income_cv)
     if ctx.early_decline:
         months = min(BUFFER_MONTHS_MAX, months + EARLY_DECLINE_EXTRA_MONTHS)
         reasons.append(
@@ -215,6 +224,7 @@ def propose(
             "expected_gap_days": ctx.expected_gap_days if ctx.expected_gap_days is not None else 0.0,
             "early_decline": 1.0 if ctx.early_decline else 0.0,
             "buffer_bias_applied": bias_applied,
+            "buffer_months_from_policy": 1.0 if ctx.buffer_months_override is not None else 0.0,
         },
     )
 

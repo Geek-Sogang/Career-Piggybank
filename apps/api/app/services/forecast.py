@@ -230,8 +230,11 @@ def career_signals(income_txns: list[dict]) -> CareerSignals:
 
     ticket_ratio = statistics.median([t["amount"] for t in t2]) / max(1.0, statistics.median([t["amount"] for t in t1]))
 
+    # 같은날 입금 뭉침으로 후반 간격 중앙값이 0이면 간격 신호는 중립(0) —
+    # "간격이 0으로 좁아졌다"는 신호가 아니라 신호 부재다 (1/0 크래시 가드 겸용)
+    gap_term = (1.0 / gap_ratio - 1.0) if gap_ratio > 0 else 0.0
     career_trend = (
-        GAP_WEIGHT * (1.0 / gap_ratio - 1.0)      # 간격 좁아짐(+) / 벌어짐(−)
+        GAP_WEIGHT * gap_term                     # 간격 좁아짐(+) / 벌어짐(−)
         + CLIENT_WEIGHT * (client_ratio - 1.0)
         + TICKET_WEIGHT * (ticket_ratio - 1.0)
     )

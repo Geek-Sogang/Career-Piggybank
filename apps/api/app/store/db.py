@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import settings
@@ -48,6 +49,25 @@ CREATE TABLE IF NOT EXISTS expected_events (
   amount REAL,                 -- 없을 수 있음 (금액 미상 예정 수입)
   label TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT 'coach_chat'
+);
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY,
+  ts TEXT NOT NULL,            -- 기록 시각 (UTC ISO) — 행동 리듬(태깅 빈도·결정 속도)의 원천
+  type TEXT NOT NULL,          -- deposit_received / txn_tagged / allocation_decided ...
+  ref_id TEXT,                 -- 관련 txn_id / alloc_id
+  payload TEXT NOT NULL DEFAULT '{}',
+  spoken INTEGER NOT NULL DEFAULT 0,  -- 어젠다 큐: 0 = 피기가 아직 발화하지 않은 행
+  seq INTEGER
+);
+CREATE TABLE IF NOT EXISTS profile_snapshots (
+  id TEXT PRIMARY KEY,
+  ts TEXT NOT NULL,
+  trigger TEXT NOT NULL,       -- manual / monthly / new_txns / income_shift ...
+  factsheet TEXT NOT NULL,     -- 팩트시트 JSON (판단 당시의 사실 — 감사·재생의 기준점)
+  axes TEXT,                   -- 프로필 판독 결과 JSON (PR B에서 채움 — 판단+근거 로그)
+  model_id TEXT,
+  fallback_used INTEGER NOT NULL DEFAULT 0,
+  seq INTEGER
 );
 """
 
@@ -231,4 +251,89 @@ def _alloc_dict(r: sqlite3.Row) -> dict:
     d["proposed"] = json.loads(d["proposed"])
     d["final"] = json.loads(d["final"]) if d["final"] else None
     d["meta"] = json.loads(d["meta"])
+    return d
+
+
+# ── events (행동 계측 append-only 로그 — 어젠다 큐 겸용) ──
+#
+# 같은 테이블이 두 역할을 겸한다:
+# ① 행동축의 원천 — 태깅 리듬·결정 속도·조정 습관은 이 타임스탬프에서만 잴 수 있다
+#    (지금 안 쌓으면 행동축은 영원히 데모 상수).
+# ② 코치 어젠다 큐 — spoken=0 인 행이 "피기가 아직 말하지 않은 사건"이다 (PR D).
+
+def log_event(type_: str, ref_id: str | None = None, payload: dict | None = None) -> str:
+    ev_id = uuid.uuid4().hex[:12]
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO events VALUES (?,?,?,?,?,?,?)",
+            (ev_id, ts, type_, ref_id,
+             json.dumps(payload or {}, ensure_ascii=False), 0, _next_seq(c, "events")),
+        )
+    return ev_id
+
+
+def list_events(type_: str | None = None) -> list[dict]:
+    q = "SELECT * FROM events" + (" WHERE type=?" if type_ else "") + " ORDER BY seq"
+    with get_conn() as c:
+        rows = c.execute(q, (type_,) if type_ else ()).fetchall()
+    return [_event_dict(r) for r in rows]
+
+
+def unspoken_events() -> list[dict]:
+    """어젠다 큐 — 피기가 아직 발화하지 않은 사건들 (오래된 것부터)."""
+    with get_conn() as c:
+        rows = c.execute("SELECT * FROM events WHERE spoken=0 ORDER BY seq").fetchall()
+    return [_event_dict(r) for r in rows]
+
+
+def mark_spoken(event_id: str) -> None:
+    with get_conn() as c:
+        c.execute("UPDATE events SET spoken=1 WHERE id=?", (event_id,))
+
+
+def _event_dict(r: sqlite3.Row) -> dict:
+    d = dict(r)
+    d["payload"] = json.loads(d["payload"])
+    d["spoken"] = bool(d["spoken"])
+    return d
+
+
+# ── profile snapshots (판단 당시의 사실·판단을 고정 — 감사 가능한 로그) ──
+
+def insert_snapshot(
+    trigger: str, factsheet: dict, axes: dict | None = None,
+    model_id: str | None = None, fallback_used: bool = False,
+) -> str:
+    snap_id = uuid.uuid4().hex[:12]
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO profile_snapshots VALUES (?,?,?,?,?,?,?,?)",
+            (snap_id, ts, trigger, json.dumps(factsheet, ensure_ascii=False),
+             json.dumps(axes, ensure_ascii=False) if axes is not None else None,
+             model_id, int(fallback_used), _next_seq(c, "profile_snapshots")),
+        )
+    return snap_id
+
+
+def latest_snapshot() -> dict | None:
+    with get_conn() as c:
+        row = c.execute(
+            "SELECT * FROM profile_snapshots ORDER BY seq DESC LIMIT 1"
+        ).fetchone()
+    return _snapshot_dict(row) if row else None
+
+
+def list_snapshots() -> list[dict]:
+    with get_conn() as c:
+        rows = c.execute("SELECT * FROM profile_snapshots ORDER BY seq").fetchall()
+    return [_snapshot_dict(r) for r in rows]
+
+
+def _snapshot_dict(r: sqlite3.Row) -> dict:
+    d = dict(r)
+    d["factsheet"] = json.loads(d["factsheet"])
+    d["axes"] = json.loads(d["axes"]) if d["axes"] else None
+    d["fallback_used"] = bool(d["fallback_used"])
     return d

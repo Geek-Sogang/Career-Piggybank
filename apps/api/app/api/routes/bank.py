@@ -50,6 +50,10 @@ def deposit(req: DepositRequest) -> DepositResponse:
         # 코치의 확인 게이트: "확인해주세요"가 아니라 해소에 필요한 질문 하나를 만들어 건넨다
         q = clarify.make_question(req.amount, req.counterparty, req.memo, c.signals)
         question = ClarifyOut(**q.__dict__)
+    # 행동 계측 — 사건을 이벤트 로그에 (어젠다 큐 겸용: 미발화 행을 PR D 코치가 소비)
+    db.log_event("deposit_received", ref_id=txn_id, payload={
+        "amount": req.amount, "kind": c.kind, "needs_review": c.needs_review,
+    })
     return DepositResponse(transaction=TxnOut(**db.get_txn(txn_id)), allocation=allocation, clarify=question)  # type: ignore[arg-type]
 
 
@@ -68,6 +72,8 @@ def tag(txn_id: str, req: TagRequest) -> TagResponse:
         raise HTTPException(status_code=404, detail="transaction not found")
     db.tag_txn(txn_id, req.kind, req.subtype)
     db.dict_learn(txn["counterparty"], req.kind, req.subtype)  # 피드백 루프 — 라벨이 곧 학습
+    # 행동 계측 — 태깅 리듬(참여·성실 축)은 이 타임스탬프에서만 잴 수 있다
+    db.log_event("txn_tagged", ref_id=txn_id, payload={"kind": req.kind})
     allocation = None
     if req.kind == "income" and txn["direction"] == "in":
         alloc_id, _ = bank_flow.propose_for_deposit(txn["amount"], txn["date"], txn_id)

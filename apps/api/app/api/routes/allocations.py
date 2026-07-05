@@ -90,7 +90,17 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
     else:  # reject
         db.decide_allocation(alloc_id, "rejected", None)
 
-    return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
+    # 행동 계측 — 결정(승인/조정/거절)과 조정 방향은 행동축·플라이휠의 원천
+    decided = db.get_allocation(alloc_id)
+    buffer_delta = 0.0
+    if req.action == "adjust" and decided and decided["final"]:
+        buffer_delta = round(
+            float(decided["final"].get("buffer", 0)) - float(decided["proposed"].get("buffer", 0)), 2
+        )
+    db.log_event("allocation_decided", ref_id=alloc_id, payload={
+        "action": req.action, "buffer_delta": buffer_delta,
+    })
+    return to_response(decided)  # type: ignore[arg-type]
 
 
 @router.get("/metrics", response_model=MetricsResponse)

@@ -90,7 +90,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         ),
         fallback="기본 봉투 세트(여윳돈 버퍼)만 유지",
         module="app.agents.envelope_recommend",
-        implemented=False,
+        implemented=True,
         pr="PR C",
     ),
     AgentSpec(
@@ -107,7 +107,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         ),
         fallback="산수 페이싱(목표금액 ÷ 남은 기간) + 컨텍스트 룰",
         module="app.agents.amount_pacing",
-        implemented=False,
+        implemented=True,
         pr="PR C",
     ),
     AgentSpec(

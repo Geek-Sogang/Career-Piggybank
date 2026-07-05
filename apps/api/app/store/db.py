@@ -59,6 +59,24 @@ CREATE TABLE IF NOT EXISTS events (
   spoken INTEGER NOT NULL DEFAULT 0,  -- 어젠다 큐: 0 = 피기가 아직 발화하지 않은 행
   seq INTEGER
 );
+CREATE TABLE IF NOT EXISTS goal_envelopes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,          -- 사용자에게 보이는 구체적 이름 ("새 맥북", "일 없는 달")
+  target_amount REAL NOT NULL,
+  target_date TEXT,            -- 없을 수 있음 (기한 없는 목표)
+  balance REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',   -- active / done / archived
+  source TEXT NOT NULL DEFAULT 'user',     -- user(직접) / ai_recommend(추천 승인)
+  seq INTEGER
+);
+CREATE TABLE IF NOT EXISTS pacing_proposals (
+  id TEXT PRIMARY KEY,
+  available REAL NOT NULL,     -- 이번에 나눌 여윳돈 슬라이스
+  split TEXT NOT NULL,         -- {"buffer": .., "<goal_id>": ..} JSON — 합계 = available
+  status TEXT NOT NULL DEFAULT 'proposed',  -- proposed / confirmed / rejected
+  meta TEXT NOT NULL DEFAULT '{}',
+  seq INTEGER
+);
 CREATE TABLE IF NOT EXISTS profile_snapshots (
   id TEXT PRIMARY KEY,
   ts TEXT NOT NULL,
@@ -337,3 +355,64 @@ def _snapshot_dict(r: sqlite3.Row) -> dict:
     d["axes"] = json.loads(d["axes"]) if d["axes"] else None
     d["fallback_used"] = bool(d["fallback_used"])
     return d
+
+
+# ── goal envelopes (사용자 목표 봉투 — 잠긴 prefix[세금·경비] 뒤의 취향 층) ──
+
+def insert_goal(name: str, target_amount: float, target_date: str | None,
+                source: str = "user") -> str:
+    goal_id = uuid.uuid4().hex[:12]
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO goal_envelopes VALUES (?,?,?,?,?,?,?,?)",
+            (goal_id, name, target_amount, target_date, 0.0, "active", source,
+             _next_seq(c, "goal_envelopes")),
+        )
+    return goal_id
+
+
+def list_goals(status: str | None = "active") -> list[dict]:
+    q = "SELECT * FROM goal_envelopes" + (" WHERE status=?" if status else "") + " ORDER BY seq"
+    with get_conn() as c:
+        rows = c.execute(q, (status,) if status else ()).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_goal(goal_id: str) -> dict | None:
+    with get_conn() as c:
+        row = c.execute("SELECT * FROM goal_envelopes WHERE id=?", (goal_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def goal_add_balance(goal_id: str, amount: float) -> None:
+    with get_conn() as c:
+        c.execute("UPDATE goal_envelopes SET balance = balance + ? WHERE id=?", (amount, goal_id))
+
+
+# ── pacing proposals (금액 페이싱 — 제안·확정 분리 = 확인 게이트) ──
+
+def insert_pacing(available: float, split: dict, meta: dict) -> str:
+    pid = uuid.uuid4().hex[:12]
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO pacing_proposals VALUES (?,?,?,?,?,?)",
+            (pid, available, json.dumps(split), "proposed",
+             json.dumps(meta, ensure_ascii=False), _next_seq(c, "pacing_proposals")),
+        )
+    return pid
+
+
+def get_pacing(pid: str) -> dict | None:
+    with get_conn() as c:
+        row = c.execute("SELECT * FROM pacing_proposals WHERE id=?", (pid,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["split"] = json.loads(d["split"])
+    d["meta"] = json.loads(d["meta"])
+    return d
+
+
+def decide_pacing(pid: str, status: str) -> None:
+    with get_conn() as c:
+        c.execute("UPDATE pacing_proposals SET status=? WHERE id=?", (status, pid))

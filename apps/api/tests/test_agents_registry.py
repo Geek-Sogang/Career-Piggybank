@@ -101,4 +101,6 @@ def test_list_agents_endpoint():
     impl = {a["id"]: a["implemented"] for a in body["agents"]}
     assert impl["classifier_jury"] is True
     assert impl["profile_read"] is True
-    assert impl["envelope_recommend"] is False
+    assert impl["envelope_recommend"] is True
+    assert impl["amount_pacing"] is True
+    assert impl["intent_router"] is False

@@ -72,7 +72,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
         ),
         fallback="해당 축 중립 0.5 + 직군 프리셋 블렌드",
         module="app.agents.profile_read",
-        implemented=False,
+        implemented=True,
         pr="PR B",
     ),
     AgentSpec(

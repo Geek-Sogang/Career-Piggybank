@@ -1,12 +1,20 @@
-"""프로필 예측 라우트 — 라벨된 거래 이력 → allocator 입력 파라미터."""
+"""프로필 라우트 — 결정론 추정(estimate)과 페르소나 판독(read)을 분리.
+
+/read 오케스트레이션(흐름=코드): 팩트 측정(엔진) → 프로필 판독 에이전트(축당 1회)
+→ 스냅샷 저장(감사 로그). 에이전트는 판정만 — 어떤 돈도 움직이지 않는다.
+"""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
+from app.agents import profile_read
+from app.api.routes.bank import _boot
 from app.schemas.allocation import SpendingProfileIn
 from app.schemas.profile import ProfileEstimateRequest, ProfileEstimateResponse
+from app.services import facts as facts_svc
 from app.services import spending_profile
 from app.services.spending_profile import Txn
+from app.store import db
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])
 
@@ -25,3 +33,32 @@ def estimate(req: ProfileEstimateRequest) -> ProfileEstimateResponse:
         persona=result.persona,
         notes=result.notes,
     )
+
+
+@router.post("/read")
+def read_persona(trigger: str = "manual") -> dict:
+    """페르소나 판독 — 팩트 측정 → 축당 1회 LLM 판독 → 스냅샷 고정.
+
+    입금 핫패스가 아니다(축당 수 초) — 온보딩·수동·소득 패턴 변화 때 부른다.
+    """
+    _boot()
+    sheet = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    reading = profile_read.read_profile(sheet)
+    snap_id = db.insert_snapshot(
+        trigger=trigger,
+        factsheet=facts_svc.factsheet_dict(sheet),
+        axes=reading["axes"],
+        model_id=reading["model_id"],
+        fallback_used=reading["fallback_count"] > 0,
+    )
+    return {"snapshot_id": snap_id, "trigger": trigger, **reading}
+
+
+@router.get("/persona")
+def latest_persona() -> dict:
+    """최신 페르소나 스냅샷 — 다운스트림(봉투·페이싱·상품·은퇴곡선)이 읽는 SSOT."""
+    _boot()
+    snap = db.latest_snapshot()
+    if snap is None or snap["axes"] is None:
+        raise HTTPException(status_code=404, detail="no persona snapshot — POST /v1/profile/read first")
+    return snap

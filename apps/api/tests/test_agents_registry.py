@@ -100,4 +100,5 @@ def test_list_agents_endpoint():
     # 정직 표기가 응답에도 그대로
     impl = {a["id"]: a["implemented"] for a in body["agents"]}
     assert impl["classifier_jury"] is True
-    assert impl["profile_read"] is False
+    assert impl["profile_read"] is True
+    assert impl["envelope_recommend"] is False

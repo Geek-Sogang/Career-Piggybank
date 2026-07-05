@@ -10,8 +10,10 @@ from app.api.routes import (
     bank,
     classify,
     coach,
+    envelopes,
     facts,
     forecast,
+    pacing,
     health,
     profile,
     strength,
@@ -47,6 +49,8 @@ def create_app() -> FastAPI:
     app.include_router(bank.router)
     app.include_router(forecast.router)
     app.include_router(facts.router)
+    app.include_router(envelopes.router)
+    app.include_router(pacing.router)
 
     @app.on_event("startup")
     def _startup() -> None:

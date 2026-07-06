@@ -1,11 +1,22 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { fetchStrength } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
 import { useApp } from '@/store';
 
+// 서버/LLM 미가동 시 오프라인 폴백 문구
+const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
+
 export function Piggy() {
   const { actions } = useApp();
+  const [strength, setStrength] = useState(OFFLINE_STRENGTH);
+  useEffect(() => {
+    fetchStrength()
+      .then((s) => setStrength(`"${s.line}"`)) // 결정론 후보 원문 — AI는 선택만 했음
+      .catch(() => {});
+  }, []);
 
   return (
     <View style={{ gap: 14 }}>
@@ -35,8 +46,8 @@ export function Piggy() {
         <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
-          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>“꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자”</Text>
-          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 142개 데이터 기반</Text>
+          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
+          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
         </View>
       </View>
 

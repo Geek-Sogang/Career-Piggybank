@@ -4,7 +4,25 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, tax_envelope
+from app.api.routes import (
+    agents,
+    allocations,
+    bank,
+    classify,
+    coach,
+    envelopes,
+    facts,
+    forecast,
+    pacing,
+    health,
+    products,
+    profile,
+    strength,
+    tax_envelope,
+)
+from app.core.config import settings as app_settings
+from app.store import db as store_db
+from app.store.seed import ensure_seed
 from app.core.config import settings
 
 
@@ -22,7 +40,26 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(health.router)
+    app.include_router(agents.router)
     app.include_router(tax_envelope.router)
+    app.include_router(allocations.router)
+    app.include_router(profile.router)
+    app.include_router(classify.router)
+    app.include_router(coach.router)
+    app.include_router(strength.router)
+    app.include_router(bank.router)
+    app.include_router(forecast.router)
+    app.include_router(facts.router)
+    app.include_router(envelopes.router)
+    app.include_router(pacing.router)
+    app.include_router(products.router)
+
+    @app.on_event("startup")
+    def _startup() -> None:
+        store_db.init_db()
+        if app_settings.demo_seed:
+            ensure_seed()
+
     return app
 
 

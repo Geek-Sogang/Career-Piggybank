@@ -17,7 +17,7 @@ export function My() {
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Mascot head size={56} radius={16} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>김도현</Text>
+          <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>조대흠</Text>
           <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>프리랜스 개발자 · 28세</Text>
         </View>
         <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 10, overflow: 'hidden' }}>확정 ✓</Text>

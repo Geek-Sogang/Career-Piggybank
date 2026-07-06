@@ -1,10 +1,14 @@
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { EnvelopeSplit } from '@/api';
 import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
+// 최근 입금 배분 이벤트 — 시트·피기 코치 챗·잠금화면 알림이 같은 사건을 이어 말한다
+export type AllocNotice = { deposit: number; windfall: number; split: EnvelopeSplit; confirmed: boolean };
+
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
 export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState';
-export type Sheet = null | 'consent' | 'invest';
+export type Sheet = null | 'consent' | 'invest' | 'allocation';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance' | 'portfolio';
 type Conn = Record<ConnSrc, boolean>;
@@ -37,6 +41,7 @@ function useAppState(startTab: Tab = 'home') {
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
   const [product, setProduct] = useState<ProductKey>('emergency');
+  const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -64,6 +69,7 @@ function useAppState(startTab: Tab = 'home') {
     openProduct: (key: ProductKey) => { setProduct(key); setPush('productDetail'); setSheet(null); },
     back: () => setPush(null),
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
+    noteAllocation: (n: AllocNotice) => setLastAlloc(n),
     closeSheet: () => setSheet(null),
     confirm: () => { apply('mydata', true); setSheet(null); },
     scen: (s: Scenario) => setScenario(s),
@@ -94,7 +100,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, lastAlloc, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

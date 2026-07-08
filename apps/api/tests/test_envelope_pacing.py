@@ -200,6 +200,39 @@ def test_full_flow_confirm_moves_balances(monkeypatch):
     assert any(e["type"] == "pacing_decided" for e in db.list_events())
 
 
+def test_buffer_source_rebalances_without_printing_money(monkeypatch):
+    """source=buffer — 버퍼에 이미 있는 돈의 재배치: 목표↑ = 버퍼↓, 총액 보존 (새 돈 금지)."""
+    _seed_ledger()
+    db.envelope_set("buffer", 1_500_000)
+    goal = client.post("/v1/envelopes/goals", json={
+        "name": "새 맥북", "target_amount": 2_400_000, "target_date": "2025-08-01",
+    }).json()
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", lambda *a, **k: None)  # 산수 폴백
+    prop = client.post("/v1/pacing/propose", json={
+        "available": 1_000_000, "buffer_shortfall": 0, "today": "2025-05-01", "source": "buffer",
+    }).json()
+    goal_slice = prop["split"][goal["id"]]
+    assert goal_slice > 0
+
+    before = db.envelope_balances()["buffer"]
+    client.post(f"/v1/pacing/{prop['id']}/decision", json={"action": "confirm"})
+    after = db.envelope_balances()["buffer"]
+    assert round(before - after, 2) == round(goal_slice, 2)        # 버퍼는 목표로 간 만큼만 감소
+    assert db.get_goal(goal["id"])["balance"] == goal_slice        # 총액 보존 — 화폐 발행 없음
+
+
+def test_buffer_source_overdraft_guarded(monkeypatch):
+    """버퍼 잔액보다 큰 available은 propose에서 422 — 없는 돈은 나눌 수 없다."""
+    _seed_ledger()
+    db.envelope_set("buffer", 100_000)
+    client.post("/v1/envelopes/goals", json={"name": "새 맥북", "target_amount": 2_400_000})
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", lambda *a, **k: None)
+    res = client.post("/v1/pacing/propose", json={
+        "available": 1_000_000, "buffer_shortfall": 0, "today": "2025-05-01", "source": "buffer",
+    })
+    assert res.status_code == 422
+
+
 def test_reject_moves_nothing(monkeypatch):
     _seed_ledger()
     goal = client.post("/v1/envelopes/goals", json={

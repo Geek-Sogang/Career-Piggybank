@@ -26,6 +26,23 @@ def test_gap_cold_start_fallback() -> None:
     assert any("콜드스타트" in r for r in g.reasons)
 
 
+def test_gap_empty_income_returns_honest_blank_not_1970() -> None:
+    """입금 0건 — 가짜 앵커(1970-01-01)로 날짜를 지어내지 않고 빈 날짜를 반환한다."""
+    g = next_income_window([])
+    assert g.last_income_date == "" and g.expected_next_date == ""
+    assert g.observed_deposits == 0
+    assert "1970" not in str(g)
+    assert any("예측할 근거" in r for r in g.reasons)
+
+
+def test_gap_same_day_deposits_fall_back_not_today() -> None:
+    """같은 날 뭉침(간격 전부 0) — '오늘 또 입금'이 아니라 기본 간격으로 폴백한다."""
+    g = next_income_window(["2025-03-01", "2025-03-01", "2025-03-01"])
+    assert g.median_gap_days == 30
+    assert g.expected_next_date == "2025-03-31"   # 3-01 + 기본 30일 (같은 날 아님)
+    assert any("간격 신호가 없어요" in r for r in g.reasons)
+
+
 # ---------- 은퇴 밴드 ----------
 
 INCOMES = [800_000, 1_450_000, 950_000, 1_700_000]  # 시드 월 소득

@@ -61,6 +61,15 @@ export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT)
 export type EnvelopeSplit = { tax: number; expense: number; spendable: number; buffer: number };
 // 배분 → 하나 상품 훅 — 선택은 백엔드 룰, product_id는 products.ts ProductKey와 1:1
 export type ProductHook = { product_id: string; envelope: string; name: string; line: string };
+
+// ⑥ 상품 매칭 (AI) — 핫패스 아님: 시트는 룰 훅을 즉시 보여주고, 이 호출이 돌아오면 승급.
+// 후보는 적합성 veto(결정론)를 통과한 것만 — AI는 그 메뉴 안에서 고르고 근거 팩트를 인용.
+export type ProductMatchPick = ProductHook & { evidence: string[]; source: 'llm' | 'rule' };
+export function fetchProductMatch() {
+  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string }>(
+    '/v1/products/match', {}, 60_000, // 로컬 7.8B 생성 대기
+  );
+}
 export type Allocation = {
   id: string;
   status: 'proposed' | 'confirmed' | 'adjusted' | 'rejected';

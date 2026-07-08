@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, decideAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
+import { bankDeposit, decideAllocation, fetchProductMatch, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
@@ -128,17 +128,28 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
   const [done, setDone] = useState<null | 'confirmed' | 'adjusted'>(null);
   const [adjusting, setAdjusting] = useState(false);
   const [delta, setDelta] = useState(0); // 즉시가용 → 여윳돈 이동액 (음수 = 반대 방향)
+  // ⑥ AI 상품 매칭 — 룰 훅을 즉시 보여주고, 로컬 LLM 매칭이 돌아오면 승급 (핫패스 비차단)
+  const [aiHooks, setAiHooks] = useState<ProductMatchPick[] | null>(null);
   // 같은 사건을 코치 챗·잠금화면 알림이 이어 말하도록 스토어에 기록
   const note = (a: Allocation, split: EnvelopeSplit, confirmed: boolean) =>
     actions.noteAllocation({ deposit: a.deposit, windfall: a.windfall_ratio, split, confirmed });
   useEffect(() => {
+    let live = true;
     // 실제 입금 플로우: 백엔드가 원장 기록 + 분류 + 저장 이력 기반 제안까지 수행
     bankDeposit()
       .then((r) => {
-        if (r.allocation) { setAlloc(r.allocation); note(r.allocation, r.allocation.proposed, false); }
+        if (!live) return;
+        if (r.allocation) {
+          setAlloc(r.allocation); note(r.allocation, r.allocation.proposed, false);
+          // 비동기 AI 승급 — 실패·타임아웃이면 룰 훅 그대로 (조용한 폴백)
+          fetchProductMatch()
+            .then((m) => { if (live && m.matches.length) setAiHooks(m.matches); })
+            .catch(() => {});
+        }
         else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, OFFLINE_ALLOCATION.proposed, false); }
       })
       .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, OFFLINE_ALLOCATION.proposed, false); });
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -260,18 +271,24 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                 ))}
               </View>
             )}
-            {/* 하나 상품 훅 — 선택은 백엔드 룰, 탭하면 상품 상세로 (조정 중엔 숨김) */}
-            {!adjusting && (alloc.product_hooks ?? []).map((h) => (
-              <Pressable
-                key={h.product_id}
-                onPress={() => actions.openProduct(h.product_id as ProductKey)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
-              >
-                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>하나 상품</Text>
-                <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
-                <Icon name="chevronRight" size={15} color={colors.green} sw={2.2} />
-              </Pressable>
-            ))}
+            {/* 하나 상품 훅 — 룰 훅 즉시 표시 → AI 매칭(페르소나·팩트 접지) 도착 시 승급.
+                AI 배지만 보라(시각 스킴: AI가 판단한 곳만 표시), 탭하면 상품 상세로 (조정 중 숨김) */}
+            {!adjusting && (aiHooks ?? alloc.product_hooks ?? []).map((h) => {
+              const isAi = 'source' in h && h.source === 'llm';
+              return (
+                <Pressable
+                  key={h.product_id}
+                  onPress={() => actions.openProduct(h.product_id as ProductKey)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isAi ? '#F5F1FB' : colors.greenTint2, borderWidth: 1, borderColor: isAi ? '#E2D8F3' : colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAi ? '#7C5CBF' : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
+                    {isAi ? 'AI 맞춤' : '하나 상품'}
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
+                  <Icon name="chevronRight" size={15} color={isAi ? '#7C5CBF' : colors.green} sw={2.2} />
+                </Pressable>
+              );
+            })}
             {adjusting ? (
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                 <Pressable onPress={() => { setAdjusting(false); setDelta(0); }} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>

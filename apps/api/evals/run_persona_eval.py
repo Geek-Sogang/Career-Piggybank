@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections import Counter
 from pathlib import Path
 
 from app.agents import profile_read
@@ -43,6 +44,22 @@ def _bucket(value: float) -> str:
     if value >= BUCKET_HIGH:
         return "high"
     return "neutral"
+
+
+def _error_kind(pred: str, label: str) -> str:
+    """오답의 종류 — 금융 개인화에서 위험의 층위가 다르다.
+
+    - direction_error: low↔high 정반대로 확신 (가장 위험 — '틀린 페르소나를 단정')
+    - over_commit: 중립이어야 하는데 low/high로 단정 (과신)
+    - safe_abstention: low/high인데 중립으로 물러섬 (안전한 기권 — 틀렸지만 해롭지 않음)
+    """
+    if pred == label:
+        return "correct"
+    if pred != "neutral" and label != "neutral":
+        return "direction_error"
+    if pred != "neutral" and label == "neutral":
+        return "over_commit"
+    return "safe_abstention"  # pred == neutral, label != neutral
 
 
 def _fact_map(facts: list[Fact]) -> dict[str, float | None]:
@@ -79,6 +96,8 @@ def evaluate(use_llm: bool) -> dict:
     total = 0
     naive_correct = 0
     llm_correct = 0
+    naive_kinds: Counter[str] = Counter()
+    llm_kinds: Counter[str] = Counter()
     wrong: list[str] = []
     started = time.time()
 
@@ -90,21 +109,26 @@ def evaluate(use_llm: bool) -> dict:
         for axis, label in case["labels"].items():
             total += 1
             naive_pred = naive_rule(axis, fmap)
+            naive_kinds[_error_kind(naive_pred, label)] += 1
             if naive_pred == label:
                 naive_correct += 1
             else:
-                wrong.append(f"[나이브 오답] {case['id']} {axis}: 예측 {naive_pred}, 라벨 {label}")
+                wrong.append(
+                    f"[나이브 {_error_kind(naive_pred, label)}] {case['id']} {axis}: "
+                    f"예측 {naive_pred}, 라벨 {label}"
+                )
 
             if use_llm:
                 reading = profile_read.read_axis(axis, facts)
                 llm_pred = _bucket(reading.value)
+                llm_kinds[_error_kind(llm_pred, label)] += 1
                 if llm_pred == label:
                     llm_correct += 1
                 else:
                     wrong.append(
-                        f"[LLM 오답] {case['id']} {axis}: 예측 {llm_pred}({reading.value}), "
-                        f"라벨 {label}, fallback={reading.fallback}, "
-                        f"gate={list(reading.gate_failures)}"
+                        f"[LLM {_error_kind(llm_pred, label)}] {case['id']} {axis}: "
+                        f"예측 {llm_pred}({reading.value}), 라벨 {label}, "
+                        f"fallback={reading.fallback}, gate={list(reading.gate_failures)}"
                     )
 
     elapsed = time.time() - started
@@ -112,19 +136,33 @@ def evaluate(use_llm: bool) -> dict:
         "cases": len(cases),
         "total": total,
         "naive_accuracy": naive_correct / total if total else 0.0,
+        "naive_kinds": dict(naive_kinds),
         "elapsed_s": round(elapsed, 1),
         "wrong": wrong,
     }
     if use_llm:
         result["llm_accuracy"] = llm_correct / total if total else 0.0
+        result["llm_kinds"] = dict(llm_kinds)
     return result
+
+
+def _kinds_line(kinds: dict) -> str:
+    """오류 종류 요약 — direction_error(위험)를 앞세운다."""
+    de = kinds.get("direction_error", 0)
+    oc = kinds.get("over_commit", 0)
+    sa = kinds.get("safe_abstention", 0)
+    return f"방향오류 {de} · 과신 {oc} · 안전기권 {sa}"
 
 
 def report(r: dict) -> None:
     print(f"\n=== 페르소나 골든셋 평가 — {r['cases']}건 페르소나 · {r['total']}개 라벨, {r['elapsed_s']}s ===")
-    print(f"나이브 규칙(단일 팩트) 정확도 : {r['naive_accuracy']:.1%}")
+    print(f"나이브 규칙(단일 팩트) 정확도 : {r['naive_accuracy']:.1%}  [{_kinds_line(r['naive_kinds'])}]")
     if "llm_accuracy" in r:
-        print(f"LLM(홀리스틱 판독) 정확도    : {r['llm_accuracy']:.1%}")
+        print(f"LLM(홀리스틱 판독) 정확도    : {r['llm_accuracy']:.1%}  [{_kinds_line(r['llm_kinds'])}]")
+        de_n = r["naive_kinds"].get("direction_error", 0)
+        de_l = r["llm_kinds"].get("direction_error", 0)
+        print(f"\n→ 방향 오류(확신에 찬 틀린 페르소나): 나이브 {de_n}건 vs LLM {de_l}건")
+        print("  원시 정확도는 나이브가 높지만, LLM+게이트는 확신 오류를 안전한 중립 기권으로 바꾼다.")
     for w in r["wrong"]:
         print("  ✗", w)
     if not r["wrong"]:

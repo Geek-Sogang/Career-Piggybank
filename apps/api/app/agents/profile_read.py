@@ -34,9 +34,10 @@ AXES: dict[str, dict[str, str]] = {
         "label": "위험감내",
         "definition": "높을수록 소득 불확실성·집중을 감수하고 공격적 운용을 선호한다. "
                       "0=매우 안전지향, 1=매우 공격적.",
-        "hint": "F12(조정 방향)의 '미래지향/현재선호' 문구는 시간선호 축 설명이지 이 축 "
-                "설명이 아니다 — 이 축에서는 버퍼를 늘려온 습관=안전 선호(내림), "
-                "줄여온 습관=위험 감내(올림)로 읽어라.",
+        "hint": "이 축의 핵심 증거는 둘이다. (1) F12=버퍼 조정 방향(행동): 버퍼를 스스로 "
+                "늘려온 습관=안전 선호(내림), 줄여온 습관=위험 감내(올림). (2) F09=저축여력(구조): "
+                "쿠션을 쌓아둔 사람=안전 여력(내림), 구조적 적자로 쿠션이 없으면=사실상 위험 감내(올림). "
+                "소득 변동(F01)·집중도(F02)는 '노출'이지 '성향'이 아니니 이 축 판단의 근거로 쓰지 마라.",
     },
     "time_preference": {
         "label": "시간선호",
@@ -60,8 +61,12 @@ AXES: dict[str, dict[str, str]] = {
 # 여기 등재된 (축, 팩트, 조건)에서 LLM이 반대 극성을 쓰면 게이트가 탈락시킨다.
 # 등재 안 된 조합은 검증하지 않는다(LLM 자유 판단) — 방어 가능한 정의만 싣는다(v1).
 
-def _expected_polarity(axis: str, fact_id: str, value: float) -> str | None:
-    """정의된 기대 극성 — 'up'/'down'/None(무정의)."""
+F09_CUSHION = 0.2       # 저축여력 이 이상 = 쿠션 형성(안전) / 0 이하 = 무쿠션(위험 감내)
+F09_MIN_N = 3           # F09를 risk 앵커로 쓰려면 관측 최소치 — 콜드스타트 과신 차단
+
+
+def _expected_polarity(axis: str, fact_id: str, value: float, n: int = 99) -> str | None:
+    """정의된 기대 극성 — 'up'/'down'/None(무정의). n=표본 수(소표본 앵커 차단용)."""
     if axis == "self_control":
         if fact_id == "F06":   # 입금 후 몰아쓰기
             return "down" if value >= 0.5 else ("up" if value <= 0.2 else None)
@@ -75,11 +80,17 @@ def _expected_polarity(axis: str, fact_id: str, value: float) -> str | None:
         if fact_id == "F12":   # 조정 방향(버퍼)
             return "up" if value > 0 else ("down" if value < 0 else None)
     if axis == "risk_tolerance":
-        if fact_id == "F12":
+        if fact_id == "F12":   # 행동 신호(1차): 버퍼를 스스로 조정해 온 방향
             if value > 0:
                 return "down"   # 버퍼를 늘려온 습관 = 안전 선호
             if value < 0:
                 return "up"     # 버퍼를 줄여온 습관 = 위험 감내
+            return None
+        if fact_id == "F09" and n >= F09_MIN_N:  # 구조 신호(2차): 쿠션 유무 — 소표본이면 앵커 안 함
+            if value >= F09_CUSHION:
+                return "down"   # 쿠션을 쌓아둔 사람 = 안전 여력·선호
+            if value <= 0.0:
+                return "up"     # 구조적 적자(무쿠션) = 사실상 위험 감내
             return None
     if axis == "planning":
         if fact_id == "F10":   # 태깅 활동
@@ -144,14 +155,22 @@ def _fallback(axis: str, failures: list[str]) -> AxisReading:
 
 SMALL_SAMPLE_N = 2  # 표본 n이 이 이하면 프롬프트가 확신 근거로 쓰지 말라고 명시 경고
 
+# 축별 band 오버라이드 — 같은 팩트라도 축에 따라 '기준점' 언어가 달라야 한다.
+# F12의 원 band는 시간선호 프레임("미래지향/현재선호")이라 위험 축에서 부호를 뒤집게 한다
+# (골든셋 실측: risk_tolerance 20%의 주원인). 위험 축에는 위험 언어의 band를 준다.
+_BAND_OVERRIDE: dict[tuple[str, str], str] = {
+    ("risk_tolerance", "F12"): "양수 = 스스로 버퍼를 키운 조정(안전 선호) · 음수 = 버퍼를 줄인 조정(위험 감내)",
+}
 
-def _sheet_lines(facts: list[Fact]) -> str:
+
+def _sheet_lines(facts: list[Fact], axis: str | None = None) -> str:
     lines = []
     for f in facts:
         if f.value is None:
             continue  # 측정 안 된 사실은 근거가 될 수 없다 — 프롬프트에서도 뺀다
+        band = _BAND_OVERRIDE.get((axis, f.id), f.band) if axis else f.band
         warn = " ⚠표본 극소" if f.n <= SMALL_SAMPLE_N else ""
-        lines.append(f"{f.id} · {f.label} = {f.display}  (참고: {f.band}, 표본 n={f.n}{warn})")
+        lines.append(f"{f.id} · {f.label} = {f.display}  (참고: {band}, 표본 n={f.n}{warn})")
     return "\n".join(lines)
 
 
@@ -184,7 +203,7 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
     """축 하나 판독 — LLM 판단 + 결정론 게이트. 실패는 중립 폴백."""
     measured = {f.id: f for f in facts if f.value is not None}
     out = llm.chat_json(
-        _system_prompt(axis), _sheet_lines(facts),
+        _system_prompt(axis), _sheet_lines(facts, axis),
         model=settings.ollama_model_coach,  # 7.8B — 2.4B는 이 태스크에서 실측 탈락
     )
     if not isinstance(out, dict):
@@ -214,7 +233,8 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
             if norm is None or fid not in measured:
                 continue
             polarity[fid] = norm
-            expected = _expected_polarity(axis, fid, float(measured[fid].value))  # type: ignore[arg-type]
+            expected = _expected_polarity(
+                axis, fid, float(measured[fid].value), measured[fid].n)  # type: ignore[arg-type]
             if expected and norm != "neutral" and norm != expected:
                 failures.append(f"polarity:{fid}:{norm}≠{expected}")
 

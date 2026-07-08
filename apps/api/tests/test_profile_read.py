@@ -106,6 +106,50 @@ def test_llm_down_falls_back_neutral(monkeypatch):
     assert all(a["value"] == 0.5 for a in reading["axes"].values())
 
 
+# ── 교정 재시도 — 게이트가 잡은 위반을 명시해 1회 재판단 (답변 안정성) ──
+
+def test_corrective_retry_rescues_menu_violation(monkeypatch):
+    """1차: 메뉴 밖 0.55 → 재시도 프롬프트에 위반 명시 → 2차 정상이면 기권 대신 채택."""
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        if len(calls) == 1:
+            return _llm_out(value=0.55)          # 메뉴 위반
+        return _llm_out(value=0.3)               # 교정됨
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    r = profile_read.read_axis("self_control", _facts())
+    assert not r.fallback
+    assert r.value == 0.3
+    assert r.retried is True
+    assert any(g.startswith("menu_violation") for g in r.gate_failures)  # 감사: 첫 위반 기록
+    assert "교정 재시도" in calls[1] and "0.55" in calls[1]              # 위반이 명시된 다른 입력
+
+
+def test_corrective_retry_still_bad_falls_back(monkeypatch):
+    """재시도도 위반이면 유도하지 않고 중립 폴백 — 1회 한정 (게이트는 게이트)."""
+    monkeypatch.setattr(profile_read.llm, "chat_json",
+                        lambda *a, **k: _llm_out(value=0.42))
+    r = profile_read.read_axis("self_control", _facts())
+    assert r.fallback and r.value == 0.5
+    assert any(g.startswith("retry:") for g in r.gate_failures)   # 2차 위반도 감사 기록
+
+
+def test_clean_first_answer_does_not_retry(monkeypatch):
+    """1차가 깨끗하면 재호출 없음 — 재시도는 예외 경로지 상시 2배 호출이 아니다."""
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        return _llm_out()
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    r = profile_read.read_axis("self_control", _facts())
+    assert not r.fallback and not r.retried
+    assert len(calls) == 1
+
+
 # ── 오케스트레이션 (라우트 + 스냅샷) ──
 
 def _seed_db():

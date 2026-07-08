@@ -128,6 +128,15 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
   );
 }
 
+// ── 벨 인박스 (어젠다 큐) — 피기가 아직 말하지 않은 사건의 트리아지. 발화문은 결정론 템플릿 ──
+export type AgendaItem = { kind: string; priority: number; line: string };
+export function getAgenda() {
+  return get<{ items: AgendaItem[]; silent_count: number }>('/v1/coach/agenda');
+}
+export function consumeAgenda() {
+  return post<{ consumed: number }>('/v1/coach/agenda/consume', {});
+}
+
 // ── 예측 (원장 시계열 → 다음 수입 창 + 은퇴 밴드) — 전부 결정론, 논문 근거는 백엔드 주석 ──
 export type Forecast = {
   income_gap: { median_gap_days: number; expected_next_date: string; window: [string, string]; reasons: string[] };

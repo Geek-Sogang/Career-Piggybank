@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, decideAllocation, fetchProductMatch, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
+import { bankDeposit, consumeAgenda, decideAllocation, fetchProductMatch, getAgenda, OFFLINE_ALLOCATION, type AgendaItem, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
@@ -46,6 +46,19 @@ function Shell() {
   const insets = useSafeAreaInsets();
   const Screen = SCREENS[vals.scr] || Home;
 
+  // 벨 인박스 — 어젠다 큐(피기가 아직 말하지 않은 사건). 시트가 닫힐 때마다 재조회:
+  // 배분 승인/조정 직후가 바로 어젠다(후속 질문·브리핑)가 생기는 순간이다
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [inbox, setInbox] = useState(false);
+  useEffect(() => {
+    if (!sheet && entered) getAgenda().then((r) => setAgenda(r.items)).catch(() => {});
+  }, [sheet, entered]);
+  const openInbox = () => { if (agenda.length) setInbox(true); };
+  const closeInbox = (consume: boolean) => {
+    setInbox(false);
+    if (consume) { consumeAgenda().catch(() => {}); setAgenda([]); }
+  };
+
   // 인트로 플로우 / 풀스크린(자체 chrome) 화면들
   if (!entered) return <Intro />;
   if (push === 'chat') return <Chat />;
@@ -63,10 +76,14 @@ function Shell() {
               <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자</Text>
             </View>
           </View>
-          <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="bell" size={22} color="#3A4047" sw={1.8} />
-            <View style={{ position: 'absolute', top: 8, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF4D4F', borderWidth: 1.5, borderColor: colors.bg }} />
-          </View>
+            {agenda.length > 0 && (
+              <View style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: '#FF4D4F', borderWidth: 1.5, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#fff' }}>{agenda.length}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       )}
       {vals.showTabTitle && (
@@ -111,7 +128,56 @@ function Shell() {
       {sheet === 'consent' && <ConsentSheet onConfirm={actions.confirm} onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'invest' && <InvestSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'allocation' && <AllocationSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {inbox && (
+        <InboxSheet
+          items={agenda}
+          bottomInset={insets.bottom}
+          onAsk={() => { closeInbox(true); actions.pushScr('chat'); }}
+          onClose={() => closeInbox(true)}
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+// 벨 인박스 시트 — 어젠다 큐의 발화문(결정론 템플릿) 목록. 열람 = spoken 처리(consume).
+const AGENDA_BADGE: Record<string, string> = {
+  follow_up_adjust: '질문', follow_up_reject: '질문',
+  deposit_briefing: '브리핑', stale_settlement: '확인 필요',
+};
+
+function InboxSheet({ items, bottomInset, onAsk, onClose }: {
+  items: AgendaItem[]; bottomInset: number; onAsk: () => void; onClose: () => void;
+}) {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Mascot head size={40} radius={12} />
+          <Text style={{ flex: 1, fontSize: 16.5, fontWeight: '800', color: colors.ink }}>피기가 전할 소식 {items.length}건</Text>
+        </View>
+        <View style={{ marginTop: 14, gap: 8 }}>
+          {items.map((it, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 9, backgroundColor: colors.bg, borderRadius: 13, padding: 12 }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: it.priority === 1 ? colors.pinkStrong : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden', alignSelf: 'flex-start' }}>
+                {AGENDA_BADGE[it.kind] ?? '소식'}
+              </Text>
+              <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>{it.line}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>확인했어요</Text>
+          </Pressable>
+          <Pressable onPress={onAsk} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>피기와 이야기하기</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
   );
 }
 

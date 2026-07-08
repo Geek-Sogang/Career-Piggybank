@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS policy_state (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (context_key, arm_id)
 );
+CREATE TABLE IF NOT EXISTS peer_envelopes (
+  id TEXT PRIMARY KEY,
+  job TEXT NOT NULL,           -- 직군 (developer/designer/creator …)
+  name TEXT NOT NULL,          -- 봉투 이름 (구체어 — "장비 교체")
+  target_amount REAL NOT NULL,
+  axes TEXT,                   -- 만든 사람의 페르소나 축 JSON — 유사도 매칭의 기준
+  origin TEXT NOT NULL DEFAULT 'seed',  -- seed(합성 또래) / user(실사용자 개설이 풀에 기여)
+  created_at TEXT NOT NULL
+);
 """
 
 ENVELOPE_NAMES = ("tax", "expense", "spendable", "buffer")
@@ -411,6 +420,40 @@ def get_goal(goal_id: str) -> dict | None:
 def goal_add_balance(goal_id: str, amount: float) -> None:
     with get_conn() as c:
         c.execute("UPDATE goal_envelopes SET balance = balance + ? WHERE id=?", (amount, goal_id))
+
+
+# ── peer envelopes (또래 봉투 풀 — 유사도 추천의 카탈로그, 사용자 개설이 기여) ──
+
+def insert_peer_envelope(job: str, name: str, target_amount: float,
+                         axes: dict | None, origin: str = "seed") -> str:
+    pid = uuid.uuid4().hex[:12]
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO peer_envelopes VALUES (?,?,?,?,?,?,?)",
+            (pid, job, name, float(target_amount),
+             json.dumps(axes, ensure_ascii=False) if axes else None,
+             origin, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        )
+    return pid
+
+
+def list_peer_envelopes(job: str | None = None) -> list[dict]:
+    with get_conn() as c:
+        if job:
+            rows = c.execute("SELECT * FROM peer_envelopes WHERE job=?", (job,)).fetchall()
+        else:
+            rows = c.execute("SELECT * FROM peer_envelopes").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["axes"] = json.loads(d["axes"]) if d["axes"] else None
+        out.append(d)
+    return out
+
+
+def peer_pool_count() -> int:
+    with get_conn() as c:
+        return c.execute("SELECT COUNT(*) FROM peer_envelopes").fetchone()[0]
 
 
 # ── pacing proposals (금액 페이싱 — 제안·확정 분리 = 확인 게이트) ──

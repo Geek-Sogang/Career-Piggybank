@@ -156,10 +156,15 @@ export function getGoals() {
 export function createGoal(name: string, target_amount: number, target_date: string | null) {
   return post<Goal>('/v1/envelopes/goals', { name, target_amount, target_date });
 }
-// ⑤a 봉투 추천 — 팩트+페르소나 접지 근거의 후보. 개설은 사용자가 탭해서 결정
+// ⑤a 봉투 추천(내 팩트, LLM) + 또래 추천(같은 직군·유사 페르소나의 개설 관찰, 결정론).
+// 개설은 사용자가 탭해서 결정 — 개설하면 내 봉투가 또래 풀에 기여한다(카탈로그 성장)
 export type EnvelopeIdea = { name: string; why: string; evidence: string[] };
+export type PeerIdea = {
+  name: string; suggested_amount: number; share: number; count: number;
+  pool: number; scope: 'job' | 'all'; basis: string;
+};
 export function recommendEnvelopes() {
-  return post<{ recommendations: EnvelopeIdea[]; persona_used: boolean }>(
+  return post<{ recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean }>(
     '/v1/envelopes/recommend', {}, 60_000, // 로컬 7.8B 생성 대기
   );
 }

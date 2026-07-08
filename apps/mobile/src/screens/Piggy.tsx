@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, TextInput } from 'react-native';
-import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeIdea, type Goal } from '@/api';
+import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeIdea, type Goal, type PeerIdea } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
@@ -92,13 +92,16 @@ function GoalSection({ goals, onCreated, onPace }: {
   goals: Goal[]; onCreated: (g: Goal) => void; onPace: () => void;
 }) {
   const [ideas, setIdeas] = useState<EnvelopeIdea[]>([]);
+  const [peers, setPeers] = useState<PeerIdea[]>([]);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   useEffect(() => {
-    // ⑤a 추천 — 비동기(로컬 LLM), 실패하면 조용히 없음 (추천은 있으면 좋고 없어도 됨)
-    recommendEnvelopes().then((r) => setIdeas(r.recommendations)).catch(() => {});
+    // 추천 2소스 — ⑤a(내 팩트, LLM)·또래(유사 페르소나 관찰, 결정론). 실패하면 조용히 없음
+    recommendEnvelopes()
+      .then((r) => { setIdeas(r.recommendations); setPeers(r.peers ?? []); })
+      .catch(() => {});
   }, []);
 
   const submit = async () => {
@@ -150,8 +153,9 @@ function GoalSection({ goals, onCreated, onPace }: {
         })}
       </View>
 
-      {/* ⑤a AI 추천 칩 — 탭 = 그 이름으로 개설 폼 프리필 (개설은 사람의 결정) */}
-      {ideas.length > 0 && (
+      {/* 추천 칩 2소스 — 탭 = 개설 폼 프리필 (개설은 사람의 결정).
+          AI(⑤a, 내 팩트 근거) = 보라 / 또래(유사 페르소나 관찰, 결정론 통계) = 파랑 */}
+      {(ideas.length > 0 || peers.length > 0) && (
         <View style={{ marginTop: 12, gap: 6 }}>
           {ideas.filter((i) => !goals.some((g) => g.name === i.name)).slice(0, 2).map((i) => (
             <Pressable
@@ -162,6 +166,21 @@ function GoalSection({ goals, onCreated, onPace }: {
               <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 추천</Text>
               <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
                 <Text style={{ fontWeight: '800' }}>{i.name}</Text> — {i.why}
+              </Text>
+            </Pressable>
+          ))}
+          {peers.filter((p) => !goals.some((g) => g.name === p.name)).slice(0, 2).map((p) => (
+            <Pressable
+              key={p.name}
+              onPress={() => {
+                setCreating(true); setName(p.name);
+                setAmount(String(Math.round(p.suggested_amount / 10_000)) + '만'); // 또래 중앙값 프리필
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.bufferTint, borderWidth: 1, borderColor: '#CBE7F5', borderRadius: 11, padding: 10 }}
+            >
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.buffer, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>또래 픽</Text>
+              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
+                <Text style={{ fontWeight: '800' }}>{p.name}</Text> — {p.basis}
               </Text>
             </Pressable>
           ))}

@@ -27,3 +27,20 @@ def test_naive_baseline_runs_deterministically() -> None:
     r2 = evaluate(use_llm=False)
     assert r1["total"] >= MIN_CASES
     assert r1 == r2  # 나이브 규칙은 LLM 없이도 매 실행 동일해야 한다
+
+
+def test_error_taxonomy_partitions_every_label() -> None:
+    """오류 종류(정답+3종)의 합이 전체 라벨 수와 같아야 한다 — 누락·중복 없이 분할."""
+    from evals.run_persona_eval import _error_kind
+
+    r = evaluate(use_llm=False)
+    kinds = r["naive_kinds"]
+    correct = r["total"] - sum(
+        kinds.get(k, 0) for k in ("direction_error", "over_commit", "safe_abstention")
+    )
+    assert correct == round(r["naive_accuracy"] * r["total"])
+    # 방향 오류 = low↔high 정반대만 (금융 개인화에서 가장 위험한 오류)
+    assert _error_kind("low", "high") == "direction_error"
+    assert _error_kind("neutral", "high") == "safe_abstention"
+    assert _error_kind("high", "neutral") == "over_commit"
+    assert _error_kind("low", "low") == "correct"

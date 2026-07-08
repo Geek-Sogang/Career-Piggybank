@@ -149,6 +149,17 @@ export type Forecast = {
   };
   // 부트스트랩 몬테카를로 — 미래 1,000개의 은퇴 해 분포 (seed 고정, 재현 가능)
   mc: { runs: number; band_start_year: number; median_year: number; band_end_year: number; prob_in_base_band: number };
+  // 자금 달성형 은퇴(B) — "충분히 모아서 그만둘 수 있는 해". 저축이 예측을 움직인다.
+  // A(위 retirement — 일감 흐름 소멸)와 병행: 서로 다른 질문에 답하므로 둘 다 보여준다.
+  funded: {
+    target: number;             // 은퇴 넘버 = 연 생활비 ÷ 4% (25배)
+    funded_year: number;
+    reached: boolean;
+    annual_surplus0: number;    // 첫 해 저축 여력 — 0이면 저축 불가(정직 표기)
+    mc_p10: number; mc_median: number; mc_p90: number;
+    years: number[]; savings_path: number[];
+    reasons: string[];
+  };
   monthly_income_level: number;
   income_cv: number;
 };

@@ -16,6 +16,7 @@
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from app.core.config import settings
@@ -25,12 +26,17 @@ from app.services.facts import Fact
 VALUE_MENU = (0.1, 0.3, 0.5, 0.7, 0.9)   # 번호만 선택 — 재현성의 경계
 NEUTRAL = 0.5
 
+_FACT_ID = re.compile(r"^(F\d{2})\b")
+
 # 성향 4축 — 정의의 방향 앵커는 리서치 정박 구성개념(§10)에서 온다
 AXES: dict[str, dict[str, str]] = {
     "risk_tolerance": {
         "label": "위험감내",
         "definition": "높을수록 소득 불확실성·집중을 감수하고 공격적 운용을 선호한다. "
                       "0=매우 안전지향, 1=매우 공격적.",
+        "hint": "F12(조정 방향)의 '미래지향/현재선호' 문구는 시간선호 축 설명이지 이 축 "
+                "설명이 아니다 — 이 축에서는 버퍼를 늘려온 습관=안전 선호(내림), "
+                "줄여온 습관=위험 감내(올림)로 읽어라.",
     },
     "time_preference": {
         "label": "시간선호",
@@ -70,7 +76,11 @@ def _expected_polarity(axis: str, fact_id: str, value: float) -> str | None:
             return "up" if value > 0 else ("down" if value < 0 else None)
     if axis == "risk_tolerance":
         if fact_id == "F12":
-            return "down" if value > 0 else None   # 버퍼를 늘려온 습관 = 안전 선호
+            if value > 0:
+                return "down"   # 버퍼를 늘려온 습관 = 안전 선호
+            if value < 0:
+                return "up"     # 버퍼를 줄여온 습관 = 위험 감내
+            return None
     if axis == "planning":
         if fact_id == "F10":   # 태깅 활동
             return "up" if value >= 4 else None
@@ -107,6 +117,23 @@ class AxisReading:
         }
 
 
+def _normalize_evidence(raw: list, measured: dict[str, Fact]) -> tuple[list[str], list[str]]:
+    """근거 정규화 — 'F04 (설명…)' 형식 노이즈에서 ID만 추출한다.
+
+    관용은 형식에만: ID가 아예 없는 항목은 조용히 버리고, 추출된 ID가 실측
+    팩트가 아니면(지어냄) 그대로 접지 실패다 — 발명 검사는 그대로 세다.
+    """
+    ids: list[str] = []
+    invented: list[str] = []
+    for item in raw:
+        m = _FACT_ID.match(str(item).strip())
+        if not m:
+            continue
+        fid = m.group(1)
+        (ids if fid in measured else invented).append(fid)
+    return ids, invented
+
+
 def _fallback(axis: str, failures: list[str]) -> AxisReading:
     return AxisReading(
         axis=axis, label=AXES[axis]["label"], value=NEUTRAL,
@@ -115,23 +142,31 @@ def _fallback(axis: str, failures: list[str]) -> AxisReading:
     )
 
 
+SMALL_SAMPLE_N = 2  # 표본 n이 이 이하면 프롬프트가 확신 근거로 쓰지 말라고 명시 경고
+
+
 def _sheet_lines(facts: list[Fact]) -> str:
     lines = []
     for f in facts:
         if f.value is None:
             continue  # 측정 안 된 사실은 근거가 될 수 없다 — 프롬프트에서도 뺀다
-        lines.append(f"{f.id} · {f.label} = {f.display}  (참고: {f.band})")
+        warn = " ⚠표본 극소" if f.n <= SMALL_SAMPLE_N else ""
+        lines.append(f"{f.id} · {f.label} = {f.display}  (참고: {f.band}, 표본 n={f.n}{warn})")
     return "\n".join(lines)
 
 
 def _system_prompt(axis: str) -> str:
     spec = AXES[axis]
     menu = ", ".join(str(v) for v in VALUE_MENU)
+    hint_line = f"\n주의: {spec['hint']}\n" if spec.get("hint") else "\n"
     return (
         "너는 긱워커 금융 성향 판독 에이전트다. 아래 팩트시트(원장에서 결정론으로 측정된 "
-        f"사실)만 근거로 딱 하나의 축을 판단한다.\n축 정의 — {spec['label']}: {spec['definition']}\n"
+        f"사실)만 근거로 딱 하나의 축을 판단한다.\n축 정의 — {spec['label']}: {spec['definition']}"
+        f"{hint_line}"
         "각 팩트에 붙은 '참고'는 그 숫자가 높은지 낮은지의 기준점이다 — 값을 정해주는 "
-        "공식이 아니라 판단 맥락이다.\n"
+        "공식이 아니라 판단 맥락이다. '표본 n'은 그 숫자가 몇 건 관측에서 나왔는지다 — "
+        "n이 1~2인('⚠표본 극소') 팩트는 우연일 수 있다. 그런 팩트뿐이면 확신하지 말고 "
+        "중립(0.5)을 지켜라 — 근거 없는 확신이 가장 큰 오류다.\n"
         "판단 절차:\n"
         f"① 극성표 — 팩트별로: 이 팩트가 {spec['label']} 값을 높이는 증거면 '올림', "
         "낮추는 증거면 '내림', 무관하면 '중립'. (예: 축 정의에서 1쪽 행동의 증거 = 올림, "
@@ -162,12 +197,13 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
     if not isinstance(value, (int, float)) or float(value) not in VALUE_MENU:
         failures.append(f"menu_violation:{value!r}")
 
-    # 게이트 2 — 접지: 인용 팩트가 실존하고 측정돼 있어야 한다
+    # 게이트 2 — 접지: 인용 팩트가 실존하고 측정돼 있어야 한다 (형식 노이즈는 정규화)
     raw_evidence = out.get("evidence")
-    evidence: list[str] = [e for e in raw_evidence] if isinstance(raw_evidence, list) else []
-    unknown = [e for e in evidence if e not in measured]
-    if unknown:
-        failures.append(f"grounding:{','.join(map(str, unknown))}")
+    evidence, invented = _normalize_evidence(
+        raw_evidence if isinstance(raw_evidence, list) else [], measured
+    )
+    if invented:
+        failures.append(f"grounding:{','.join(invented)}")
 
     # 게이트 3 — 극성: 방향이 정의와 모순되면 탈락 (중립은 가중 판단이라 허용)
     polarity: dict[str, str] = {}

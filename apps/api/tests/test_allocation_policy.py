@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services import allocator, facts as facts_svc
-from app.services.allocation_policy import ARM_IDS, choose, reward_for, update
+from app.services.allocation_policy import ARM_IDS, choose, credits_for, update
 from app.services.allocator import AllocationContext, EnvelopeBalances, SpendingProfile
 from app.store import db
 
@@ -68,14 +68,39 @@ def test_months_clamped_to_engine_bounds():
     assert d.months == allocator.BUFFER_MONTHS_MAX
 
 
-# ── 보상 — 자유 계수 0 (순수 비율) ──
+# ── 보상 — 방향 인식(credits_for): 버퍼를 민 쪽 arm에 크레딧 ──
 
-def test_reward_values():
+def test_credits_confirm_and_reject():
     proposed = {"tax": 100, "expense": 100, "spendable": 300, "buffer": 500}
-    assert reward_for("confirm", proposed, proposed, 1000) == 1.0
-    assert reward_for("reject", proposed, None, 1000) == 0.0
-    adjusted = {**proposed, "spendable": 550, "buffer": 250}   # 버퍼 250 편집 / 1000
-    assert reward_for("adjust", proposed, adjusted, 1000) == 0.75
+    assert credits_for("confirm", proposed, proposed, 1000, "P75") == [("P75", 1.0)]
+    assert credits_for("reject", proposed, None, 1000, "P75") == [("P75", 0.0)]
+
+
+def test_credits_tiny_adjust_is_acceptance():
+    # 버퍼 편집이 입금액의 5% 미만이면 안전 수준은 수용 — 고른 arm 성공
+    proposed = {"tax": 100, "expense": 100, "spendable": 300, "buffer": 500}
+    adjusted = {**proposed, "spendable": 340, "buffer": 460}   # 40/1000 = 4% < 5%
+    assert credits_for("adjust", proposed, adjusted, 1000, "P75") == [("P75", 1.0)]
+
+
+def test_credits_adjust_up_rewards_higher_neighbor():
+    # 버퍼를 크게 늘림(더 안전 원함) → 위쪽 이웃(P90) 성공 + 고른 P75 실패
+    proposed = {"tax": 100, "expense": 100, "spendable": 300, "buffer": 500}
+    adjusted = {**proposed, "spendable": 100, "buffer": 700}   # +200/1000 = 20%
+    assert credits_for("adjust", proposed, adjusted, 1000, "P75") == [("P90", 1.0), ("P75", 0.0)]
+
+
+def test_credits_adjust_down_rewards_lower_neighbor():
+    proposed = {"tax": 100, "expense": 100, "spendable": 300, "buffer": 500}
+    adjusted = {**proposed, "spendable": 500, "buffer": 300}   # -200/1000 = 20%
+    assert credits_for("adjust", proposed, adjusted, 1000, "P75") == [("P60", 1.0), ("P75", 0.0)]
+
+
+def test_credits_extreme_arm_pushed_further_reinforces():
+    # 이미 P90(최고 안전)인데 버퍼를 더 늘림 = 그 방향이 맞다는 강화(성공), 이웃 없음
+    proposed = {"tax": 100, "expense": 100, "spendable": 300, "buffer": 500}
+    adjusted = {**proposed, "spendable": 100, "buffer": 700}
+    assert credits_for("adjust", proposed, adjusted, 1000, "P90") == [("P90", 1.0)]
 
 
 # ── 온라인 학습 — 거절이 쌓이면 선택이 바뀐다 (데모 장면) ──
@@ -88,6 +113,22 @@ def test_rejections_flip_choice():
     assert choose(dates, axes, 2.0).arm_id == "P90"
     update("P90", 0.0)  # 거절 3 — P90 사후평균 3/7 < P75 사후평균 1/2
     assert choose(dates, axes, 2.0).arm_id == "P75"
+
+
+def test_upward_adjusts_converge_higher_not_lower():
+    """의도 역전 교정의 핵심 회귀 — 사용자가 버퍼를 계속 늘리면(더 안전 원함) 정책은
+    더 안전한 분위수로 가야 한다. 이전 abs(Δ) 보상은 반대로 더 공격적으로 뒤집혔다.
+    """
+    dates, axes = _dates(5), _axes(0.5)      # 중립 출발(P75)
+    start = choose(dates, axes, 2.0).arm_id
+    assert start == "P75"
+    proposed = {"tax": 0, "expense": 0, "spendable": 500, "buffer": 500}
+    adjusted = {"tax": 0, "expense": 0, "spendable": 200, "buffer": 800}   # +300/1000 = 위로
+    for _ in range(4):
+        for arm, r in credits_for("adjust", proposed, adjusted, 1000, "P75"):
+            update(arm, r)
+    end = choose(dates, axes, 2.0).arm_id
+    assert end == "P90"      # 더 안전한 쪽으로 수렴 (역전 아님)
 
 
 def test_confirms_reinforce_choice():
@@ -149,7 +190,7 @@ def test_deposit_flow_records_policy_and_decision_pays_reward():
     assert state[policy["arm_id"]]["alpha"] == 1.0               # confirm = 보상 1
     ev = [e for e in db.list_events(type_="allocation_decided")][-1]
     assert ev["payload"]["policy_arm"] == policy["arm_id"]
-    assert ev["payload"]["policy_reward"] == 1.0
+    assert ev["payload"]["policy_credits"] == [[policy["arm_id"], 1.0]]   # confirm = 고른 arm 성공
 
 
 def test_reject_pays_zero_and_next_proposal_sees_it():

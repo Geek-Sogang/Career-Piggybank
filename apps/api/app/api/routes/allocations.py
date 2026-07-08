@@ -109,11 +109,17 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
     # 공백 관측 0건이면 arm이 출력에 영향을 준 게 없으므로 귀속하지 않는다 (무영향 무보상).
     policy_meta = decided["meta"].get("policy") if decided else None
     if policy_meta and decided and policy_meta.get("observed_gaps", 0) > 0:
-        reward = allocation_policy.reward_for(
-            req.action, decided["proposed"], decided["final"], decided["deposit"]
+        credits = allocation_policy.credits_for(
+            req.action, decided["proposed"], decided["final"], decided["deposit"],
+            policy_meta["arm_id"],
         )
-        allocation_policy.update(policy_meta["arm_id"], reward)
-        payload.update({"policy_arm": policy_meta["arm_id"], "policy_reward": round(reward, 4)})
+        for arm, reward in credits:
+            allocation_policy.update(arm, reward)
+        if credits:
+            payload.update({
+                "policy_arm": policy_meta["arm_id"],
+                "policy_credits": [[arm, round(reward, 4)] for arm, reward in credits],
+            })
 
     db.log_event("allocation_decided", ref_id=alloc_id, payload=payload)
     return to_response(decided)  # type: ignore[arg-type]

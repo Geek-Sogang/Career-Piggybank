@@ -36,16 +36,31 @@ class CoachReply:
 
 
 def _digit_tokens(text: str) -> list[str]:
-    return [re.sub(r"[,.]", "", t) for t in _NUM_TOKEN.findall(text)]
+    """숫자 토큰을 원 단위 정수 문자열로 정규화 — 콤마 제거 + 소수부 버림.
+
+    소수부를 버려 108900.0(float 아티팩트)과 108900을 같게 본다. 이전엔 소수점을 그냥
+    지워 108900.0 → '1089000'으로 자릿수가 바뀌어, 아래 정확 일치가 정상 인용을 깨뜨렸다.
+    """
+    out: list[str] = []
+    for tok in _NUM_TOKEN.findall(text):
+        digits = tok.replace(",", "").split(".")[0]   # 콤마 제거 후 정수부만
+        if digits:
+            out.append(digits)
+    return out
 
 
 def _numbers_grounded(reply: str, context_text: str) -> bool:
-    """응답의 모든 (3자리 이상) 숫자가 컨텍스트 숫자의 부분열인지 결정론 검증."""
-    ctx_tokens = _digit_tokens(context_text)
+    """응답의 모든 (3자리 이상) 숫자가 컨텍스트 숫자와 **정확히 일치**하는지 결정론 검증.
+
+    부분열이 아니라 전체 토큰 일치다 — 조작된 300,000이 컨텍스트 1,300,000의 부분열로
+    통과하던 구멍을 닫는다. 재포맷·반올림으로 못 맞히면 결정론 폴백으로 안전하게 떨어진다
+    (틀린 금액이 사용자에게 닿는 것보다 덜 매끄러운 폴백이 낫다 — 가드레일은 엄격이 정답).
+    """
+    ctx_tokens = set(_digit_tokens(context_text))
     for token in _digit_tokens(reply):
         if len(token) <= _SMALL_NUM_OK:
             continue
-        if not any(token in ctx for ctx in ctx_tokens):
+        if token not in ctx_tokens:
             return False
     return True
 

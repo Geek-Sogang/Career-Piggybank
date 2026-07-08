@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
+import { getPersona, readPersona, type Persona } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, Mascot } from '@/components/ui';
@@ -29,6 +31,9 @@ export function My() {
         <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 
+      {/* 페르소나 — ④ 프로필 판독의 SSOT. 판독은 명시 트리거만(핫패스 보호), 폴백 축은 정직 표기 */}
+      <PersonaCard />
+
       <Card p={0} style={{ paddingHorizontal: 16 }}>
         {MENU.map((m, i) => (
           <Pressable key={m.label} onPress={() => actions.pushScr(m.push)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < MENU.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
@@ -39,6 +44,80 @@ export function My() {
         ))}
       </Card>
     </View>
+  );
+}
+
+// 성향 4축 카드 — 값(0~1 게이지)·근거 팩트·신선도. AI가 판단한 영역이라 보라 배지.
+const AXIS_ORDER = ['risk_tolerance', 'time_preference', 'self_control', 'planning'];
+
+function PersonaCard() {
+  const [persona, setPersona] = useState<Persona | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [reading, setReading] = useState(false);
+  const load = () => getPersona().then((p) => { setPersona(p); setMissing(false); }).catch(() => setMissing(true));
+  useEffect(() => { load(); }, []);
+
+  const runRead = async () => {
+    setReading(true);
+    try { await readPersona(); await load(); } catch {}
+    setReading(false);
+  };
+
+  return (
+    <Card>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>내 금융 성향</Text>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판독</Text>
+      </View>
+      {missing || !persona ? (
+        <View style={{ marginTop: 10, gap: 10 }}>
+          <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', lineHeight: 18 }}>
+            {reading
+              ? '피기가 원장의 사실들을 읽고 있어요 … 축당 몇 초씩 걸려요 (온디바이스 AI)'
+              : '아직 성향을 읽지 않았어요 — 원장에서 측정한 사실만 근거로 4가지 축을 판독해요'}
+          </Text>
+          {!reading && (
+            <Pressable onPress={runRead} style={{ borderWidth: 1.4, borderColor: '#E2D8F3', backgroundColor: '#F5F1FB', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#7C5CBF' }}>내 성향 읽기</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <View style={{ marginTop: 12, gap: 11 }}>
+          {AXIS_ORDER.map((key) => {
+            const a = persona.axes[key];
+            if (!a) return null;
+            return (
+              <View key={key} style={{ gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.ink }}>
+                    {a.label}{' '}
+                    {a.fallback && <Text style={{ fontSize: 10, color: colors.sub3, fontWeight: '600' }}>판단 보류(중립)</Text>}
+                  </Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.sub2 }}>
+                    {a.evidence.length > 0 ? `근거 ${a.evidence.join('·')}` : '—'}
+                  </Text>
+                </View>
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
+                  <View style={{ width: `${a.value * 100}%`, height: 6, borderRadius: 3, backgroundColor: a.fallback ? '#C9CED4' : '#7C5CBF' }} />
+                </View>
+              </View>
+            );
+          })}
+          {persona.staleness?.stale && (
+            <Pressable onPress={runRead} disabled={reading} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F3E3C2', borderRadius: 11, padding: 10 }}>
+              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: '#9A6B15', lineHeight: 16 }}>
+                {reading ? '다시 읽는 중 …' : `그 사이 거래 ${persona.staleness.new_txns}건이 쌓였어요 — 성향을 다시 읽어볼까요?`}
+              </Text>
+              {!reading && <Icon name="chevronRight" size={14} color="#9A6B15" sw={2.2} />}
+            </Pressable>
+          )}
+          <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15 }}>
+            원장에서 측정한 사실(F01~F12)만 근거로 판독 — 근거가 부족한 축은 중립을 지켜요
+          </Text>
+        </View>
+      )}
+    </Card>
   );
 }
 

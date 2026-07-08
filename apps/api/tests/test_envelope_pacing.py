@@ -133,6 +133,27 @@ def test_pacing_llm_down_arithmetic_fallback(monkeypatch):
     assert all(s == "기본" for s in j.stances.values())
 
 
+def test_pacing_corrective_retry_rescues(monkeypatch):
+    """1차 스탠스 메뉴 위반 → 위반 명시 재시도 → 2차 정상이면 산수 폴백 대신 판단 채택."""
+    _seed_ledger()
+    g1, g2 = _goals_db()
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        if len(calls) == 1:
+            return {"priorities": [g2, g1], "stances": {g1: "빨리", g2: "당김"},
+                    "evidence": ["F01"], "reason": ""}          # '빨리'는 메뉴에 없음
+        return {"priorities": [g2, g1], "stances": {g1: "보류", g2: "당김"},
+                "evidence": ["F01"], "reason": "교정됨"}
+
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", fake)
+    j = amount_pacing.judge(db.list_goals(), _facts(), None)
+    assert not j.fallback and j.retried is True
+    assert j.stances[g1] == "보류"
+    assert "교정 재시도" in calls[1] and "빨리" in calls[1]     # 위반이 명시된 다른 입력
+
+
 # ── ⑤a 추천 게이트 ──
 
 def test_recommend_gates(monkeypatch):

@@ -118,6 +118,7 @@ class AxisReading:
     polarity: dict[str, str]
     fallback: bool
     gate_failures: tuple[str, ...]
+    retried: bool = False   # 교정 재시도 1회로 통과했나 (감사: 첫 응답의 위반은 gate_failures에)
 
     def as_dict(self) -> dict:
         return {
@@ -125,6 +126,7 @@ class AxisReading:
             "evidence": list(self.evidence), "reason": self.reason,
             "polarity": self.polarity, "fallback": self.fallback,
             "gate_failures": list(self.gate_failures),
+            "retried": self.retried,
         }
 
 
@@ -199,22 +201,29 @@ def _system_prompt(axis: str) -> str:
     )
 
 
-def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
-    """축 하나 판독 — LLM 판단 + 결정론 게이트. 실패는 중립 폴백."""
-    measured = {f.id: f for f in facts if f.value is not None}
-    out = llm.chat_json(
-        _system_prompt(axis), _sheet_lines(facts, axis),
-        model=settings.ollama_model_coach,  # 7.8B — 2.4B는 이 태스크에서 실측 탈락
-    )
-    if not isinstance(out, dict):
-        return _fallback(axis, ["llm_unavailable"])
+def _validate(
+    axis: str, out: dict, measured: dict[str, Fact],
+) -> tuple[list[str], list[str], float | None, list[str], dict[str, str]]:
+    """게이트 3종 검증 — (실패 코드, 교정 메시지, 값, 근거, 극성표).
 
+    교정 메시지는 재시도 프롬프트에 그대로 실린다 — 컴파일러 에러처럼 '무엇이 왜
+    틀렸나'를 말하되 답(값)을 정해주지 않는다. 극성 교정만 예외로 정의 방향을 알려주는데,
+    극성은 애초에 결정론 '정의'라(값이 아니라) 정답 유출이 아니다.
+    """
     failures: list[str] = []
+    corrections: list[str] = []
+    menu = ", ".join(str(v) for v in VALUE_MENU)
 
     # 게이트 1 — 값은 메뉴에서만 (번호만 선택)
-    value = out.get("value")
-    if not isinstance(value, (int, float)) or float(value) not in VALUE_MENU:
-        failures.append(f"menu_violation:{value!r}")
+    raw_value = out.get("value")
+    value: float | None = None
+    if isinstance(raw_value, (int, float)) and float(raw_value) in VALUE_MENU:
+        value = float(raw_value)
+    else:
+        failures.append(f"menu_violation:{raw_value!r}")
+        corrections.append(
+            f"value {raw_value!r}는 보기에 없는 값이다 — 반드시 [{menu}] 다섯 값 중 하나만 골라라."
+        )
 
     # 게이트 2 — 접지: 인용 팩트가 실존하고 측정돼 있어야 한다 (형식 노이즈는 정규화)
     raw_evidence = out.get("evidence")
@@ -223,6 +232,10 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
     )
     if invented:
         failures.append(f"grounding:{','.join(invented)}")
+        corrections.append(
+            f"evidence의 {', '.join(invented)}는 팩트시트에 없는 ID다 — "
+            "위 팩트시트에 실제로 있는 ID만 인용하라."
+        )
 
     # 게이트 3 — 극성: 방향이 정의와 모순되면 탈락 (중립은 가중 판단이라 허용)
     polarity: dict[str, str] = {}
@@ -237,23 +250,69 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
                 axis, fid, float(measured[fid].value), measured[fid].n)  # type: ignore[arg-type]
             if expected and norm != "neutral" and norm != expected:
                 failures.append(f"polarity:{fid}:{norm}≠{expected}")
+                direction = "높이는(올림)" if expected == "up" else "낮추는(내림)"
+                corrections.append(
+                    f"{fid}({measured[fid].label} = {measured[fid].display})는 이 축 정의상 "
+                    f"값을 {direction} 증거다 — 극성표를 정의에 맞춰 다시 판단하라."
+                )
 
+    return failures, corrections, value, evidence, polarity
+
+
+def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
+    """축 하나 판독 — LLM 판단 + 결정론 게이트 + 교정 재시도 1회. 그래도 실패면 중립 폴백.
+
+    temp 0에서 같은 프롬프트 재호출은 같은 답이라 무의미하다 — 재시도는 게이트가 잡은
+    위반을 명시한 '다른 입력'이어야 한다(컴파일러 에러 문법). 1회로 제한: 게이트를 통과할
+    때까지 조르는 건 검증이 아니라 유도다. 감사를 위해 첫 응답의 위반은 gate_failures에,
+    재시도로 통과했다는 사실은 retried에 남는다.
+    """
+    measured = {f.id: f for f in facts if f.value is not None}
+    sheet = _sheet_lines(facts, axis)
+    out = llm.chat_json(
+        _system_prompt(axis), sheet,
+        model=settings.ollama_model_coach,  # 7.8B — 2.4B는 이 태스크에서 실측 탈락
+    )
+    if not isinstance(out, dict):
+        return _fallback(axis, ["llm_unavailable"])
+
+    failures, corrections, value, evidence, polarity = _validate(axis, out, measured)
+    retried = False
     if failures:
-        return _fallback(axis, failures)
+        # 교정 재시도 — 위반을 명시하고 같은 형식으로 재판단 요청 (1회 한정)
+        retry_user = (
+            f"{sheet}\n\n[교정 재시도 — 직전 응답이 검증에서 탈락했다]\n"
+            + "\n".join(f"· {c}" for c in corrections)
+            + "\n위 문제를 고쳐 같은 JSON 형식으로 다시 판단하라."
+        )
+        out2 = llm.chat_json(_system_prompt(axis), retry_user, model=settings.ollama_model_coach)
+        if isinstance(out2, dict):
+            failures2, _c2, value2, evidence2, polarity2 = _validate(axis, out2, measured)
+            if not failures2:
+                # 통과 — 첫 응답의 위반 기록은 남긴다 (무엇이 교정됐는지 감사 가능)
+                retried, out = True, out2
+                value, evidence, polarity = value2, evidence2, polarity2
+            else:
+                return _fallback(axis, failures + [f"retry:{f}" for f in failures2])
+        else:
+            return _fallback(axis, [*failures, "retry:llm_unavailable"])
 
     return AxisReading(
         axis=axis, label=AXES[axis]["label"], value=float(value),  # type: ignore[arg-type]
         evidence=tuple(evidence),
         reason=str(out.get("reason", "")).strip()[:200],
-        polarity=polarity, fallback=False, gate_failures=(),
+        polarity=polarity, fallback=False,
+        gate_failures=tuple(failures) if retried else (),
+        retried=retried,
     )
 
 
 def read_profile(facts: list[Fact]) -> dict:
-    """성향 4축 전체 판독 — 축당 1회 호출. 결과는 스냅샷(axes)에 그대로 기록된다."""
+    """성향 4축 전체 판독 — 축당 1회(+교정 재시도 최대 1회). 결과는 스냅샷(axes)에 기록."""
     readings = {axis: read_axis(axis, facts) for axis in AXES}
     return {
         "axes": {axis: r.as_dict() for axis, r in readings.items()},
         "fallback_count": sum(1 for r in readings.values() if r.fallback),
+        "retry_count": sum(1 for r in readings.values() if r.retried),
         "model_id": settings.ollama_model_coach,
     }

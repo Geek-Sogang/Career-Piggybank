@@ -128,6 +128,44 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
   );
 }
 
+// ── 목표 봉투 + 금액 페이싱 — 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만 ──
+export type Goal = {
+  id: string; name: string; target_amount: number; target_date: string | null;
+  balance: number; status: string; source: string; seq: number;
+};
+export function getGoals() {
+  return get<Goal[]>('/v1/envelopes/goals');
+}
+export function createGoal(name: string, target_amount: number, target_date: string | null) {
+  return post<Goal>('/v1/envelopes/goals', { name, target_amount, target_date });
+}
+// ⑤a 봉투 추천 — 팩트+페르소나 접지 근거의 후보. 개설은 사용자가 탭해서 결정
+export type EnvelopeIdea = { name: string; why: string; evidence: string[] };
+export function recommendEnvelopes() {
+  return post<{ recommendations: EnvelopeIdea[]; persona_used: boolean }>(
+    '/v1/envelopes/recommend', {}, 60_000, // 로컬 7.8B 생성 대기
+  );
+}
+// ⑤b 금액 페이싱 — 판단(우선순위·스탠스)은 AI, 원화 번역은 산수, 실행은 confirm만
+export type PacingProposal = {
+  id: string; status: string; available: number;
+  split: Record<string, number>;
+  reasons: string[];
+  judgment: { reason: string; fallback: boolean; evidence: string[]; stances: Record<string, string> };
+  goals: { id: string; name: string; base: number; stance: string; amount: number }[];
+  source: string;
+};
+export function proposePacing(available: number, today: string, source: 'deposit' | 'buffer') {
+  return post<PacingProposal>('/v1/pacing/propose',
+    { available, buffer_shortfall: 0, today, source }, 120_000); // 로컬 7.8B 판단 대기
+}
+export function decidePacing(id: string, action: 'confirm' | 'reject') {
+  return post<{ id: string; status: string }>(`/v1/pacing/${id}/decision`, { action });
+}
+export function getEnvelopeBalances() {
+  return get<{ balances: Record<string, number> }>('/v1/bank/envelopes');
+}
+
 // ── 벨 인박스 (어젠다 큐) — 피기가 아직 말하지 않은 사건의 트리아지. 발화문은 결정론 템플릿 ──
 export type AgendaItem = { kind: string; priority: number; line: string };
 export function getAgenda() {

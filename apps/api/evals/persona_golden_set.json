@@ -1,0 +1,261 @@
+{
+  "cases": [
+    {
+      "id": "P01",
+      "name": "박몰아 — 몰아쓰기·가뭄경직",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-11", "amount": 850000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-06", "amount": 900000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-16", "amount": 850000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-06", "amount": 950000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {"self_control": "low"},
+      "basis": "입금 1일 내 전액 소비(F06 burst 100%) + 가뭄달(2·4월)에도 오히려 더 씀(F05 +9%) — 몰아쓰기·경직 이중 신호"
+    },
+    {
+      "id": "P02",
+      "name": "이계획 — 분산소비·가뭄탄력",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-25", "amount": 150000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-25", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-28", "amount": 130000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {"self_control": "high"},
+      "basis": "입금 후 10일 이상 지나 지출(F06 burst 0%) + 가뭄달엔 확실히 줄임(F05 −67%) — 분산·탄력 이중 신호"
+    },
+    {
+      "id": "P03",
+      "name": "태그왕 — 꾸준한 기록·안정 지출",
+      "ledger": [
+        {"date": "2025-01-05", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-15", "amount": 200000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 950000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-15", "amount": 210000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-05", "amount": 920000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-15", "amount": 195000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [
+        {"type": "txn_tagged", "ts": "2025-01-06T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-01-13T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-01-20T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-02-03T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-02-17T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-03-03T10:00:00"}
+      ],
+      "allocations": [],
+      "labels": {"planning": "high"},
+      "basis": "6주에 걸쳐 태깅 6건(F10≥4) + 월 생활비 변동계수 3%대(F07 매우 안정) — 관리 습관 이중 신호"
+    },
+    {
+      "id": "P04",
+      "name": "무관심 — 지출 카오스·기록 없음",
+      "ledger": [
+        {"date": "2025-01-05", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 50000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 300000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-20", "amount": 900000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-05", "amount": 850000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-20", "amount": 100000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-20", "amount": 700000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {"planning": "low"},
+      "basis": "태깅 이벤트 0건(F10 관측 없음 — 기록 습관 자체가 없음) + 월 생활비가 5만↔90만원을 오가는 극단적 변동(F07 cv≈0.6) — 나이브 F10 규칙은 '관측 없음=중립'으로 놓치지만, 지출 패턴 자체가 무계획을 증언한다"
+    },
+    {
+      "id": "P05",
+      "name": "안전선호 — 버퍼를 늘려온 습관",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 800000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-15", "amount": 850000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-25", "amount": 280000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [
+        {"status": "adjusted", "proposed": {"buffer": 200000}, "final": {"buffer": 350000}},
+        {"status": "adjusted", "proposed": {"buffer": 180000}, "final": {"buffer": 260000}},
+        {"status": "confirmed", "proposed": {"buffer": 210000}, "final": {"buffer": 210000}}
+      ],
+      "labels": {"risk_tolerance": "low", "time_preference": "high"},
+      "basis": "조정 이력 2건 모두 제안보다 버퍼를 늘림(F12 중앙값 +115,000원) — 안전 선호·미래지향 이중 신호"
+    },
+    {
+      "id": "P06",
+      "name": "위험선호 — 버퍼를 줄여온 습관",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 800000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-15", "amount": 850000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-25", "amount": 280000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [
+        {"status": "adjusted", "proposed": {"buffer": 300000}, "final": {"buffer": 150000}},
+        {"status": "adjusted", "proposed": {"buffer": 250000}, "final": {"buffer": 140000}}
+      ],
+      "labels": {"risk_tolerance": "high", "time_preference": "low"},
+      "basis": "조정 이력 2건 모두 제안보다 버퍼를 줄여 즉시가용으로 옮김(F12 중앙값 −130,000원) — 위험 감내·현재선호 이중 신호"
+    },
+    {
+      "id": "P07",
+      "name": "콜드스타트 — 관측 부족",
+      "ledger": [
+        {"date": "2025-05-01", "amount": 500000, "direction": "in", "counterparty": "크몽", "kind": "income"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {
+        "risk_tolerance": "neutral", "time_preference": "neutral",
+        "self_control": "neutral", "planning": "neutral"
+      },
+      "basis": "입금 1건뿐 — 4축 모두 판단 근거 팩트가 없다. 과신하지 않고 중립을 지키는지가 시험 대상(캘리브레이션)"
+    },
+    {
+      "id": "P08",
+      "name": "모범형 — 계획적 소비 + 꾸준한 기록",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-25", "amount": 150000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-25", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-28", "amount": 140000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [
+        {"type": "txn_tagged", "ts": "2025-01-08T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-02-01T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-02-20T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-03-10T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-04-02T10:00:00"}
+      ],
+      "allocations": [],
+      "labels": {"self_control": "high", "planning": "high"},
+      "basis": "분산소비+가뭄탄력(P02와 동일 패턴, F05 −52%·F06 0%) 위에 5주 걸친 태깅 5건(F10≥4) 추가 — 복합 모범형"
+    },
+    {
+      "id": "P09",
+      "name": "방임형 — 몰아쓰기 + 가뭄에 더 씀",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-11", "amount": 850000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-06", "amount": 900000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-06", "amount": 950000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {"self_control": "low"},
+      "basis": "burst 90%(F06) + 가뭄달(2·4월)에 오히려 지출 61% 증가(F05 +61%) — 몰아쓰기·경직 이중 신호(P01 변형, 지출 규모 변동 추가)"
+    },
+    {
+      "id": "P10",
+      "name": "안전+계획 복합형",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-20", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-25", "amount": 150000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-25", "amount": 300000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-28", "amount": 130000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [
+        {"status": "adjusted", "proposed": {"buffer": 200000}, "final": {"buffer": 350000}},
+        {"status": "adjusted", "proposed": {"buffer": 180000}, "final": {"buffer": 260000}},
+        {"status": "confirmed", "proposed": {"buffer": 210000}, "final": {"buffer": 210000}}
+      ],
+      "labels": {"risk_tolerance": "low", "self_control": "high"},
+      "basis": "분산소비+가뭄탄력(P02 패턴) + 버퍼 확대 조정 이력(P05 패턴) — 안전지향·계획성 복합"
+    },
+    {
+      "id": "P11",
+      "name": "즉흥+위험 복합형",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-11", "amount": 850000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-06", "amount": 900000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-16", "amount": 850000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 200000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-06", "amount": 950000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [
+        {"status": "adjusted", "proposed": {"buffer": 300000}, "final": {"buffer": 150000}},
+        {"status": "adjusted", "proposed": {"buffer": 250000}, "final": {"buffer": 140000}}
+      ],
+      "labels": {"risk_tolerance": "high", "self_control": "low"},
+      "basis": "몰아쓰기+가뭄경직(P01 패턴) + 버퍼 축소 조정 이력(P06 패턴) — 위험선호·즉흥성 복합"
+    },
+    {
+      "id": "P12",
+      "name": "애매형 — 약한 신호(캘리브레이션)",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-13", "amount": 175000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-01-25", "amount": 175000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 500000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-08", "amount": 87500, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-20", "amount": 162500, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-18", "amount": 175000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-28", "amount": 175000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 480000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-08", "amount": 87500, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-20", "amount": 162500, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [],
+      "allocations": [],
+      "labels": {"self_control": "neutral"},
+      "basis": "burst 비율 44%(F06) — 20~50% 구간은 정의상 무판정 지대. 극단으로 몰아붙이지 않고 중립을 지키는지가 시험 대상"
+    },
+    {
+      "id": "P13",
+      "name": "상충형 — burst 타이밍 vs 가뭄 절제 (나이브 규칙이 틀리는 사례)",
+      "ledger": [
+        {"date": "2025-01-10", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-01-12", "amount": 500000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-02-05", "amount": 250000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-02-07", "amount": 80000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-03-15", "amount": 900000, "direction": "in", "counterparty": "크몽", "kind": "income"},
+        {"date": "2025-03-17", "amount": 500000, "direction": "out", "counterparty": "생활", "kind": "living"},
+        {"date": "2025-04-05", "amount": 220000, "direction": "in", "counterparty": "위시켓", "kind": "income"},
+        {"date": "2025-04-07", "amount": 70000, "direction": "out", "counterparty": "생활", "kind": "living"}
+      ],
+      "events": [
+        {"type": "txn_tagged", "ts": "2025-01-13T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-02-08T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-03-18T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-04-08T10:00:00"},
+        {"type": "txn_tagged", "ts": "2025-04-15T10:00:00"}
+      ],
+      "allocations": [],
+      "labels": {"self_control": "high", "planning": "high"},
+      "basis": "고정 지출(월세 등 추정)이 입금 2일 내 빠져나가 burst=100%(F06) — 단일 팩트 규칙은 이걸 '몰아쓰기'로 오판(low)한다. 하지만 가뭄달엔 지출을 85% 줄이고(F05) 4주 넘게 꾸준히 태깅(F10=5) — 실제로는 고정비를 제외하면 매우 절제된 사람. 홀리스틱 판독이 나이브 규칙을 이겨야 하는 핵심 사례"
+    }
+  ]
+}

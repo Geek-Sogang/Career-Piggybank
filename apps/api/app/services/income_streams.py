@@ -83,23 +83,44 @@ def _median_gap(dates: list[date]) -> float | None:
     return float(statistics.median((b - a).days for a, b in zip(ds, ds[1:])))
 
 
-def _advance_lag(txns: list[dict]) -> tuple[float, str]:
-    """착수금→잔금 실측 간격 — 같은 상대의 advance 이후 첫 입금까지. 쌍이 없으면 기본값."""
-    lags: list[float] = []
+def _match_settlements(items: list[dict]) -> tuple[list[tuple[dict, dict]], list[dict]]:
+    """착수금↔잔금 1:1 선입선출 매칭 — (매칭된 쌍, 미결 착수금).
+
+    계약은 쌍이다: 잔금 1건이 착수금 여러 건을 한꺼번에 '정산됨'으로 만들지 않는다.
+    [착수금, 착수금, 잔금]이면 잔금은 가장 오래된 착수금과 짝지어지고 두 번째는 미결로
+    남는다 — 이전 any() 판정은 이 미결 계약을 조용히 잃어버렸다.
+    """
+    open_advances: list[dict] = []
+    pairs: list[tuple[dict, dict]] = []
+    for t in items:  # 호출자가 날짜순으로 준다
+        if t.get("subtype") == "advance":
+            open_advances.append(t)
+        elif open_advances:
+            pairs.append((open_advances.pop(0), t))
+    return pairs, open_advances
+
+
+def _advance_lags(txns: list[dict]) -> tuple[dict[str, float], float | None]:
+    """착수금→잔금 실측 간격 — 발주처별 중앙값 + 전체 중앙값(발주처 이력 없을 때 폴백).
+
+    전역 하나만 쓰면 빠른 발주처 하나가 모든 발주처의 지연 임계값을 좁혀 정상 진행 계약을
+    조기에 '지연'으로 판정한다 — 이력이 있는 발주처는 자기 리듬으로 잰다.
+    """
     by_cp: dict[str, list[dict]] = {}
     for t in sorted(txns, key=lambda t: t["date"]):
         by_cp.setdefault(t["counterparty"].strip(), []).append(t)
-    for items in by_cp.values():
-        for i, t in enumerate(items):
-            if t.get("subtype") == "advance":
-                later = [x for x in items[i + 1:] if x.get("subtype") != "advance"]
-                if later:
-                    lags.append(
-                        float((date.fromisoformat(later[0]["date"]) - date.fromisoformat(t["date"])).days)
-                    )
-    if lags:
-        return statistics.median(lags), f"내 계약 이력의 착수금→잔금 간격 중앙값 {statistics.median(lags):.0f}일"
-    return DEFAULT_SETTLEMENT_LAG, f"착수금→잔금 관측 쌍 없음 — 기본값 {DEFAULT_SETTLEMENT_LAG:.0f}일(콜드스타트)"
+    per_cp: dict[str, float] = {}
+    all_lags: list[float] = []
+    for cp, items in by_cp.items():
+        pairs, _ = _match_settlements(items)
+        lags = [
+            float((date.fromisoformat(s["date"]) - date.fromisoformat(a["date"])).days)
+            for a, s in pairs
+        ]
+        if lags:
+            per_cp[cp] = statistics.median(lags)
+            all_lags.extend(lags)
+    return per_cp, (statistics.median(all_lags) if all_lags else None)
 
 
 def decompose(
@@ -120,12 +141,13 @@ def decompose(
     for t in txns:
         by_cp.setdefault(t["counterparty"].strip(), []).append(t)
 
-    # A. 플랫폼 정산 — 채널별 주기
+    # A. 플랫폼 정산 — 채널별 주기. gap 0(같은 날 뭉침)은 리듬이 아니라 신호 부재 —
+    #    과거 날짜가 '다음 수입' 후보로 새어들지 않게 B와 같은 기준(gap > 0)으로 거른다
     platform_names = [cp for cp in by_cp if _is_platform(cp)]
     for cp in platform_names:
         dates = [date.fromisoformat(t["date"]) for t in by_cp[cp]]
         gap = _median_gap(dates)
-        if gap is not None:
+        if gap is not None and gap > 0:
             expected = max(dates) + timedelta(days=gap)
             candidates.append(StreamCandidate(
                 source="platform", label=cp, expected_date=expected.isoformat(),
@@ -148,39 +170,46 @@ def decompose(
             ))
 
     # C. 착수금→잔금 — 진행 중 계약 추적 (원장이 이미 아는 미래).
+    #    미결 판정은 1:1 선입선출 매칭(잔금 1건 = 착수금 1건), lag는 발주처 이력 우선.
     #    예상 lag의 2배가 지나도 안 들어오면 '지연' — 예측 후보에서 빼고 코치 질문으로 전환
     #    (오염된 예측을 방치하는 대신, 모르게 된 것을 사람에게 묻는다 = 확인 게이트 문법)
-    lag, lag_basis = _advance_lag(txns)
+    per_cp_lag, global_lag = _advance_lags(txns)
     ref = date.fromisoformat(as_of) if as_of else (
         date.fromisoformat(txns[-1]["date"]) if txns else None
     )
     pending: list[PendingSettlement] = []
     stale: list[StaleSettlement] = []
     for cp, items in by_cp.items():
-        for i, t in enumerate(items):
-            if t.get("subtype") == "advance":
-                settled = any(x.get("subtype") != "advance" for x in items[i + 1:])
-                if settled:
-                    continue
-                adv = date.fromisoformat(t["date"])
-                expected = adv + timedelta(days=lag)
-                if ref is not None and ref > adv + timedelta(days=lag * STALE_LAG_MULTIPLIER):
-                    stale.append(StaleSettlement(
-                        counterparty=cp, advance_date=t["date"], advance_amount=t["amount"],
-                        question=(
-                            f"'{cp}' 잔금이 예상({expected.isoformat()})보다 오래 걸리고 있어요 — "
-                            "들어왔는데 다른 이름이었나요, 아니면 아직인가요?"
-                        ),
-                    ))
-                    continue
-                pending.append(PendingSettlement(
+        _pairs, open_advances = _match_settlements(items)
+        if cp in per_cp_lag:
+            lag = per_cp_lag[cp]
+            lag_basis = f"'{cp}' 이력의 착수금→잔금 간격 중앙값 {lag:.0f}일"
+        elif global_lag is not None:
+            lag = global_lag
+            lag_basis = f"내 계약 이력의 착수금→잔금 간격 중앙값 {global_lag:.0f}일"
+        else:
+            lag = DEFAULT_SETTLEMENT_LAG
+            lag_basis = f"착수금→잔금 관측 쌍 없음 — 기본값 {DEFAULT_SETTLEMENT_LAG:.0f}일(콜드스타트)"
+        for t in open_advances:
+            adv = date.fromisoformat(t["date"])
+            expected = adv + timedelta(days=lag)
+            if ref is not None and ref > adv + timedelta(days=lag * STALE_LAG_MULTIPLIER):
+                stale.append(StaleSettlement(
                     counterparty=cp, advance_date=t["date"], advance_amount=t["amount"],
-                    expected_date=expected.isoformat(), basis=lag_basis,
+                    question=(
+                        f"'{cp}' 잔금이 예상({expected.isoformat()})보다 오래 걸리고 있어요 — "
+                        "들어왔는데 다른 이름이었나요, 아니면 아직인가요?"
+                    ),
                 ))
-                candidates.append(StreamCandidate(
-                    source="pending_settlement", label=cp, expected_date=expected.isoformat(),
-                    basis=f"'{cp}' 착수금 {t['amount']:,.0f}원 관측 — 잔금 예상 ({lag_basis})",
-                ))
+                continue
+            pending.append(PendingSettlement(
+                counterparty=cp, advance_date=t["date"], advance_amount=t["amount"],
+                expected_date=expected.isoformat(), basis=lag_basis,
+            ))
+            candidates.append(StreamCandidate(
+                source="pending_settlement", label=cp, expected_date=expected.isoformat(),
+                basis=f"'{cp}' 착수금 {t['amount']:,.0f}원 관측 — 잔금 예상 ({lag_basis})",
+            ))
 
     # 사용자가 직접 알려준 예정 수입 — 스트림 D의 구멍을 대화가 메운다 (가장 강한 후보)
     for ev in user_events or []:

@@ -148,14 +148,30 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
     """
     days = sorted(date.fromisoformat(d) for d in income_dates)
     reasons: list[str] = []
+    if not days:
+        # 입금 0건 — 마지막 입금일이라는 개념 자체가 없다. 가짜 앵커(1970)로 그럴듯한
+        # 날짜를 지어내는 대신 빈 날짜 + 콜드스타트 사유를 정직하게 반환한다.
+        reasons.append("입금 관측 0건 — 다음 수입을 예측할 근거가 아직 없어요(콜드스타트)")
+        return IncomeGap(
+            median_gap_days=FALLBACK_GAP_DAYS, window_days=(0.0, 0.0),
+            last_income_date="", expected_next_date="", window=("", ""),
+            observed_deposits=0, calibration_runs=0, reasons=reasons,
+        )
     if len(days) < 3:
         gaps = [FALLBACK_GAP_DAYS]
         reasons.append(f"입금 관측 {len(days)}건 — 간격은 직군 기본값 {FALLBACK_GAP_DAYS:.0f}일 사용(콜드스타트)")
     else:
         gaps = sorted(float((b - a).days) for a, b in zip(days, days[1:]))
     med = statistics.median(gaps)
+    if med <= 0:
+        # 같은 날 뭉침 — 간격 0은 "오늘 또 입금"이라는 신호가 아니라 신호 부재다
+        gaps = [FALLBACK_GAP_DAYS]
+        med = statistics.median(gaps)
+        reasons.append(
+            f"입금이 같은 날에 몰려 간격 신호가 없어요 — 직군 기본값 {FALLBACK_GAP_DAYS:.0f}일 사용"
+        )
     p25, p75 = _quantile(gaps, 0.25), _quantile(gaps, 0.75)
-    last = days[-1] if days else date(1970, 1, 1)
+    last = days[-1]
     reasons.append(
         f"최근 입금 {len(days)}건의 간격 중앙값 {med:.0f}일 (P25~P75: {p25:.0f}~{p75:.0f}일)"
     )

@@ -70,6 +70,43 @@ def test_advance_lag_learned_from_history() -> None:
     assert "14일" in p.basis
 
 
+def test_settlement_matches_one_advance_not_all() -> None:
+    """잔금 1건은 착수금 1건과 짝 — 두 번째 착수금(미결 계약)이 사라지지 않는다 (1:1 매칭)."""
+    s = decompose([
+        txn("2025-03-01", "㈜비욘드", 2_000_000, subtype="advance"),
+        txn("2025-04-01", "㈜비욘드", 3_000_000, subtype="advance"),
+        txn("2025-04-10", "㈜비욘드", 2_000_000, subtype="settlement"),  # 3-01 착수금과 짝
+    ], months_observed=2, as_of="2025-04-15")
+    assert len(s.pending_settlements) == 1
+    assert s.pending_settlements[0].advance_date == "2025-04-01"   # 두 번째 계약은 여전히 미결
+
+
+def test_per_counterparty_lag_beats_global() -> None:
+    """발주처 자신의 이력이 있으면 그 리듬으로 — 빠른 남의 이력이 지연 판정을 오염시키지 않는다."""
+    s = decompose([
+        # A사: 착수금→잔금 3일 (빠른 발주처)
+        txn("2025-01-01", "A사", 1_000_000, subtype="advance"),
+        txn("2025-01-04", "A사", 1_000_000, subtype="settlement"),
+        # B사: 자기 이력 45일 (느긋한 발주처) + 새 미결 착수금
+        txn("2025-01-10", "B사", 2_000_000, subtype="advance"),
+        txn("2025-02-24", "B사", 2_000_000, subtype="settlement"),
+        txn("2025-05-01", "B사", 3_000_000, subtype="advance"),
+    ], months_observed=5, as_of="2025-05-20")
+    # 전역 lag(중앙값 24일)면 5-20에 이미 pending, B사 lag 45일이면 여유 — 어느 쪽이든 pending이어야 하고
+    # 예상일이 B사 자기 리듬(45일 → 6-15)을 따라야 한다
+    p = next(p for p in s.pending_settlements if p.advance_date == "2025-05-01")
+    assert p.expected_date == "2025-06-15"
+    assert "B사" in p.basis and "45일" in p.basis
+
+
+def test_same_day_platform_deposits_are_not_a_rhythm() -> None:
+    """같은 날 뭉친 플랫폼 정산(gap 0)은 리듬이 아니다 — 과거 날짜가 후보로 새지 않는다."""
+    s = decompose([
+        txn("2025-03-01", "크몽 정산"), txn("2025-03-01", "크몽 정산"), txn("2025-03-01", "크몽 정산"),
+    ], months_observed=1)
+    assert not any(c.source == "platform" for c in s.candidates)
+
+
 # ---------- D. 신규/일회성 도착률 ----------
 
 def test_one_off_arrival_rate() -> None:

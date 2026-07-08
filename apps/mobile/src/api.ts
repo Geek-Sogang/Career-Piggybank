@@ -128,6 +128,23 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
   );
 }
 
+// ── 페르소나 (④ 프로필 판독의 SSOT) — 판독은 명시 트리거만 (핫패스 아님) ──
+export type PersonaAxis = {
+  axis: string; label: string; value: number;
+  evidence: string[]; reason: string; fallback: boolean; retried?: boolean;
+};
+export type Persona = {
+  id: string;
+  axes: Record<string, PersonaAxis>;
+  staleness: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
+};
+export function getPersona() {
+  return get<Persona>('/v1/profile/persona'); // 404 = 아직 판독 전
+}
+export function readPersona() {
+  return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
+}
+
 // ── 목표 봉투 + 금액 페이싱 — 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만 ──
 export type Goal = {
   id: string; name: string; target_amount: number; target_date: string | null;

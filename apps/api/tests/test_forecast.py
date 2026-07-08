@@ -77,6 +77,56 @@ def test_trend_is_clamped() -> None:
     assert abs(a["personal_trend_annual"]) <= 0.03 + 1e-9
 
 
+# ---------- 자금 달성형 은퇴 (B) — 저축이 예측을 움직인다 ----------
+
+from app.services.forecast import SAFE_WITHDRAWAL_RATE, funded_retirement  # noqa: E402
+
+
+def _funded(incomes, living=1_150_000, tax=0.1, cv=0.3, months=4, savings=0.0):
+    return funded_retirement(incomes, living, tax, cv, months, base_year=2025,
+                             current_savings=savings)
+
+
+def test_funded_target_is_25x_annual_living() -> None:
+    fr = _funded(INCOMES, living=1_000_000)
+    assert fr.target == round(1_000_000 * 12 / SAFE_WITHDRAWAL_RATE, 2)   # 4% 룰 = 25배
+
+
+def test_funded_savings_move_the_prediction() -> None:
+    """소득 소멸형(A)과 달리 B는 저축이 예측을 움직인다 — 더 벌면 더 일찍 달성."""
+    poor = _funded([1_100_000, 1_200_000, 1_150_000, 1_250_000])   # 생활비 언저리 — 여력 얇음
+    rich = _funded([2_500_000, 3_000_000, 2_700_000, 3_200_000])   # 여력 큼
+    assert rich.funded_year < poor.funded_year
+    assert rich.annual_surplus0 > poor.annual_surplus0
+
+
+def test_funded_starting_savings_pull_it_earlier() -> None:
+    base = _funded([2_000_000, 2_200_000, 2_100_000, 2_300_000], savings=0)
+    seeded = _funded([2_000_000, 2_200_000, 2_100_000, 2_300_000], savings=200_000_000)
+    assert seeded.funded_year <= base.funded_year
+
+
+def test_funded_no_surplus_is_unreachable_and_honest() -> None:
+    # 세후 소득이 생활비 밑이면 저축 여력 0 → 도달 불가, 지어내지 않고 정직하게 표기
+    fr = _funded([900_000, 950_000, 1_000_000, 1_050_000], living=1_500_000)
+    assert fr.annual_surplus0 == 0
+    assert fr.reached is False
+    assert any("여력이 없" in r for r in fr.reasons)
+
+
+def test_funded_volatility_widens_band() -> None:
+    # 같은 평균이라도 변동성이 크면 밴드(P10~P90)가 넓어진다 (누적 저축의 순서 위험)
+    steady = _funded([2_400_000, 2_400_000, 2_400_000, 2_400_000])
+    swingy = _funded([600_000, 4_200_000, 800_000, 4_000_000])
+    assert (swingy.mc_p90 - swingy.mc_p10) >= (steady.mc_p90 - steady.mc_p10)
+
+
+def test_funded_path_and_mc_order() -> None:
+    fr = _funded([2_500_000, 3_000_000, 2_700_000, 3_200_000])
+    assert len(fr.years) == len(fr.savings_path)
+    assert fr.mc_p10 <= fr.mc_median <= fr.mc_p90
+
+
 # ---------- 긱워커 전용 커리어 신호 ----------
 
 from app.services.forecast import career_signals  # noqa: E402

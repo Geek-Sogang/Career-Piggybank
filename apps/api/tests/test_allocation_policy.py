@@ -38,6 +38,18 @@ def test_prior_follows_persona():
     assert choose(_dates(5), None, 2.0).arm_id == "P75"          # 페르소나 없음 → 중립(가운데)
 
 
+def test_persona_grounded_reason():
+    """근거 문장이 추상어가 아니라 축값+접지 팩트를 말한다 (③ 페르소나→배분 근거 연결)."""
+    axes = {"risk_tolerance": {"axis": "risk_tolerance", "label": "위험감내",
+                               "value": 0.3, "fallback": False, "evidence": ["F12"]}}
+    d = choose(_dates(5), axes, 2.0)
+    assert "안전을 중시하는 성향(위험감내 0.3)" in d.reason
+    assert "버퍼를 직접 조정해 오신 이력" in d.reason      # 판독 evidence(F12) 접지
+    # 폴백 축은 페르소나 근거를 지어내지 않는다
+    neutral = choose(_dates(5), _axes(0.3, fallback=True), 2.0)
+    assert "성향(위험감내" not in neutral.reason
+
+
 def test_fallback_axis_is_neutral():
     # 판독 폴백(중립 0.5 지어내기 방지)은 근거가 아니다 — 중립 prior로
     d = choose(_dates(5), _axes(0.1, fallback=True), 2.0)

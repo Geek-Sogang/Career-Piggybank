@@ -113,6 +113,31 @@ def _prior(arm_q: float, implied_q: float) -> tuple[float, float]:
     return 1.0 + PRIOR_STRENGTH * w, 1.0 + PRIOR_STRENGTH * (1.0 - w)
 
 
+def _persona_note(axes: dict | None) -> str:
+    """페르소나 근거 한 줄 — 축값 + 판독이 실제 인용한 팩트(접지)를 결정론 템플릿으로.
+
+    '성향 프로필이 출발점'이라는 추상어 대신, 어느 성향이 왜 그렇게 읽혔는지까지 말한다.
+    근거 팩트는 프로필 판독(④)이 접지 게이트를 통과시킨 evidence 그대로 — 지어내지 않는다.
+    """
+    risk = (axes or {}).get("risk_tolerance") or {}
+    value = risk.get("value")
+    if not isinstance(value, (int, float)) or risk.get("fallback"):
+        return ""
+    if value <= 0.3:
+        stance = "안전을 중시하는 성향"
+    elif value >= 0.7:
+        stance = "공격적 운용을 감수하는 성향"
+    else:
+        stance = "중간 성향"
+    note = f"{stance}(위험감내 {value})이 출발점"
+    evidence = risk.get("evidence") or []
+    if "F12" in evidence:
+        note += " — 배분에서 버퍼를 직접 조정해 오신 이력이 근거예요"
+    elif "F09" in evidence:
+        note += " — 저축 여력(쿠션) 이력이 근거예요"
+    return note
+
+
 def choose(income_dates: list[str], axes: dict | None, fallback_months: float) -> PolicyDecision:
     """안전 수준 선택 + 버퍼 목표 개월 번역 — 순수 읽기 (상태 변경은 update()가, 승인 후에만).
 
@@ -174,7 +199,9 @@ def choose(income_dates: list[str], axes: dict | None, fallback_months: float) -
         if shrink < 1.0:
             reason += f" (관측 {n}건 — 측정 {shrink:.0%} · 기존 공식 {1 - shrink:.0%} 혼합)"
         if prior_source != "neutral":
-            reason += " — 성향 프로필이 출발점, 승인·조정 반응이 보정해요"
+            persona = _persona_note(axes)
+            reason += f". {persona}, 승인·조정 반응이 보정해요" if persona else \
+                " — 성향 프로필이 출발점, 승인·조정 반응이 보정해요"
     else:
         reason = f"수입 공백 관측이 아직 없어 안전 수준 {arm_id}는 기록만 하고, 여윳돈 목표는 기존 공식을 따라요"
 

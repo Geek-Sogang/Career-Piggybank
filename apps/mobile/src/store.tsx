@@ -8,7 +8,7 @@ export type AllocNotice = { deposit: number; windfall: number; split: EnvelopeSp
 
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
 export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState';
-export type Sheet = null | 'consent' | 'invest' | 'allocation';
+export type Sheet = null | 'consent' | 'invest' | 'allocation' | 'pacing';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance' | 'portfolio';
 type Conn = Record<ConnSrc, boolean>;

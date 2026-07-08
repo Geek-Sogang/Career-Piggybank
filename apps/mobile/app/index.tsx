@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, consumeAgenda, decideAllocation, fetchProductMatch, getAgenda, OFFLINE_ALLOCATION, type AgendaItem, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
+import { bankDeposit, consumeAgenda, decideAllocation, decidePacing, fetchProductMatch, getAgenda, getEnvelopeBalances, OFFLINE_ALLOCATION, proposePacing, type AgendaItem, type Allocation, type EnvelopeSplit, type PacingProposal, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
@@ -128,6 +128,7 @@ function Shell() {
       {sheet === 'consent' && <ConsentSheet onConfirm={actions.confirm} onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'invest' && <InvestSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'allocation' && <AllocationSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {sheet === 'pacing' && <PacingSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {inbox && (
         <InboxSheet
           items={agenda}
@@ -137,6 +138,110 @@ function Shell() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+// ⑤b 금액 페이싱 시트 — 여윳돈(버퍼)에서 목표 봉투로. 판단(우선순위·스탠스)은 AI,
+// 원화 번역은 산수(합계 보존), 실행은 confirm만 — source=buffer 재배치 회계.
+const STANCE_COLOR: Record<string, string> = { 당김: '#7C5CBF', 기본: colors.sub, 보류: colors.sub3 };
+
+function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
+  const [prop, setProp] = useState<PacingProposal | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    let live = true;
+    getEnvelopeBalances()
+      .then((e) => {
+        const buffer = Math.floor(e.balances.buffer ?? 0);
+        if (buffer <= 0) { if (live) setError('아직 여윳돈이 없어요 — 입금 배분 후 다시 열어주세요'); return; }
+        const today = new Date().toISOString().slice(0, 10);
+        return proposePacing(buffer, today, 'buffer').then((p) => { if (live) setProp(p); });
+      })
+      .catch(() => { if (live) setError('페이싱 제안을 불러오지 못했어요 — 서버 연결을 확인해 주세요'); });
+    return () => { live = false; };
+  }, []);
+
+  const decide = async (action: 'confirm' | 'reject') => {
+    if (!prop) return;
+    try { await decidePacing(prop.id, action); } catch {}
+    if (action === 'confirm') setDone(true);
+    else onClose();
+  };
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        {error ? (
+          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '600', textAlign: 'center', lineHeight: 19 }}>{error}</Text>
+            <Pressable onPress={onClose} style={{ alignSelf: 'stretch', borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>닫기</Text>
+            </Pressable>
+          </View>
+        ) : done ? (
+          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+            <Mascot head size={56} radius={17} />
+            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>목표 봉투에 담았어요 ✓</Text>
+            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', textAlign: 'center' }}>여윳돈에서 그만큼만 옮겼어요 — 합계는 그대로예요</Text>
+            <Pressable onPress={onClose} style={{ alignSelf: 'stretch', backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>확인</Text>
+            </Pressable>
+          </View>
+        ) : !prop ? (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 22 }}>
+            <Mascot head size={48} radius={15} />
+            <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '600', textAlign: 'center' }}>피기가 목표별 페이스를 판단하고 있어요 …{'\n'}<Text style={{ fontSize: 11.5, color: colors.sub3 }}>온디바이스 AI라 몇 초 걸릴 수 있어요</Text></Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Mascot head size={44} radius={13} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>여윳돈 ₩{prop.available.toLocaleString('en-US')} 나누기</Text>
+                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>
+                  {prop.judgment.fallback ? '기한 임박순 기본 페이스(산수)로 제안해요' : '페르소나·팩트를 읽고 우선순위를 판단했어요'}
+                </Text>
+              </View>
+              {!prop.judgment.fallback && (
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판단</Text>
+              )}
+            </View>
+            <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
+              {prop.goals.map((g) => (
+                <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: STANCE_COLOR[g.stance] ?? colors.sub, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>{g.stance}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{g.name}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>₩{g.amount.toLocaleString('en-US')}</Text>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 9 }}>
+                <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.sub2 }}>여윳돈에 남김</Text>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{(prop.split.buffer ?? 0).toLocaleString('en-US')}</Text>
+              </View>
+            </View>
+            <View style={{ marginTop: 12, gap: 5 }}>
+              {prop.judgment.reason ? (
+                <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.judgment.reason}</Text>
+              ) : null}
+              {prop.reasons.slice(0, 4).map((r, i) => (
+                <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
+              ))}
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <Pressable onPress={() => decide('reject')} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>이번엔 안 할래요</Text>
+              </Pressable>
+              <Pressable onPress={() => decide('confirm')} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 담기</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
   );
 }
 

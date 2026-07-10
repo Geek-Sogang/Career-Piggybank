@@ -170,19 +170,22 @@ def next_income_window(income_dates: list[str]) -> IncomeGap:
         reasons.append(
             f"입금이 같은 날에 몰려 간격 신호가 없어요 — 직군 기본값 {FALLBACK_GAP_DAYS:.0f}일 사용"
         )
-    p25, p75 = _quantile(gaps, 0.25), _quantile(gaps, 0.75)
+    # P25~P75는 50% 구간이라 절반이 창 밖에 떨어진다 — 사용자는 그때마다 '예측 틀림'으로
+    # 기억해 신뢰가 깎인다(유철 피드백). 자기보정(백테스트 P80)이 켜지기 전 기본 창은
+    # P10~P90(80% 구간)으로 넉넉하게 잡는다 — 다섯 번에 한 번만 창 밖.
+    p10, p90 = _quantile(gaps, 0.10), _quantile(gaps, 0.90)
     last = days[-1]
     reasons.append(
-        f"최근 입금 {len(days)}건의 간격 중앙값 {med:.0f}일 (P25~P75: {p25:.0f}~{p75:.0f}일)"
+        f"최근 입금 {len(days)}건의 간격 중앙값 {med:.0f}일 (80% 구간 {p10:.0f}~{p90:.0f}일)"
     )
 
-    lo, hi = p25, p75
+    lo, hi = p10, p90
     calibration_runs = 0
     cal = _walkforward_halfwidth(days)
     if cal is not None:
         half, calibration_runs = cal
         if calibration_runs < 5:  # 소표본 보호 — P80이 사실상 max가 되는 구간은 분위수와 혼합
-            half = 0.5 * half + 0.5 * ((p75 - p25) / 2)
+            half = 0.5 * half + 0.5 * ((p90 - p10) / 2)
         lo, hi = max(0.0, med - half), med + half
         reasons.append(
             f"창 자기보정: 과거로 돌아가 {calibration_runs}회 예측해 본 실측 오차 P80 ±{half:.0f}일 — "

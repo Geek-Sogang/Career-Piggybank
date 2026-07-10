@@ -33,7 +33,12 @@ export function Retirement() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Icon name="trending" size={18} color={colors.green} sw={2.2} />
             <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>
-              다음 수입 예상: <Text style={{ fontWeight: '800' }}>{(fc.streams.composite_next?.expected_date ?? fc.income_gap.expected_next_date).slice(5).replace('-', '/')}</Text>
+              {/* 점 중심 부드러운 문구 — P25~P75는 절반이 창 밖이라 '틀림'으로 기억됨(유철).
+                  "보통 ~쯤 · 빠르면 ~"으로 표현해 창 밖 입금을 예측 실패로 안 읽게 한다 */}
+              다음 수입 예상: <Text style={{ fontWeight: '800' }}>보통 {(fc.streams.composite_next?.expected_date ?? fc.income_gap.expected_next_date).slice(5).replace('-', '/')}쯤</Text>
+              {!fc.streams.composite_next && fc.income_gap.window?.[0]
+                ? <Text style={{ color: colors.sub2, fontWeight: '600' }}> · 빠르면 {fc.income_gap.window[0].slice(5).replace('-', '/')}</Text>
+                : null}
               {'  '}
               <Text style={{ color: colors.sub2, fontWeight: '500' }}>
                 {fc.streams.composite_next

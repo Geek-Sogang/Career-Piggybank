@@ -15,10 +15,12 @@ from app.services import (
     classifier,
     classifier_llm,
     forecast,
+    gig_profile,
     income_streams,
     product_match,
     spending_profile,
 )
+from app.services import facts as facts_svc
 from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
 from app.services.classifier import Classification, TxnInput
 from app.services.spending_profile import ProfileEstimate, Txn
@@ -104,6 +106,17 @@ def context_from_store() -> AllocationContext:
     )
 
 
+def gig_archetype() -> str:
+    """이 사용자의 긱워커 소득 유형 한 줄 — 배분·화면이 인용하는 긱 정체성 (결정론)."""
+    income = _income_txns()
+    facts = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    signals = forecast.career_signals(income)
+    as_of = max((t["date"] for t in db.list_txns()), default=None)
+    months = len({t["date"][:7] for t in db.list_txns()})
+    streams = income_streams.decompose(income, months_observed=float(months), as_of=as_of)
+    return gig_profile.build_gig_profile(facts, signals, streams).archetype
+
+
 def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[str, AllocationProposal]:
     """저장된 프로필·컨텍스트·이번 달 배분 이력·버퍼 잔액 기준으로 제안 생성 후 DB 기록.
 
@@ -136,6 +149,7 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "profile_notes": est.notes, "months_observed": est.months_observed,
             "product_hooks": product_match.hooks_for(p, ctx, has_confirmed_incoming()),
             "policy": policy.as_dict(),
+            "gig_archetype": gig_archetype(),   # 배분 시트가 앞세울 긱 정체성
         },
         txn_id=txn_id,
     )

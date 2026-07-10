@@ -394,6 +394,13 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colors.sub2, backgroundColor: '#F1F2F4', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>오프라인</Text>
               )}
             </View>
+            {/* 긱워커 소득 유형 — 이 배분이 왜 이 사람에게 맞는지의 근거(결정론 측정) */}
+            {!adjusting && alloc.gig_archetype ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.greenTint2, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 }}>
+                <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>내 긱 유형</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: '600', color: colors.greenInk, lineHeight: 15 }}>{alloc.gig_archetype}</Text>
+              </View>
+            ) : null}
             <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
               {ENV.map((e) => {
                 const changed = adjusting && !e.locked && split[e.key] !== alloc.proposed[e.key];

@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 
 from app.agents import product_match as agent
 from app.main import app
-from app.services import facts as facts_svc
-from app.services.allocator import AllocationContext
-from app.services.product_match import eligible
+from app.engines import facts as facts_svc
+from app.engines.allocator import AllocationContext
+from app.engines.product_match import eligible
 from app.store import db
 
 client = TestClient(app)

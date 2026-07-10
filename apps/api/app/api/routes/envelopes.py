@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.agents import envelope_recommend
 from app.api.routes.bank import _boot
 from app.profile import build_user_profile
-from app.services import peer_envelopes
+from app.engines import peer_envelopes
 from app.store import db
 
 router = APIRouter(prefix="/v1/envelopes", tags=["envelopes"])

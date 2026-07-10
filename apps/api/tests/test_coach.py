@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import coach
+from app.agents import coach
 
 CONTEXT = {
     "proposed": {"tax": 108900, "expense": 400000, "spendable": 1200000, "buffer": 1291100},

@@ -20,8 +20,8 @@ import re
 from dataclasses import dataclass
 
 from app.core.config import settings
-from app.services import llm
-from app.services.facts import Fact
+from app.core import llm
+from app.engines.facts import Fact
 
 VALUE_MENU = (0.1, 0.3, 0.5, 0.7, 0.9)   # 번호만 선택 — 재현성의 경계
 NEUTRAL = 0.5

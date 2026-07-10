@@ -18,8 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.config import settings
-from app.services import llm
-from app.services.facts import Fact
+from app.core import llm
+from app.engines.facts import Fact
 
 MAX_RECOMMENDATIONS = 3
 MAX_NAME_CHARS = 20

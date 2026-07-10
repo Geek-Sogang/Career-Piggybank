@@ -101,7 +101,7 @@ def test_tag_unknown_txn_404() -> None:
 
 def test_profile_comes_from_ledger() -> None:
     seed()
-    from app.services.bank_flow import profile_from_store
+    from app.orchestration.bank_flow import profile_from_store
     est = profile_from_store()
     assert est.months_observed >= 4          # 시드 4개월
     assert est.blend_weight == 1.0           # 콜드스타트 졸업
@@ -145,7 +145,7 @@ def _deposit_and_adjust(amount: float, counterparty: str, buffer_extra: float) -
 def test_adjustment_habit_feeds_next_proposal() -> None:
     """버퍼를 늘리는 조정 2회 → 다음 제안이 그 습관을 선반영한다 (행동 데이터 루프)."""
     seed()
-    from app.services import bank_flow
+    from app.orchestration import bank_flow
     assert bank_flow.buffer_adjustment_bias() == 0.0       # 이력 없음 → 중립
 
     _deposit_and_adjust(483_500, "역산클라이언트A", 100_000)

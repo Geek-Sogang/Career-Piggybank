@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.services.facts import Fact
-from app.services.forecast import SOFT_DECLINE_START, CareerSignals
-from app.services.income_streams import IncomeStreams
+from app.engines.facts import Fact
+from app.engines.forecast import SOFT_DECLINE_START, CareerSignals
+from app.engines.income_streams import IncomeStreams
 
 # F01·F02 밴드에서 그대로 가져온 경계 (새 상수 아님 — 팩트 정의와 동기화)
 VOL_MID = 0.4        # F01: 긱워커 중간 ~0.4

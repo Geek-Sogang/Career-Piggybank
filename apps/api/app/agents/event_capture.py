@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from app.services import llm
+from app.core import llm
 
 MAX_FUTURE_DAYS = 370   # 예정 수입은 1년 이내만 (그 너머는 예측이 아니라 소망)
 MAX_LABEL_CHARS = 30

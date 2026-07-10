@@ -14,7 +14,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from app.services import llm
+from app.core import llm
 
 _SYSTEM = """너는 '피기' — Career Piggybank(커리어 저금통)의 돼지 마스코트 코치다. 긱워커의 돈 관리를 돕는다.
 규칙:

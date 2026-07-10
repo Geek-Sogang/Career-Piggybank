@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.allocator import (
+from app.engines.allocator import (
     EnvelopeBalances,
     SpendingProfile,
     buffer_target_months,
@@ -190,7 +190,7 @@ def test_unknown_id_is_404() -> None:
 
 # ---------- 컨텍스트 인식 배분 (수주 주기·커리어 추세·조정 성향) ----------
 
-from app.services.allocator import (  # noqa: E402
+from app.engines.allocator import (  # noqa: E402
     BIAS_CAP_FRACTION,
     BUFFER_MONTHS_MAX,
     EARLY_DECLINE_EXTRA_MONTHS,

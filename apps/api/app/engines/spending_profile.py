@@ -18,7 +18,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Literal
 
-from app.services.allocator import SpendingProfile
+from app.engines.allocator import SpendingProfile
 
 TxnKind = Literal["income", "expense", "living"]  # 일감매출 / 경비 / 개인(생활)
 

@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import strength
-from app.services.strength import CareerFacts, build_candidates, pick
+from app.agents import strength
+from app.agents.strength import CareerFacts, build_candidates, pick
 
 FULL = CareerFacts(
     verified_count=12, months_active=24, repeat_client_rate=0.8,

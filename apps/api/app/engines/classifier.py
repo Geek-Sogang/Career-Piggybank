@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-from app.services.tax_envelope import WITHHOLDING_RATE
+from app.engines.tax_envelope import WITHHOLDING_RATE
 
 Kind = Literal["income", "expense", "living", "unknown"]
 Subtype = Literal["settlement", "advance", "subscription", "operating", None]

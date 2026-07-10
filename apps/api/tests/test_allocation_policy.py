@@ -11,9 +11,9 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import allocator, facts as facts_svc
-from app.services.allocation_policy import ARM_IDS, choose, credits_for, update
-from app.services.allocator import AllocationContext, EnvelopeBalances, SpendingProfile
+from app.engines import allocator, facts as facts_svc
+from app.engines.allocation_policy import ARM_IDS, choose, credits_for, update
+from app.engines.allocator import AllocationContext, EnvelopeBalances, SpendingProfile
 from app.store import db
 
 client = TestClient(app)

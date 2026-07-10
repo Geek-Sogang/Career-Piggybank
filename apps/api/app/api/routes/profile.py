@@ -11,9 +11,9 @@ from app.agents import profile_read
 from app.api.routes.bank import _boot
 from app.schemas.allocation import SpendingProfileIn
 from app.schemas.profile import ProfileEstimateRequest, ProfileEstimateResponse
-from app.services import facts as facts_svc
-from app.services import forecast, gig_profile, income_streams, spending_profile
-from app.services.spending_profile import Txn
+from app.engines import facts as facts_svc
+from app.engines import forecast, gig_profile, income_streams, spending_profile
+from app.engines.spending_profile import Txn
 from app.store import db
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])

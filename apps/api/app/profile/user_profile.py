@@ -14,14 +14,14 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass
 
-from app.services import facts as facts_svc
-from app.services import forecast, gig_profile, income_streams, spending_profile
-from app.services.allocator import BIAS_MIN_SAMPLES, AllocationContext
-from app.services.facts import Fact
-from app.services.forecast import CareerSignals, IncomeGap
-from app.services.gig_profile import GigProfile
-from app.services.income_streams import IncomeStreams
-from app.services.spending_profile import ProfileEstimate, Txn
+from app.engines import facts as facts_svc
+from app.engines import forecast, gig_profile, income_streams, spending_profile
+from app.engines.allocator import BIAS_MIN_SAMPLES, AllocationContext
+from app.engines.facts import Fact
+from app.engines.forecast import CareerSignals, IncomeGap
+from app.engines.gig_profile import GigProfile
+from app.engines.income_streams import IncomeStreams
+from app.engines.spending_profile import ProfileEstimate, Txn
 from app.store import db
 
 DEFAULT_PERSONA = "developer"      # profile_from_store 기본 페르소나와 동기화

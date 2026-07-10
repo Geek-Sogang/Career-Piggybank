@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.core.config import settings
-from app.services.allocator import BUFFER_MONTHS_MAX, BUFFER_MONTHS_MIN, buffer_target_months
+from app.engines.allocator import BUFFER_MONTHS_MAX, BUFFER_MONTHS_MIN, buffer_target_months
 from app.store import db
 
 ARMS: tuple[float, ...] = (0.60, 0.75, 0.90)   # 안전 분위수 메뉴 — 표준 분위수 (자유 계수 아님)

@@ -1,8 +1,8 @@
 """상품 훅 — 선택은 룰, 문구는 결정론 템플릿 (하나 상품만, 숫자는 제안 인용만)."""
 from __future__ import annotations
 
-from app.services import product_match
-from app.services.allocator import AllocationContext, EnvelopeBalances, SpendingProfile, propose
+from app.engines import product_match
+from app.engines.allocator import AllocationContext, EnvelopeBalances, SpendingProfile, propose
 
 PROFILE = SpendingProfile(
     annual_gross=30_000_000, expected_monthly_expense=400_000,

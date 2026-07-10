@@ -11,8 +11,9 @@ PR D의 심장: 프론트가 정적 컨텍스트를 보내지 않아도(DEMO_COA
 """
 from __future__ import annotations
 
-from app.services import bank_flow, income_streams, tax_envelope
-from app.services import facts as facts_svc
+from app.orchestration import bank_flow
+from app.engines import income_streams, tax_envelope
+from app.engines import facts as facts_svc
 from app.store import db
 
 
@@ -96,7 +97,7 @@ def build(intent: str = "qa") -> dict:
 
     if intent == "ask_products":
         # ⑥의 결정론 층만 인용 — 적합성 veto 통과 후보와 차단 사유 (LLM 선택은 상품 탭에서)
-        from app.services import product_match
+        from app.engines import product_match
         allocs = db.list_allocations()
         invest_available = float(allocs[-1]["meta"].get("invest_available", 0.0)) if allocs else 0.0
         candidates, vetoed = product_match.eligible(

@@ -15,6 +15,7 @@ from app.services import (
     classifier,
     classifier_llm,
     forecast,
+    income_streams,
     product_match,
     spending_profile,
 )
@@ -76,6 +77,21 @@ def _income_txns() -> list[dict]:
     ]
 
 
+def has_confirmed_incoming() -> bool:
+    """확정 예정 수입이 있는가 — 코치에게 알린 미래 예정 수입 또는 미결 잔금(착수금 관측).
+
+    비상금대출(신용상품)은 '갚을 근거'가 있을 때만 권한다(준모 피드백) — 돈 없다고 바로
+    대출을 연결하면 부채 유도라, 확정 예정 수입이 있어 공백만 메우면 되는 상황으로 제한.
+    """
+    income = _income_txns()
+    as_of = max((t["date"] for t in db.list_txns()), default=None)
+    future_events = [e for e in db.list_expected_events() if not as_of or e["date"] > as_of]
+    if future_events:
+        return True
+    streams = income_streams.decompose(income, as_of=as_of)
+    return bool(streams.pending_settlements)
+
+
 def context_from_store() -> AllocationContext:
     """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
     income_txns = _income_txns()
@@ -118,7 +134,7 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "profile_notes": est.notes, "months_observed": est.months_observed,
-            "product_hooks": product_match.hooks_for(p, ctx),
+            "product_hooks": product_match.hooks_for(p, ctx, has_confirmed_incoming()),
             "policy": policy.as_dict(),
         },
         txn_id=txn_id,

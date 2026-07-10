@@ -40,13 +40,22 @@ def _facts():
 # ── 적합성 veto 필터 (결정론) ──
 
 def test_buffer_short_vetoes_invest_products():
-    """버퍼 목표 미달 → ISA 차단·비상금대출 적격 (투자보다 공백 대비가 먼저)."""
+    """버퍼 목표 미달 + 공백 + 확정 예정 수입 → ISA 차단·비상금대출 적격."""
     candidates, vetoed = eligible(invest_available=0.0, tax_balance=100_000,
-                                  ctx=AllocationContext(expected_gap_days=45.0))
+                                  ctx=AllocationContext(expected_gap_days=45.0),
+                                  has_confirmed_income=True)
     ids = {c.product_id for c in candidates}
     assert "isa" in vetoed and "isa" not in ids
     assert "irp" in vetoed and "irp" not in ids
     assert "emergency" in ids and "parking" in ids
+
+
+def test_emergency_loan_gated_on_confirmed_income():
+    """확정 예정 수입이 없으면 비상금대출은 후보에서 빠진다 — 부채 유도 방지(준모 피드백)."""
+    _, vetoed = eligible(invest_available=0.0, tax_balance=100_000,
+                         ctx=AllocationContext(expected_gap_days=45.0),
+                         has_confirmed_income=False)
+    assert "확정된 예정 수입이 없어요" in vetoed["emergency"]
 
 
 def test_surplus_vetoes_credit_product():
@@ -119,7 +128,8 @@ def test_happy_path_grounded_pick(monkeypatch):
     facts = _facts()
     fid = next(f.id for f in facts if f.value is not None)
     candidates, _ = eligible(invest_available=0.0, tax_balance=100_000,
-                             ctx=AllocationContext(expected_gap_days=45.0))
+                             ctx=AllocationContext(expected_gap_days=45.0),
+                             has_confirmed_income=True)
     monkeypatch.setattr(agent.llm, "chat_json", lambda *a, **k: {
         "picks": [{"product_id": "emergency", "why": "수입 공백에 대비가 필요해요",
                    "evidence": [fid]}],

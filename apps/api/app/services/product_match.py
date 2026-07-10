@@ -28,10 +28,14 @@ MAX_HOOKS = 2          # 확인 시트에 붙는 상품 훅 상한
 GAP_BRIDGE_DAYS = 40.0  # 수주 공백이 이 이상이면 공백 브릿지(비상금대출) 안내
 
 
-def hooks_for(p: AllocationProposal, ctx: AllocationContext | None = None) -> list[dict]:
+def hooks_for(
+    p: AllocationProposal, ctx: AllocationContext | None = None,
+    has_confirmed_income: bool = False,
+) -> list[dict]:
     """배분 제안 1건 → 봉투별 하나 상품 훅 (우선순위순, 최대 MAX_HOOKS개).
 
     숫자는 전부 제안(p)의 결정론 출력을 인용한다 — 지어내는 금액이 없다.
+    비상금대출은 확정 예정 수입이 있을 때만 (부채 유도 방지, 준모 피드백).
     """
     c = ctx or AllocationContext()
     hooks: list[dict] = []
@@ -46,11 +50,13 @@ def hooks_for(p: AllocationProposal, ctx: AllocationContext | None = None) -> li
             ),
         })
 
-    # 2) 수주 공백이 길고 버퍼가 아직 목표 미달 → 공백 브릿지 (비상금대출)
+    # 2) 수주 공백이 길고 + 버퍼 미달 + 확정 예정 수입 있음 → 공백 브릿지 (비상금대출).
+    #    확정 예정 수입이 없으면 권하지 않는다 — 갚을 근거 없는 대출은 부채 유도(준모 피드백).
     if (
         c.expected_gap_days is not None
         and c.expected_gap_days >= GAP_BRIDGE_DAYS
         and p.invest_available <= 0
+        and has_confirmed_income
     ):
         hooks.append({
             "product_id": "emergency", "envelope": "spendable", "name": CATALOG["emergency"],
@@ -107,6 +113,7 @@ def eligible(
     invest_available: float,
     tax_balance: float,
     ctx: AllocationContext | None = None,
+    has_confirmed_income: bool = False,
 ) -> tuple[list[Candidate], dict[str, str]]:
     """카탈로그 → (적격 후보, veto된 상품과 사유).
 
@@ -133,15 +140,21 @@ def eligible(
     else:
         vetoed["isa"] = "버퍼 목표 미달 — 투자상품은 여윳돈 목표를 채운 뒤에만 후보가 돼요"
 
-    # emergency — 신용상품: 여유 자금이 있으면 대출 권유는 부적합(역방향 veto).
-    if invest_available <= 0:
-        gap = f"다음 수입까지 약 {c.expected_gap_days:.0f}일 — " if c.expected_gap_days else ""
+    # emergency — 신용상품: 버퍼 미달 + 수주 공백 + 확정 예정 수입이 모두 있을 때만.
+    #   '갚을 근거(확정 예정 수입)' 없이 돈 없다고 대출을 권하는 건 부채 유도라 차단(준모 피드백).
+    gap_days = c.expected_gap_days or 0.0
+    if invest_available <= 0 and gap_days >= GAP_BRIDGE_DAYS and has_confirmed_income:
         candidates.append(Candidate(
             "emergency", CATALOG["emergency"], "spendable",
-            f"{gap}공백 브릿지를 미리 열어둘 수 있어요 (쓰지 않으면 이자 0)",
+            f"다음 수입까지 약 {gap_days:.0f}일이지만 들어올 돈이 확정돼 있어요 — "
+            "공백만 메우는 브릿지로 미리 열어둘 수 있어요 (쓰지 않으면 이자 0)",
         ))
-    else:
+    elif invest_available > 0:
         vetoed["emergency"] = "버퍼 목표 초과 여유가 있어요 — 신용상품 권유는 부적합"
+    elif not has_confirmed_income:
+        vetoed["emergency"] = "확정된 예정 수입이 없어요 — 갚을 근거 없이 대출을 권하지 않아요"
+    else:
+        vetoed["emergency"] = "수주 공백이 짧아요 — 버퍼로 충분해 대출은 후보가 아니에요"
 
     # irp — 장기 잠김: 여유가 있거나, 커리어 감속으로 노후 준비가 필요한 국면일 때만.
     if invest_available > 0 or c.early_decline:

@@ -92,6 +92,32 @@ def test_suggested_amount_is_peer_median():
     assert top.suggested_amount == 1_750_000              # median(2.0M, 1.5M)
 
 
+# ── 감당가능성 (유철 피드백: 또래 금액이 그 사람 형편을 봐야) ──
+
+def test_affordability_months_and_lowered_amount():
+    """월 여윳돈 기준 도달 개월수 + 12개월 초과면 감당 가능 금액 대안."""
+    # 월 여윳돈 10만원, 또래 '일 없는 달' 중앙값 175만 → 18개월(>12) → 형편 금액 120만
+    ideas = recommend("developer", _axes(), set(), _POOL, monthly_surplus=100_000)
+    top = next(i for i in ideas if i.name == "일 없는 달")
+    assert top.months_to_reach == 18                      # ceil(1,750,000 / 100,000)
+    assert top.affordable_amount == 1_200_000             # 10만 × 12, 10만원 단위
+    assert "18개월 소요" in top.basis and "1,200,000원부터" in top.basis
+
+
+def test_affordability_within_budget_no_lowered_amount():
+    # 월 여윳돈 넉넉하면(200만) 도달 1개월 → 형편 금액 대안 없음
+    ideas = recommend("developer", _axes(), set(), _POOL, monthly_surplus=2_000_000)
+    top = next(i for i in ideas if i.name == "일 없는 달")
+    assert top.months_to_reach == 1
+    assert top.affordable_amount is None
+
+
+def test_affordability_absent_when_no_surplus():
+    # 여윳돈 0(저축 불가)이면 개월수 계산 안 함 — 지어내지 않는다
+    ideas = recommend("developer", _axes(), set(), _POOL, monthly_surplus=0)
+    assert all(i.months_to_reach is None for i in ideas)
+
+
 # ── 라우트 — 추천 응답에 peers 노출 + 개설이 풀에 기여 ──
 
 def test_recommend_route_exposes_peers(monkeypatch):

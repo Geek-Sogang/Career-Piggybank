@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.agents import envelope_recommend
 from app.api.routes.bank import _boot
+from app.services import bank_flow
 from app.services import facts as facts_svc
 from app.services import peer_envelopes
 from app.store import db
@@ -63,12 +64,19 @@ def recommend() -> dict:
     axes = snap["axes"] if snap else None
     goals_now = db.list_goals()
     ideas = envelope_recommend.recommend(sheet, axes, goals_now)
+    # 월 여윳돈 = 월소득 − 생활비 − 경비 (또래 금액의 도달 개월수·감당 가능액 계산용).
+    # 또래 중앙값이 그 사람 형편을 안 보고 내밀리지 않도록(유철 피드백) 산수로 함께 낸다.
+    est = bank_flow.profile_from_store()
+    monthly_surplus = max(0.0, est.profile.annual_gross / 12.0
+                          - est.profile.expected_monthly_living
+                          - est.profile.expected_monthly_expense)
     # 또래 소스(결정론) — 같은 직군·유사 페르소나의 개설 관찰. LLM 소스와 이름이 겹치면
     # 내 팩트 근거(⑤a)를 우선하고 또래 항목은 뺀다(중복 추천 방지)
     ai_names = {i.name for i in ideas}
     peers = [
         p for p in peer_envelopes.recommend(
             MY_JOB, axes, {g["name"] for g in goals_now}, db.list_peer_envelopes(),
+            monthly_surplus=monthly_surplus,
         ) if p.name not in ai_names
     ]
     return {

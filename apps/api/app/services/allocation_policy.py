@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.core.config import settings
-from app.services.allocator import BUFFER_MONTHS_MAX, BUFFER_MONTHS_MIN
+from app.services.allocator import BUFFER_MONTHS_MAX, BUFFER_MONTHS_MIN, buffer_target_months
 from app.store import db
 
 ARMS: tuple[float, ...] = (0.60, 0.75, 0.90)   # 안전 분위수 메뉴 — 표준 분위수 (자유 계수 아님)
@@ -138,11 +138,14 @@ def _persona_note(axes: dict | None) -> str:
     return note
 
 
-def choose(income_dates: list[str], axes: dict | None, fallback_months: float) -> PolicyDecision:
+def choose(income_dates: list[str], axes: dict | None, income_cv: float) -> PolicyDecision:
     """안전 수준 선택 + 버퍼 목표 개월 번역 — 순수 읽기 (상태 변경은 update()가, 승인 후에만).
 
-    fallback_months = 기존 공식(1+4×CV)의 결과 — 수축 혼합의 사전분포로만 쓰인다.
+    수축(콜드스타트)의 사전분포는 기존 공식(buffer_target_months, 1+4×CV)이다 — 공식의
+    유일한 소유자는 allocator이고, 그 '언제 prior로 쓸지'는 여기(정책)가 정한다. 호출자는
+    income_cv만 넘긴다 — 공식을 아는 곳을 하나로 좁혀 버퍼 두께의 단일 소유를 지킨다.
     """
+    fallback_months = buffer_target_months(income_cv)
     gaps = _gaps(income_dates)
     n = len(gaps)
     implied, prior_source = _implied_quantile(axes)

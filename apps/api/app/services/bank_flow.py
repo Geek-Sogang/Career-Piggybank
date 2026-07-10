@@ -140,7 +140,7 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
     policy = allocation_policy.choose(
         income_dates=list(up.income_dates),
         axes=up.persona_axes,
-        fallback_months=allocator.buffer_target_months(est.profile.income_cv),
+        income_cv=est.profile.income_cv,   # 공식(prior)은 policy가 스스로 계산 — 여기선 원자재만
     )
     ctx = replace(ctx, buffer_months_override=policy.months, buffer_months_reason=policy.reason)
     p = allocator.propose(deposit, est.profile, balances, ctx)

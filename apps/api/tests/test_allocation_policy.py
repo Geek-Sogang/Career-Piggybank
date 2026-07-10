@@ -33,26 +33,26 @@ def _dates(n: int, gap: int = 30, start: str = "2025-01-10") -> list[str]:
 # ── informed prior — 페르소나가 출발점을 정한다 ──
 
 def test_prior_follows_persona():
-    assert choose(_dates(5), _axes(0.1), 2.0).arm_id == "P90"   # 안전지향 → 두꺼운 대비
-    assert choose(_dates(5), _axes(0.9), 2.0).arm_id == "P60"   # 공격적 → 얇은 대비
-    assert choose(_dates(5), None, 2.0).arm_id == "P75"          # 페르소나 없음 → 중립(가운데)
+    assert choose(_dates(5), _axes(0.1), income_cv=0.25).arm_id == "P90"   # 안전지향 → 두꺼운 대비
+    assert choose(_dates(5), _axes(0.9), income_cv=0.25).arm_id == "P60"   # 공격적 → 얇은 대비
+    assert choose(_dates(5), None, income_cv=0.25).arm_id == "P75"          # 페르소나 없음 → 중립(가운데)
 
 
 def test_persona_grounded_reason():
     """근거 문장이 추상어가 아니라 축값+접지 팩트를 말한다 (③ 페르소나→배분 근거 연결)."""
     axes = {"risk_tolerance": {"axis": "risk_tolerance", "label": "위험감내",
                                "value": 0.3, "fallback": False, "evidence": ["F12"]}}
-    d = choose(_dates(5), axes, 2.0)
+    d = choose(_dates(5), axes, income_cv=0.25)
     assert "안전을 중시하는 성향(위험감내 0.3)" in d.reason
     assert "버퍼를 직접 조정해 오신 이력" in d.reason      # 판독 evidence(F12) 접지
     # 폴백 축은 페르소나 근거를 지어내지 않는다
-    neutral = choose(_dates(5), _axes(0.3, fallback=True), 2.0)
+    neutral = choose(_dates(5), _axes(0.3, fallback=True), income_cv=0.25)
     assert "성향(위험감내" not in neutral.reason
 
 
 def test_fallback_axis_is_neutral():
     # 판독 폴백(중립 0.5 지어내기 방지)은 근거가 아니다 — 중립 prior로
-    d = choose(_dates(5), _axes(0.1, fallback=True), 2.0)
+    d = choose(_dates(5), _axes(0.1, fallback=True), income_cv=0.25)
     assert d.arm_id == "P75" and d.prior_source == "neutral"
 
 
@@ -60,23 +60,23 @@ def test_fallback_axis_is_neutral():
 
 def test_months_from_gap_quantile_full_weight():
     # 공백 8건(수축 가중 100%) 전부 45일 → 어느 분위수든 45일 → 1.5개월
-    d = choose(_dates(9, gap=45), None, fallback_months=3.0)
+    d = choose(_dates(9, gap=45), None, income_cv=0.5)
     assert d.observed_gaps == 8 and d.shrink_weight == 1.0
     assert d.months == 1.5
     assert d.gap_days_at_q == 45.0
 
 
 def test_cold_start_shrinks_to_formula():
-    d0 = choose(_dates(1), None, fallback_months=3.0)      # 공백 0건 → 공식 그대로
+    d0 = choose(_dates(1), None, income_cv=0.5)      # 공백 0건 → 공식 그대로
     assert d0.months == 3.0 and d0.shrink_weight == 0.0
-    d1 = choose(_dates(2, gap=60), None, fallback_months=3.0)  # 공백 1건 → 1/8만 분위수
+    d1 = choose(_dates(2, gap=60), None, income_cv=0.5)  # 공백 1건 → 1/8만 분위수
     expected = (1 / 8) * (60 / 30) + (7 / 8) * 3.0
     assert d1.months == round(expected, 2)
 
 
 def test_months_clamped_to_engine_bounds():
     # 300일 공백 → 10개월이지만 엔진 상한(6개월)에 클램프
-    d = choose(_dates(9, gap=300), None, fallback_months=2.0)
+    d = choose(_dates(9, gap=300), None, income_cv=0.25)
     assert d.months == allocator.BUFFER_MONTHS_MAX
 
 
@@ -119,12 +119,12 @@ def test_credits_extreme_arm_pushed_further_reinforces():
 
 def test_rejections_flip_choice():
     dates, axes = _dates(5), _axes(0.1)
-    assert choose(dates, axes, 2.0).arm_id == "P90"
+    assert choose(dates, axes, income_cv=0.25).arm_id == "P90"
     update("P90", 0.0)  # 거절 1 — prior(유사관측 2건)라 아직 안 뒤집힘
     update("P90", 0.0)  # 거절 2
-    assert choose(dates, axes, 2.0).arm_id == "P90"
+    assert choose(dates, axes, income_cv=0.25).arm_id == "P90"
     update("P90", 0.0)  # 거절 3 — P90 사후평균 3/7 < P75 사후평균 1/2
-    assert choose(dates, axes, 2.0).arm_id == "P75"
+    assert choose(dates, axes, income_cv=0.25).arm_id == "P75"
 
 
 def test_upward_adjusts_converge_higher_not_lower():
@@ -132,14 +132,14 @@ def test_upward_adjusts_converge_higher_not_lower():
     더 안전한 분위수로 가야 한다. 이전 abs(Δ) 보상은 반대로 더 공격적으로 뒤집혔다.
     """
     dates, axes = _dates(5), _axes(0.5)      # 중립 출발(P75)
-    start = choose(dates, axes, 2.0).arm_id
+    start = choose(dates, axes, income_cv=0.25).arm_id
     assert start == "P75"
     proposed = {"tax": 0, "expense": 0, "spendable": 500, "buffer": 500}
     adjusted = {"tax": 0, "expense": 0, "spendable": 200, "buffer": 800}   # +300/1000 = 위로
     for _ in range(4):
         for arm, r in credits_for("adjust", proposed, adjusted, 1000, "P75"):
             update(arm, r)
-    end = choose(dates, axes, 2.0).arm_id
+    end = choose(dates, axes, income_cv=0.25).arm_id
     assert end == "P90"      # 더 안전한 쪽으로 수렴 (역전 아님)
 
 
@@ -150,9 +150,9 @@ def test_confirms_reinforce_choice():
     dates = _dates(5)
     for _ in range(3):
         update("P75", 1.0)
-    assert choose(dates, _axes(0.9), 2.0).arm_id == "P60"   # 3건까진 prior가 버틴다
+    assert choose(dates, _axes(0.9), income_cv=0.25).arm_id == "P60"   # 3건까진 prior가 버틴다
     update("P75", 1.0)
-    d = choose(dates, _axes(0.9), 2.0)
+    d = choose(dates, _axes(0.9), income_cv=0.25)
     assert d.arm_id == "P75"
     assert d.posterior["P75"]["pulls"] == 4
 

@@ -20,6 +20,7 @@ from app.services import (
     product_match,
     spending_profile,
 )
+from app.profile import build_user_profile
 from app.services import facts as facts_svc
 from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
 from app.services.classifier import Classification, TxnInput
@@ -120,21 +121,25 @@ def gig_archetype() -> str:
 def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[str, AllocationProposal]:
     """저장된 프로필·컨텍스트·이번 달 배분 이력·버퍼 잔액 기준으로 제안 생성 후 DB 기록.
 
+    프로필 전 조각(소득·긱·스트림·성향·행동)은 build_user_profile()이 원장 1회 읽기로
+    합성한다 — 이전엔 est·ctx·gig·has_confirmed_incoming을 따로 불러 career_signals 2회·
+    income_streams 3회·factsheet를 배분 핫패스에서 중복 계산했다. 값은 그대로다(특성화 테스트).
+
     버퍼 목표는 학습 배분 정책이 고른다(안전 분위수 — 페르소나 prior + 반응 사후분포).
     정책 기록은 meta["policy"]로 남아, 사람의 결정(승인/조정/거절)이 보상으로 귀속된다.
     """
-    est = profile_from_store()
+    up = build_user_profile()
+    est = up.spending
     allocated = db.month_allocated(date[:7])
     balances = EnvelopeBalances(
         expense=allocated["expense"],
         spendable=allocated["spendable"],
         buffer=db.envelope_balances()["buffer"],
     )
-    ctx = context_from_store()
-    snap = db.latest_snapshot()
+    ctx = up.allocation_context()
     policy = allocation_policy.choose(
-        income_dates=[t["date"] for t in _income_txns()],
-        axes=snap["axes"] if snap else None,
+        income_dates=list(up.income_dates),
+        axes=up.persona_axes,
         fallback_months=allocator.buffer_target_months(est.profile.income_cv),
     )
     ctx = replace(ctx, buffer_months_override=policy.months, buffer_months_reason=policy.reason)
@@ -147,9 +152,9 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "profile_notes": est.notes, "months_observed": est.months_observed,
-            "product_hooks": product_match.hooks_for(p, ctx, has_confirmed_incoming()),
+            "product_hooks": product_match.hooks_for(p, ctx, up.has_confirmed_incoming),
             "policy": policy.as_dict(),
-            "gig_archetype": gig_archetype(),   # 배분 시트가 앞세울 긱 정체성
+            "gig_archetype": up.gig_archetype,   # 배분 시트가 앞세울 긱 정체성
         },
         txn_id=txn_id,
     )

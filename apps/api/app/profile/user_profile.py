@@ -55,6 +55,7 @@ class UserProfile:
 
     as_of: str | None                 # 원장 마지막 거래일 (스트림·예정수입 기준점)
     months_observed: int              # 거래가 있는 달력 월 수 (전체 거래 기준)
+    income_dates: tuple[str, ...]     # 확정 income 입금일 (원장 순서 — 정책 분위수·간격 산출용)
     spending: ProfileEstimate         # 소비 파라미터(월경비·생활비·소득변동·평균입금 + 블렌드)
     signals: CareerSignals            # 커리어 추세 신호 (한 번만 계산)
     streams: IncomeStreams            # 소득 스트림 분해 (한 번만 계산)
@@ -123,6 +124,7 @@ def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
     return UserProfile(
         as_of=as_of,
         months_observed=months,
+        income_dates=tuple(t["date"] for t in income_txns),
         spending=spending,
         signals=signals,
         streams=streams,

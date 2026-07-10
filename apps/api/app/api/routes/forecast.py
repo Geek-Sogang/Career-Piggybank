@@ -193,6 +193,7 @@ def get_forecast() -> ForecastResponse:
         months_observed=est.months_observed,
         base_year=base_year,
         signals=signals,
+        monthly_expense=est.profile.expected_monthly_expense,  # 경비도 실제 유출 — 저축 여력에서 뺀다
     )
 
     path = forecast.income_path(

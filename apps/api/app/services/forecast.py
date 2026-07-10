@@ -504,15 +504,22 @@ class FundedRetirement:
     reasons: list[str] = field(default_factory=list)
 
 
-def _annual_surplus(monthly_income: float, annual_living: float, tax_rate: float) -> float:
-    """그 해 저축 여력 = 세후 연소득 − 연 생활비 (음수면 0 — 저축 못 함)."""
+def _annual_surplus(
+    monthly_income: float, annual_living: float, annual_expense: float, tax_rate: float,
+) -> float:
+    """그 해 저축 여력 = 세후 연소득 − 연 생활비 − 연 경비 (음수면 0 — 저축 못 함).
+
+    경비(AWS·장비·외주 도구)는 실제로 나가는 돈이라 뺀다 — F09(저축여력률)가 소득에서
+    생활비·경비를 모두 빼는 것과 같은 정의다(F09는 세전 비율, 여긴 세후 원화라는 차이만).
+    경비를 빼지 않으면 매년 여력이 부풀어 복리로 쌓여 funded_year가 실제보다 앞당겨진다.
+    """
     after_tax = monthly_income * 12.0 * (1.0 - max(0.0, min(1.0, tax_rate)))
-    return max(0.0, after_tax - annual_living)
+    return max(0.0, after_tax - annual_living - annual_expense)
 
 
 def _accumulate_to_target(
-    start_income: float, annual_living: float, tax_rate: float, target: float,
-    growth: float, severity: float, base_year: int, current_savings: float,
+    start_income: float, annual_living: float, annual_expense: float, tax_rate: float,
+    target: float, growth: float, severity: float, base_year: int, current_savings: float,
     year_income: Callable[[int, float], float] | None = None,
 ) -> tuple[int | None, list[float]]:
     """누적 저축 점화식 — 매년 (기존 저축×(1+수익률) + 저축여력). target 도달 해와 경로 반환.
@@ -525,7 +532,7 @@ def _accumulate_to_target(
     for i in range(MAX_HORIZON_YEARS):
         realized = year_income(i, income) if year_income else income
         savings = savings * (1.0 + REAL_RETURN_ON_SAVINGS) + _annual_surplus(
-            realized, annual_living, tax_rate
+            realized, annual_living, annual_expense, tax_rate
         )
         if funded is None and savings >= target:
             funded = base_year + i
@@ -544,26 +551,30 @@ def funded_retirement(
     base_year: int,
     signals: CareerSignals | None = None,
     current_savings: float = 0.0,
+    monthly_expense: float = 0.0,
     runs: int = 1000,
     seed: int = 42,
 ) -> FundedRetirement:
     """자금 달성형 은퇴 — 결정론 경로 + 부트스트랩 분포 (순수 함수, seed 고정).
 
-    저축이 예측을 움직인다: 소득이 생활비를 넉넉히 웃돌수록·현재 저축이 많을수록 앞당겨지고,
-    소득이 들쭉날쭉하면(변동성↑) 나쁜 해가 저축을 늦춰 밴드가 넓어지고 중앙값이 뒤로 간다.
+    저축이 예측을 움직인다: 소득이 생활비·경비를 넉넉히 웃돌수록·현재 저축이 많을수록
+    앞당겨지고, 소득이 들쭉날쭉하면(변동성↑) 나쁜 해가 저축을 늦춰 밴드가 넓어지고
+    중앙값이 뒤로 간다. 저축 여력에서 경비를 빼는 정의는 F09(저축여력률)와 통일돼 있다.
     """
     _sig, level, _trend, growth, severity, _u = _derive_params(
         monthly_incomes, monthly_living_target, income_cv, months_observed, signals
     )
     annual_living = monthly_living_target * 12.0
+    annual_expense = max(0.0, monthly_expense) * 12.0
     target = annual_living / SAFE_WITHDRAWAL_RATE if SAFE_WITHDRAWAL_RATE > 0 else float("inf")
     horizon_end = base_year + MAX_HORIZON_YEARS
 
     funded, path = _accumulate_to_target(
-        level, annual_living, tax_rate, target, growth, severity, base_year, current_savings
+        level, annual_living, annual_expense, tax_rate, target, growth, severity,
+        base_year, current_savings,
     )
     years = list(range(base_year, base_year + len(path)))
-    surplus0 = _annual_surplus(level, annual_living, tax_rate)
+    surplus0 = _annual_surplus(level, annual_living, annual_expense, tax_rate)
 
     # 부트스트랩 — 미래 소득을 내 월 소득 경험 분포에서 재표집 (가정 분포 없음, 순서 위험 반영).
     # 노이즈는 평균 1(÷pool 평균)이라 MC가 결정론 경로(level)를 중심으로 흔들린다 — 중앙값 기준
@@ -576,8 +587,8 @@ def funded_retirement(
     for _ in range(runs):
         draws = [rng.choice(noise) for _ in range(MAX_HORIZON_YEARS)]
         f, _p = _accumulate_to_target(
-            level, annual_living, tax_rate, target, growth, severity, base_year,
-            current_savings, year_income=lambda i, inc, d=draws: inc * d[i],
+            level, annual_living, annual_expense, tax_rate, target, growth, severity,
+            base_year, current_savings, year_income=lambda i, inc, d=draws: inc * d[i],
         )
         mc_years.append(f if f is not None else horizon_end)
     mc_years.sort()

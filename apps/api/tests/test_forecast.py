@@ -99,9 +99,9 @@ def test_trend_is_clamped() -> None:
 from app.services.forecast import SAFE_WITHDRAWAL_RATE, funded_retirement  # noqa: E402
 
 
-def _funded(incomes, living=1_150_000, tax=0.1, cv=0.3, months=4, savings=0.0):
+def _funded(incomes, living=1_150_000, tax=0.1, cv=0.3, months=4, savings=0.0, expense=0.0):
     return funded_retirement(incomes, living, tax, cv, months, base_year=2025,
-                             current_savings=savings)
+                             current_savings=savings, monthly_expense=expense)
 
 
 def test_funded_target_is_25x_annual_living() -> None:
@@ -136,6 +136,30 @@ def test_funded_volatility_widens_band() -> None:
     steady = _funded([2_400_000, 2_400_000, 2_400_000, 2_400_000])
     swingy = _funded([600_000, 4_200_000, 800_000, 4_000_000])
     assert (swingy.mc_p90 - swingy.mc_p10) >= (steady.mc_p90 - steady.mc_p10)
+
+
+def test_funded_expense_reduces_surplus_by_exactly_annual_expense() -> None:
+    """유철 피드백: 경비(AWS·장비)는 실제 유출 — 저축 여력에서 연 경비만큼 정확히 빠진다.
+
+    경비를 안 빼면 여력이 부풀어 funded_year가 앞당겨지는(지키기 어려운 약속) 버그.
+    """
+    incomes = [2_500_000, 3_000_000, 2_700_000, 3_200_000]
+    no_exp = _funded(incomes, expense=0)
+    with_exp = _funded(incomes, expense=500_000)   # 월 50만 = 연 600만원
+    assert round(no_exp.annual_surplus0 - with_exp.annual_surplus0, 2) == 6_000_000
+    assert with_exp.funded_year >= no_exp.funded_year   # 경비 반영 = 달성이 늦어짐(정직)
+
+
+def test_funded_surplus_definition_matches_f09_subtractions() -> None:
+    """저축 여력의 뺄셈 항이 F09(저축여력률)와 통일 — 둘 다 소득에서 생활비·경비를 뺀다.
+
+    차이는 세금뿐(F09는 세전 비율, funded는 세후 원화). 세율 0이면 funded 여력 =
+    (소득 − 생활비 − 경비)로 F09 분자와 동일 구조여야 한다.
+    """
+    incomes = [3_000_000] * 4          # 월 300만 균일 → 연 3,600만
+    fr = _funded(incomes, living=1_200_000, expense=500_000, tax=0.0)
+    # 세율 0: 연소득 3,600만 − 생활비 1,440만 − 경비 600만 = 1,560만
+    assert fr.annual_surplus0 == 15_600_000
 
 
 def test_funded_path_and_mc_order() -> None:

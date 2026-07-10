@@ -94,8 +94,14 @@ def estimate(txns: list[Txn], persona: str = DEFAULT_PERSONA) -> ProfileEstimate
     livings = _monthly_sums(txns, "living")
     deposits = [t.amount for t in txns if t.kind == "income"]
 
-    # 중앙값 기반 월 추정 (이상치 둔감) — 관측 없으면 프리셋 그대로
-    monthly_income = statistics.median(incomes) if incomes else preset.annual_gross / 12
+    # 세금용 연매출은 '합계' 개념 — 중앙값이 아니라 관측 소득 합의 연환산이다.
+    # 중앙값은 큰 대금을 이상치로 깎지만, 세금에선 바로 그 대금이 내야 할 과세 매출이라
+    # 중앙값×12는 항상 실제 연합계보다 작게 잡혀 세금봉투가 모자라게 쌓인다.
+    # (6개월 [100,100,100,100,100,700]만 → median×12 = 1,200만 vs 연환산 2,400만.)
+    # 큰 대금 왜곡은 '평소 1.5배↑ → 코치 확인' 플래그가 배분 단계에서 잡는다.
+    annual_income = sum(incomes) / months_observed * 12 if incomes else preset.annual_gross
+
+    # 생활비·경비·평균입금은 중앙값 유지 (이상치 둔감 — 이쪽은 '평소 얼마'가 맞다)
     monthly_expense = (
         statistics.median(expenses) if expenses else preset.expected_monthly_expense
     )
@@ -110,7 +116,7 @@ def estimate(txns: list[Txn], persona: str = DEFAULT_PERSONA) -> ProfileEstimate
         notes.append("소득 관측이 2개월 미만 — 변동성은 직군 프리셋 사용")
 
     profile = SpendingProfile(
-        annual_gross=_blend(monthly_income * 12, preset.annual_gross, w),
+        annual_gross=_blend(annual_income, preset.annual_gross, w),
         expected_monthly_expense=_blend(monthly_expense, preset.expected_monthly_expense, w),
         expected_monthly_living=_blend(monthly_living, preset.expected_monthly_living, w),
         income_cv=round(w * cv + (1 - w) * preset.income_cv, 4),  # 비율값 — 원화용 _blend(2자리) 금지

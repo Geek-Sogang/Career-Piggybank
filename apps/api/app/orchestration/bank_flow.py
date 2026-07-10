@@ -9,22 +9,13 @@ from __future__ import annotations
 import statistics
 from dataclasses import replace
 
-from app.services import (
-    allocation_policy,
-    allocator,
-    classifier,
-    classifier_llm,
-    forecast,
-    gig_profile,
-    income_streams,
-    product_match,
-    spending_profile,
-)
+from app.engines import allocation_policy, allocator, classifier, forecast, gig_profile, income_streams, product_match, spending_profile
+from app.agents import classifier_llm
 from app.profile import build_user_profile
-from app.services import facts as facts_svc
-from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
-from app.services.classifier import Classification, TxnInput
-from app.services.spending_profile import ProfileEstimate, Txn
+from app.engines import facts as facts_svc
+from app.engines.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
+from app.engines.classifier import Classification, TxnInput
+from app.engines.spending_profile import ProfileEstimate, Txn
 from app.store import db
 
 ADJUSTMENT_LOOKBACK = 5  # 조정 성향 집계에 쓰는 최근 조정 건수

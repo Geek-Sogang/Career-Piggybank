@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.income_streams import composite_next, decompose
+from app.engines.income_streams import composite_next, decompose
 from app.store.seed import ensure_seed
 
 client = TestClient(app)

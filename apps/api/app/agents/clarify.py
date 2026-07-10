@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.services import llm
-from app.services.coach import _numbers_grounded
+from app.core import llm
+from app.agents.coach import _numbers_grounded
 
 MAX_QUESTION_CHARS = 80
 

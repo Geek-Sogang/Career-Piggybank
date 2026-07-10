@@ -24,7 +24,7 @@ def _spec(**overrides) -> AgentSpec:
     base = dict(
         id="x", label="x", specialty="한 가지 일만 한다", output="판정",
         model="EXAONE 2.4B", cadence="테스트", guardrails=("g1",),
-        fallback="결정론 착지", module="app.services.classifier", implemented=True,
+        fallback="결정론 착지", module="app.engines.classifier", implemented=True,
     )
     base.update(overrides)
     return AgentSpec(**base)

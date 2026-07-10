@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 
 from app.agents import amount_pacing, envelope_recommend
 from app.main import app
-from app.services import facts as facts_svc
-from app.services import pacing as pacing_svc
+from app.engines import facts as facts_svc
+from app.engines import pacing as pacing_svc
 from app.store import db
 
 client = TestClient(app)

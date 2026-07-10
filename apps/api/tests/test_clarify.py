@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import clarify
+from app.agents import clarify
 from app.store.seed import ensure_seed
 
 client = TestClient(app)

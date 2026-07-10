@@ -4,8 +4,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.schemas.strength import CareerFactsIn, StrengthResponse
-from app.services import strength
-from app.services.strength import CareerFacts
+from app.agents import strength
+from app.agents.strength import CareerFacts
 
 router = APIRouter(prefix="/v1/strength", tags=["strength"])
 

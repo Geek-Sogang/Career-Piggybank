@@ -15,8 +15,8 @@ from app.schemas.allocation import (
     ProductHook,
     ProposeRequest,
 )
-from app.services import allocation_policy, allocator, product_match
-from app.services.allocator import EnvelopeBalances, SpendingProfile
+from app.engines import allocation_policy, allocator, product_match
+from app.engines.allocator import EnvelopeBalances, SpendingProfile
 from app.store import db
 
 router = APIRouter(prefix="/v1/allocations", tags=["allocations"])

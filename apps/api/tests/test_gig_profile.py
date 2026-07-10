@@ -8,15 +8,15 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.forecast import CareerSignals
-from app.services.gig_profile import build_gig_profile
-from app.services.income_streams import IncomeStreams, PendingSettlement
+from app.engines.forecast import CareerSignals
+from app.engines.gig_profile import build_gig_profile
+from app.engines.income_streams import IncomeStreams, PendingSettlement
 
 client = TestClient(app)
 
 
 def _fact(fid: str, value: float | None):
-    from app.services.facts import Fact
+    from app.engines.facts import Fact
     return Fact(fid, fid, value, "", "", "", 3)
 
 

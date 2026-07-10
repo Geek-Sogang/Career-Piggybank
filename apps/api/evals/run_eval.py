@@ -18,8 +18,8 @@ import json
 import time
 from pathlib import Path
 
-from app.services.classifier import Classification, TxnInput, classify
-from app.services.classifier_llm import classify_with_fallback
+from app.engines.classifier import Classification, TxnInput, classify
+from app.agents.classifier_llm import classify_with_fallback
 
 GOLDEN_PATH = Path(__file__).parent / "golden_set.json"
 

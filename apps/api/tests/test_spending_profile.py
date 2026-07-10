@@ -6,8 +6,8 @@ import statistics
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.allocator import propose
-from app.services.spending_profile import (
+from app.engines.allocator import propose
+from app.engines.spending_profile import (
     COLD_START_MONTHS,
     PERSONA_PRESETS,
     Txn,

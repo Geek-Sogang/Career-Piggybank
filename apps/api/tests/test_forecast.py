@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.forecast import next_income_window, retirement_bands
+from app.engines.forecast import next_income_window, retirement_bands
 from app.store.seed import ensure_seed
 
 client = TestClient(app)
@@ -96,7 +96,7 @@ def test_trend_is_clamped() -> None:
 
 # ---------- 자금 달성형 은퇴 (B) — 저축이 예측을 움직인다 ----------
 
-from app.services.forecast import SAFE_WITHDRAWAL_RATE, funded_retirement  # noqa: E402
+from app.engines.forecast import SAFE_WITHDRAWAL_RATE, funded_retirement  # noqa: E402
 
 
 def _funded(incomes, living=1_150_000, tax=0.1, cv=0.3, months=4, savings=0.0, expense=0.0):
@@ -170,7 +170,7 @@ def test_funded_path_and_mc_order() -> None:
 
 # ---------- 긱워커 전용 커리어 신호 ----------
 
-from app.services.forecast import career_signals  # noqa: E402
+from app.engines.forecast import career_signals  # noqa: E402
 
 
 def make_income(dates_clients_amounts):
@@ -217,7 +217,7 @@ def test_signals_cold_start_neutral() -> None:
 
 # ---------- 연도별 소득 경로 (차트 좌표의 원천) ----------
 
-from app.services.forecast import income_path  # noqa: E402
+from app.engines.forecast import income_path  # noqa: E402
 
 
 def make_path(signals=None, **kw):
@@ -289,7 +289,7 @@ def test_forecast_route_with_seed() -> None:
 
 # ---------- 몬테카를로 은퇴 시뮬레이션 (부트스트랩, seed 고정) ----------
 
-from app.services.forecast import monte_carlo_retirement  # noqa: E402
+from app.engines.forecast import monte_carlo_retirement  # noqa: E402
 
 
 def make_mc(incomes=INCOMES, cv=0.3, seed=42, runs=500, signals=None):
@@ -363,7 +363,7 @@ def test_erratic_history_widens_calibrated_window() -> None:
 
 # ---------- 하락 국면 연속화 — 임계값 절벽 제거 ----------
 
-from app.services.forecast import CareerSignals, decline_severity  # noqa: E402
+from app.engines.forecast import CareerSignals, decline_severity  # noqa: E402
 
 
 def test_severity_is_continuous_and_monotonic() -> None:

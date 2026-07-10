@@ -12,9 +12,9 @@ from fastapi.testclient import TestClient
 
 from app.agents import intent_router
 from app.main import app
-from app.services import coach_agenda, coach_live
-from app.services import coach as coach_svc
-from app.services import event_capture
+from app.orchestration import coach_agenda, coach_live
+from app.agents import coach as coach_svc
+from app.agents import event_capture
 from app.store import db
 
 client = TestClient(app)

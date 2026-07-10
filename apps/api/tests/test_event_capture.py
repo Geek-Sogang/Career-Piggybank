@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import event_capture
-from app.services.event_capture import capture
+from app.agents import event_capture
+from app.agents.event_capture import capture
 from app.store import db
 from app.store.seed import ensure_seed
 
@@ -60,7 +60,7 @@ def test_amount_optional(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_chat_captures_event_and_forecast_reflects_it(monkeypatch: pytest.MonkeyPatch) -> None:
     ensure_seed()
     mock_parser(monkeypatch, {"has_event": True, "date": "2025-06-03", "amount": 2_000_000, "label": "잔금"})
-    monkeypatch.setattr("app.services.coach.llm.chat_text", lambda *a, **k: None)  # 코치는 폴백
+    monkeypatch.setattr("app.agents.coach.llm.chat_text", lambda *a, **k: None)  # 코치는 폴백
 
     res = client.post("/v1/coach/chat", json={"message": "다음 주에 잔금 200만원 들어와요"})
     body = res.json()

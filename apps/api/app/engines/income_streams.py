@@ -23,7 +23,7 @@ import statistics
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from app.services.classifier import SETTLEMENT_NAME_TOKEN, _looks_platform
+from app.engines.classifier import SETTLEMENT_NAME_TOKEN, _looks_platform
 
 MIN_OBS_FOR_RHYTHM = 2          # 채널/발주처 리듬 추정에 필요한 최소 관측
 DEFAULT_SETTLEMENT_LAG = 30.0   # 착수금→잔금 관측 쌍이 없을 때 기본 간격(일)

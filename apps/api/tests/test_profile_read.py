@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.agents import profile_read
 from app.main import app
-from app.services import facts as facts_svc
+from app.engines import facts as facts_svc
 from app.store import db
 
 client = TestClient(app)

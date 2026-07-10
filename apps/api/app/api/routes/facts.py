@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.routes.bank import _boot
-from app.services import facts as facts_svc
+from app.engines import facts as facts_svc
 from app.store import db
 
 router = APIRouter(prefix="/v1/facts", tags=["facts"])

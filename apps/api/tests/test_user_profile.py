@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.profile import build_user_profile
-from app.services import bank_flow
-from app.services import facts as facts_svc
+from app.orchestration import bank_flow
+from app.engines import facts as facts_svc
 from app.store import db
 from app.store.seed import ensure_seed
 
@@ -107,7 +107,8 @@ def test_propose_for_deposit_computes_shared_upstream_once(monkeypatch) -> None:
     이전엔 propose_for_deposit이 context_from_store·gig_archetype·has_confirmed_incoming을
     따로 불러 career_signals 2회·decompose 3회가 벌어졌다. UserProfile 배선 후엔 각 1회.
     """
-    from app.services import bank_flow, forecast, income_streams
+    from app.orchestration import bank_flow
+    from app.engines import forecast, income_streams
 
     ensure_seed()
     real_signals, real_decompose = forecast.career_signals, income_streams.decompose

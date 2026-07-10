@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.services import tax_envelope
+from app.engines import tax_envelope
 
 WINDFALL_RATIO = 1.5      # 평균 입금 대비 이 배수 이상이면 '평소와 다른 입금' → 코치 확인
 BUFFER_MONTHS_MIN = 1.0   # 여윳돈(버퍼) 목표 하한 — 생활비 1개월치

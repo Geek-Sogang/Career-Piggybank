@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.services import bank_flow, income_streams
+from app.orchestration import bank_flow
+from app.engines import income_streams
 from app.store import db
 
 # 침묵 타입 — 발화 가치가 없는 저신호. consume 시 조용히 spoken 처리(큐 비우기).

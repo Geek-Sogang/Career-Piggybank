@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.services.allocator import AllocationContext, AllocationProposal
+from app.engines.allocator import AllocationContext, AllocationProposal
 
 # product_id는 모바일 products.ts의 ProductKey와 1:1 — 앱이 상품 상세로 바로 연결
 CATALOG: dict[str, str] = {

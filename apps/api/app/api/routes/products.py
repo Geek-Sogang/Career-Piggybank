@@ -10,9 +10,9 @@ from fastapi import APIRouter
 
 from app.agents import product_match as product_match_agent
 from app.api.routes.bank import _boot
-from app.services import bank_flow
-from app.services import facts as facts_svc
-from app.services import product_match
+from app.orchestration import bank_flow
+from app.engines import facts as facts_svc
+from app.engines import product_match
 from app.store import db
 
 router = APIRouter(prefix="/v1/products", tags=["products"])

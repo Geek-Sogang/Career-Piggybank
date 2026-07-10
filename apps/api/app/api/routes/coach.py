@@ -15,7 +15,8 @@ from fastapi import APIRouter
 from app.agents import intent_router
 from app.api.routes.bank import _boot
 from app.schemas.coach import CapturedEvent, CoachChatRequest, CoachChatResponse
-from app.services import coach, coach_agenda, coach_live, event_capture
+from app.agents import coach, event_capture
+from app.orchestration import coach_agenda, coach_live
 from app.store import db
 
 router = APIRouter(prefix="/v1/coach", tags=["coach"])

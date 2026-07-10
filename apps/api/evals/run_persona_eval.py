@@ -25,8 +25,8 @@ from collections import Counter
 from pathlib import Path
 
 from app.agents import profile_read
-from app.services import facts as facts_svc
-from app.services.facts import Fact
+from app.engines import facts as facts_svc
+from app.engines.facts import Fact
 
 GOLDEN_PATH = Path(__file__).parent / "persona_golden_set.json"
 

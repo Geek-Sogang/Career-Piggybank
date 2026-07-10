@@ -1,7 +1,7 @@
 """세금봉투 결정론 엔진 단위 테스트."""
 from __future__ import annotations
 
-from app.services import tax_envelope as engine
+from app.engines import tax_envelope as engine
 
 
 def test_income_tax_brackets():

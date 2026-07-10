@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from app.agents import amount_pacing
 from app.api.routes.bank import _boot
 from app.profile import build_user_profile
-from app.services import pacing as pacing_svc
+from app.engines import pacing as pacing_svc
 from app.store import db
 
 router = APIRouter(prefix="/v1/pacing", tags=["pacing"])

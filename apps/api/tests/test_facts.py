@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import facts as facts_svc
+from app.engines import facts as facts_svc
 from app.store import db
 
 client = TestClient(app)
@@ -92,7 +92,7 @@ def _itemized_ledger() -> list[dict]:
 
 
 def test_fixed_payee_detected_by_three_rules():
-    from app.services.facts import _fixed_payees
+    from app.engines.facts import _fixed_payees
     livings = [t for t in _itemized_ledger() if t["kind"] == "living"]
     fixed = _fixed_payees(livings)
     assert "행복부동산" in fixed        # 3회·간격 ~30일·금액 동일 → 고정비

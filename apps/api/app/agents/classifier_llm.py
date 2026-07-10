@@ -24,8 +24,8 @@ from __future__ import annotations
 import statistics
 from collections import Counter
 
-from app.services import llm
-from app.services.classifier import Classification, Kind, Subtype, TxnInput, classify
+from app.core import llm
+from app.engines.classifier import Classification, Kind, Subtype, TxnInput, classify
 
 LLM_CONFIDENCE_CAP = 0.75        # 다수결까지의 상한 — 룰 신호(0.9~0.95)보다 항상 낮게
 UNANIMOUS_CONFIDENCE_CAP = 0.85  # 배심원 만장일치 + 판정 승인일 때만 — 그래도 룰보다 아래

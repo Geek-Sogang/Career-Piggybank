@@ -63,6 +63,7 @@ class UserProfile:
     factsheet: tuple[Fact, ...]       # 팩트 12종 (한 번만 빌드)
     gig: GigProfile                   # 긱워커 소득 프로필 (facts·signals·streams 합성)
     persona_axes: dict | None         # 심리 4축 판독 SSOT (판독 전이면 None)
+    persona_staleness: dict | None    # 판독 스냅샷 신선도 (판독 없으면 None — 다운스트림 경고용)
     buffer_bias: float                # 조정 성향(행동) — 버퍼를 늘려온 중앙값
     has_confirmed_incoming: bool      # 확정 예정 수입(예정 이벤트 or 미결 잔금)이 있는가
 
@@ -132,6 +133,7 @@ def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
         factsheet=tuple(factsheet),
         gig=gig,
         persona_axes=snapshot["axes"] if snapshot else None,
+        persona_staleness=facts_svc.snapshot_staleness(snapshot, len(all_txns)),
         buffer_bias=_buffer_bias(allocations),
         has_confirmed_incoming=has_incoming,
     )

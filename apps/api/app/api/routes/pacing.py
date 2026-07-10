@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.agents import amount_pacing
 from app.api.routes.bank import _boot
-from app.services import facts as facts_svc
+from app.profile import build_user_profile
 from app.services import pacing as pacing_svc
 from app.store import db
 
@@ -42,11 +42,10 @@ def propose(req: ProposeRequest) -> dict:
     if req.source == "buffer" and req.available > db.envelope_balances()["buffer"] + 0.01:
         raise HTTPException(status_code=422, detail="available exceeds buffer balance")
     goals = db.list_goals()
-    txns = db.list_txns()
-    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
-    snap = db.latest_snapshot()
-    axes = snap["axes"] if snap else None
-    staleness = facts_svc.snapshot_staleness(snap, len(txns))
+    up = build_user_profile()                                   # 배분·추천과 같은 프로필 SSOT
+    sheet = list(up.factsheet)
+    axes = up.persona_axes
+    staleness = up.persona_staleness
 
     judgment = amount_pacing.judge(goals, sheet, axes)          # 판단 (⑤b — 번호만)
 

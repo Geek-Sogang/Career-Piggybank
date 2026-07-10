@@ -193,6 +193,7 @@ def test_unknown_id_is_404() -> None:
 from app.engines.allocator import (  # noqa: E402
     BIAS_CAP_FRACTION,
     BUFFER_MONTHS_MAX,
+    CONCENTRATION_EXTRA_MONTHS,
     EARLY_DECLINE_EXTRA_MONTHS,
     LIVING_MONTHS_MAX,
     AllocationContext,
@@ -235,6 +236,22 @@ def test_early_decline_thickens_buffer_target() -> None:
         min(BUFFER_MONTHS_MAX, base.assumptions["buffer_target_months"] + EARLY_DECLINE_EXTRA_MONTHS)
     )
     assert any("감속 추세" in r for r in declined.reasons)
+
+
+def test_single_source_dependence_thickens_buffer_not_split() -> None:
+    """긱 구조: 단일 의존 → 버퍼 목표 +1개월(쿠션). 분할액은 안 바뀐다(폭포수 잔여 구조)."""
+    base = propose(3_000_000, PROFILE)
+    conc = propose(3_000_000, PROFILE, context=AllocationContext(single_source_dependence=True))
+    # 버퍼 '목표'(투자 가능액 기준선)는 두꺼워진다
+    assert conc.assumptions["buffer_target_months"] == pytest.approx(
+        min(BUFFER_MONTHS_MAX, base.assumptions["buffer_target_months"] + CONCENTRATION_EXTRA_MONTHS)
+    )
+    assert conc.assumptions["single_source_dependence"] == 1.0
+    # 실제 봉투 분할은 동일 — 목표만 올라 '아직 투자 말고 쌓아라'로 나타난다
+    assert (conc.tax, conc.expense, conc.spendable, conc.buffer) == \
+           (base.tax, base.expense, base.spendable, base.buffer)
+    assert conc.invest_available <= base.invest_available
+    assert any("한 곳에 몰려" in r for r in conc.reasons)
 
 
 def test_buffer_bias_shifts_spendable_to_buffer() -> None:

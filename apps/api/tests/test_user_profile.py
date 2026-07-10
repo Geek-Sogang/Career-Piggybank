@@ -92,6 +92,36 @@ def test_buffer_bias_matches_after_adjustments() -> None:
     assert up.buffer_bias == pytest.approx(100_000, abs=1)
 
 
+# ── PR-2 목적: 배분 핫패스에서 공유 상류가 각 1회만 계산된다 (중복 제거) ──
+
+def test_propose_for_deposit_computes_shared_upstream_once(monkeypatch) -> None:
+    """입금 1건 제안에 career_signals·income_streams.decompose가 각 1회만 호출된다.
+
+    이전엔 propose_for_deposit이 context_from_store·gig_archetype·has_confirmed_incoming을
+    따로 불러 career_signals 2회·decompose 3회가 벌어졌다. UserProfile 배선 후엔 각 1회.
+    """
+    from app.services import bank_flow, forecast, income_streams
+
+    ensure_seed()
+    real_signals, real_decompose = forecast.career_signals, income_streams.decompose
+    calls = {"signals": 0, "decompose": 0}
+
+    def counted_signals(*a, **k):
+        calls["signals"] += 1
+        return real_signals(*a, **k)
+
+    def counted_decompose(*a, **k):
+        calls["decompose"] += 1
+        return real_decompose(*a, **k)
+
+    monkeypatch.setattr(forecast, "career_signals", counted_signals)
+    monkeypatch.setattr(income_streams, "decompose", counted_decompose)
+
+    bank_flow.propose_for_deposit(483_500, "2025-05-25", txn_id=None)
+    assert calls["signals"] == 1
+    assert calls["decompose"] == 1
+
+
 # ── 콜드스타트: 빈 원장에서도 폭발하지 않는다 (income 없음 → gap None) ──
 
 def test_empty_ledger_builds_without_error() -> None:

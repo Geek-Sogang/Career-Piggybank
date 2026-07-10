@@ -141,6 +141,16 @@ export type Persona = {
 export function getPersona() {
   return get<Persona>('/v1/profile/persona'); // 404 = 아직 판독 전
 }
+// 긱워커 소득 프로필 — 결정론 구조 층(판독 전에도 항상 있음). 심리 4축과 구분되는 긱 특화.
+export type GigProfile = {
+  volatility: string; volatility_cv: number | null;
+  concentration: string; top_source_share: number | null;
+  rhythm: string; is_multi_gig: boolean; phase: string;
+  archetype: string; notes: string[];
+};
+export function getGigProfile() {
+  return get<GigProfile>('/v1/profile/gig');
+}
 export function readPersona() {
   return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
 }

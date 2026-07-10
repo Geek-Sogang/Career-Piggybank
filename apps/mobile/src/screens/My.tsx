@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { getPersona, readPersona, type Persona } from '@/api';
+import { getGigProfile, getPersona, readPersona, type GigProfile, type Persona } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, Mascot } from '@/components/ui';
@@ -31,6 +31,9 @@ export function My() {
         <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 
+      {/* 긱워커 소득 프로필 — 결정론 구조 층(항상 있음). 심리 축보다 앞에 세워 '긱 특화'를 도드라지게 */}
+      <GigProfileCard />
+
       {/* 페르소나 — ④ 프로필 판독의 SSOT. 판독은 명시 트리거만(핫패스 보호), 폴백 축은 정직 표기 */}
       <PersonaCard />
 
@@ -43,6 +46,45 @@ export function My() {
           </Pressable>
         ))}
       </Card>
+    </View>
+  );
+}
+
+// 긱워커 소득 프로필 카드 — 결정론 구조(측정). 심리 축(AI)과 달리 '초록=측정' 톤.
+function GigProfileCard() {
+  const [gig, setGig] = useState<GigProfile | null>(null);
+  useEffect(() => { getGigProfile().then(setGig).catch(() => {}); }, []);
+  if (!gig) return null;
+  const dims: [string, string][] = [
+    ['소득 변동성', gig.volatility],
+    ['소득원 구조', gig.concentration],
+    ['수입 리듬', gig.rhythm + (gig.is_multi_gig ? ' · N잡' : '')],
+    ['커리어 국면', gig.phase],
+  ];
+  return (
+    <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>내 긱워커 소득 프로필</Text>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>원장 측정</Text>
+      </View>
+      {/* 한 줄 유형 — 자기를 알아보게 */}
+      <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.greenInk, lineHeight: 20, marginTop: 8 }}>{gig.archetype}</Text>
+      {/* 4차원 칩 */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+        {dims.map(([label, val]) => (
+          <View key={label} style={{ backgroundColor: '#fff', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10 }}>
+            <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub3 }}>{label}</Text>
+            <Text style={{ fontSize: 12.5, fontWeight: '800', color: colors.ink, marginTop: 1 }}>{val}</Text>
+          </View>
+        ))}
+      </View>
+      {gig.notes.length > 0 && (
+        <View style={{ marginTop: 10, gap: 3 }}>
+          {gig.notes.slice(0, 4).map((n, i) => (
+            <Text key={i} style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500', lineHeight: 15 }}>· {n}</Text>
+          ))}
+        </View>
+      )}
     </View>
   );
 }

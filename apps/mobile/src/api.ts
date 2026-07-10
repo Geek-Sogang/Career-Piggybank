@@ -79,6 +79,7 @@ export type Allocation = {
   needs_confirmation: boolean;
   reasons: string[];
   product_hooks?: ProductHook[];
+  gig_archetype?: string;   // 이 배분을 만든 긱워커 소득 유형 한 줄
 };
 
 export function proposeAllocation(deposit: number, profile = DEMO_PROFILE) {
@@ -268,4 +269,5 @@ export const OFFLINE_ALLOCATION: Allocation = {
       line: '세금봉투 108,900원은 하나 긱워커 파킹통장(연 3.0%)에 두면 5월 종소세 때까지 이자가 붙어요',
     },
   ],
+  gig_archetype: '고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄',
 };

@@ -62,6 +62,7 @@ class AllocationResponse(BaseModel):
     reasons: list[str]
     assumptions: dict[str, float]
     product_hooks: list[ProductHook] = []  # 봉투별 하나 상품 안내 (최대 2)
+    gig_archetype: str = ""                 # 이 배분을 만든 긱워커 소득 유형 한 줄 (결정론)
 
 
 class MetricsResponse(BaseModel):

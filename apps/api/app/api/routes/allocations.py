@@ -39,6 +39,7 @@ def to_response(a: dict) -> AllocationResponse:
         reasons=meta.get("reasons", []),
         assumptions=meta.get("assumptions", {}),
         product_hooks=[ProductHook(**h) for h in meta.get("product_hooks", [])],
+        gig_archetype=meta.get("gig_archetype", ""),
     )
 
 

@@ -87,15 +87,12 @@ def has_confirmed_incoming() -> bool:
 
 
 def context_from_store() -> AllocationContext:
-    """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
-    income_txns = _income_txns()
-    gap = forecast.next_income_window([t["date"] for t in income_txns]) if income_txns else None
-    signals = forecast.career_signals(income_txns)
-    return AllocationContext(
-        expected_gap_days=gap.median_gap_days if gap else None,
-        early_decline=signals.career_trend <= forecast.EARLY_DECLINE_THRESHOLD,
-        buffer_bias=buffer_adjustment_bias(),
-    )
+    """긱워커 배분 컨텍스트 — 프로필 SSOT에 위임한다 (coach_live·products가 배분과 같은 신호를 쓰게).
+
+    수주 주기·커리어 추세·조정 성향에 더해 긱 구조(단일 의존)까지 한 곳에서 나온다 —
+    이전엔 여기서 signals·gap을 따로 재계산했으나, 이제 build_user_profile이 상류를 1회만 돈다.
+    """
+    return build_user_profile().allocation_context()
 
 
 def gig_archetype() -> str:

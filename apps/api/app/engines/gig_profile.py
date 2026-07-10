@@ -39,6 +39,15 @@ class GigProfile:
     archetype: str         # 사용자에게 보일 한 줄 긱워커 유형
     notes: list[str] = field(default_factory=list)
 
+    @property
+    def is_single_source(self) -> bool:
+        """소득 절벽 위험 — 한 채널이 소득의 절반 이상. 배분이 버퍼 쿠션을 얹는 결정론 게이트.
+
+        임계값은 여기(긱 프로필)가 소유한다 — 소비자는 이 판정을 재계산하지 않고 인용만 한다.
+        '관측 부족'은 False(지어내지 않음).
+        """
+        return self.concentration == "단일 의존"
+
     def as_dict(self) -> dict:
         return {
             "volatility": self.volatility, "volatility_cv": self.volatility_cv,

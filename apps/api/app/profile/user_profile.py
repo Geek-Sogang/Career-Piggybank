@@ -80,6 +80,7 @@ class UserProfile:
         return AllocationContext(
             expected_gap_days=self.gap.median_gap_days if self.gap else None,
             early_decline=self.signals.career_trend <= forecast.EARLY_DECLINE_THRESHOLD,
+            single_source_dependence=self.gig.is_single_source,   # 긱 구조 → 버퍼 쿠션
             buffer_bias=self.buffer_bias,
         )
 

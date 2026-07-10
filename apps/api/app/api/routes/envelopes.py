@@ -14,8 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.agents import envelope_recommend
 from app.api.routes.bank import _boot
-from app.services import bank_flow
-from app.services import facts as facts_svc
+from app.profile import build_user_profile
 from app.services import peer_envelopes
 from app.store import db
 
@@ -58,18 +57,17 @@ def create_goal(req: GoalCreate) -> dict:
 def recommend() -> dict:
     """봉투 추천(⑤a) — 팩트+페르소나 근거의 후보 목록. 개설은 사용자가 /goals로."""
     _boot()
-    txns = db.list_txns()
-    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
-    snap = db.latest_snapshot()
-    axes = snap["axes"] if snap else None
+    up = build_user_profile()                        # 프로필 전 조각 1회 조립 (배분과 같은 SSOT)
+    sheet = list(up.factsheet)
+    axes = up.persona_axes
     goals_now = db.list_goals()
     ideas = envelope_recommend.recommend(sheet, axes, goals_now)
     # 월 여윳돈 = 월소득 − 생활비 − 경비 (또래 금액의 도달 개월수·감당 가능액 계산용).
     # 또래 중앙값이 그 사람 형편을 안 보고 내밀리지 않도록(유철 피드백) 산수로 함께 낸다.
-    est = bank_flow.profile_from_store()
-    monthly_surplus = max(0.0, est.profile.annual_gross / 12.0
-                          - est.profile.expected_monthly_living
-                          - est.profile.expected_monthly_expense)
+    prof = up.spending.profile
+    monthly_surplus = max(0.0, prof.annual_gross / 12.0
+                          - prof.expected_monthly_living
+                          - prof.expected_monthly_expense)
     # 또래 소스(결정론) — 같은 직군·유사 페르소나의 개설 관찰. LLM 소스와 이름이 겹치면
     # 내 팩트 근거(⑤a)를 우선하고 또래 항목은 뺀다(중복 추천 방지)
     ai_names = {i.name for i in ideas}
@@ -83,6 +81,6 @@ def recommend() -> dict:
         "recommendations": [i.as_dict() for i in ideas],
         "peers": [p.as_dict() for p in peers],
         "persona_used": axes is not None,
-        "persona_staleness": facts_svc.snapshot_staleness(snap, len(txns)),
+        "persona_staleness": up.persona_staleness,
         "note": "추천은 판정일 뿐 — 개설(POST /v1/envelopes/goals)은 사용자의 결정",
     }

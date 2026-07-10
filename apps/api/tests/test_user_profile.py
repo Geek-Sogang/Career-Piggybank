@@ -68,6 +68,13 @@ def test_persona_axes_matches_latest_snapshot() -> None:
     assert up.persona_axes == (snap["axes"] if snap else None)
 
 
+def test_persona_staleness_matches_direct() -> None:
+    ensure_seed()
+    up = build_user_profile()
+    direct = facts_svc.snapshot_staleness(db.latest_snapshot(), len(db.list_txns()))
+    assert up.persona_staleness == direct
+
+
 # ── 조정 이력이 쌓인 뒤에도 buffer_bias 슬라이스가 일치하는가 (행동 루프 경로) ──
 
 def _deposit_and_adjust(amount: float, counterparty: str, buffer_extra: float) -> None:

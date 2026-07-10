@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from app.core.config import settings
 from app.core import llm
 from app.engines.facts import Fact
+from app.engines.gig_profile import GigProfile
 
 MAX_RECOMMENDATIONS = 3
 MAX_NAME_CHARS = 20
@@ -44,6 +45,11 @@ _SYSTEM = (
     "- 이름은 구체적인 한국어로 (예: '일 없는 달', '연말 장비 교체'). 추상어 금지.\n"
     "- 세금·경비 봉투는 이미 시스템이 관리한다 — 추천하지 마라.\n"
     "- 이미 있는 봉투와 겹치는 목적은 추천하지 마라.\n"
+    "- 긱 소득 구조는 추천의 '우선순위'를 정할 뿐, 추천을 없애지 않는다. 구조 위험이 높으면"
+    " 그에 맞는 봉투를 앞세워라: 단일 의존→소득 공백/다각화, 고변동→'일 없는 달', 감속 국면→"
+    "은퇴·버퍼, N잡→스트림별. 구조 위험이 낮아도(안정·다각화) 팩트에 근거가 있으면 추천은"
+    " 그대로 한다 — 구조는 순서를 바꿀 뿐이다. 근거 팩트는 반드시 달아라(구조는 F01 변동성·"
+    "F02 집중도·F04 공백에서 나온다 — 직군 이름으로 찍지 마라).\n"
     "- 각 추천에 반드시 근거 팩트 ID를 단다. 근거 없는 추천은 하지 마라.\n"
     "- 추천할 것이 없으면 빈 목록을 내라 — 억지로 채우지 마라.\n"
     '출력은 JSON만: {"recommendations": [{"name": "...", "why": "한 문장", '
@@ -51,11 +57,18 @@ _SYSTEM = (
 )
 
 
-def _context(facts: list[Fact], axes: dict | None, existing: list[dict]) -> str:
+def _context(facts: list[Fact], axes: dict | None, existing: list[dict],
+             gig: GigProfile | None = None) -> str:
     lines = ["[팩트시트]"]
     for f in facts:
         if f.value is not None:
             lines.append(f"{f.id} · {f.label} = {f.display}  (참고: {f.band})")
+    if gig is not None:
+        lines.append("\n[긱 소득 구조 (측정된 구조 — 이 사람의 긱 리스크)]")
+        lines.append(f"유형: {gig.archetype}")
+        lines.append(f"집중도: {gig.concentration} · 변동성: {gig.volatility} · 국면: {gig.phase}")
+        if gig.is_multi_gig:
+            lines.append("N잡: 성격 다른 소득원 2종 이상 — 스트림별로 나눠 볼 여지")
     if axes:
         lines.append("\n[페르소나 축 (0~1)]")
         for a in axes.values():
@@ -68,10 +81,15 @@ def _context(facts: list[Fact], axes: dict | None, existing: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def recommend(facts: list[Fact], axes: dict | None, existing: list[dict]) -> list[EnvelopeIdea]:
-    """봉투 추천 판독 — 게이트 실패·LLM 다운이면 빈 목록 (지어내지 않음)."""
+def recommend(facts: list[Fact], axes: dict | None, existing: list[dict],
+              gig: GigProfile | None = None) -> list[EnvelopeIdea]:
+    """봉투 추천 판독 — 게이트 실패·LLM 다운이면 빈 목록 (지어내지 않음).
+
+    gig(측정된 긱 소득 구조)를 주면 추천이 그 구조 위험에 맞춰 갈린다 — 판단은 LLM,
+    접지 게이트는 그대로(근거 팩트 실존 필수). 구조는 팩트에서 나오므로 근거는 여전히 F##.
+    """
     measured = {f.id for f in facts if f.value is not None}
-    out = llm.chat_json(_SYSTEM, _context(facts, axes, existing),
+    out = llm.chat_json(_SYSTEM, _context(facts, axes, existing, gig),
                         model=settings.ollama_model_coach)
     if not isinstance(out, dict) or not isinstance(out.get("recommendations"), list):
         return []

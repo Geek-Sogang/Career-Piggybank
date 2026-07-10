@@ -61,7 +61,7 @@ def recommend() -> dict:
     sheet = list(up.factsheet)
     axes = up.persona_axes
     goals_now = db.list_goals()
-    ideas = envelope_recommend.recommend(sheet, axes, goals_now)
+    ideas = envelope_recommend.recommend(sheet, axes, goals_now, gig=up.gig)  # 긱 구조 인식
     # 월 여윳돈 = 월소득 − 생활비 − 경비 (또래 금액의 도달 개월수·감당 가능액 계산용).
     # 또래 중앙값이 그 사람 형편을 안 보고 내밀리지 않도록(유철 피드백) 산수로 함께 낸다.
     prof = up.spending.profile

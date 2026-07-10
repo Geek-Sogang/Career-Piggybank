@@ -176,6 +176,23 @@ def test_recommend_llm_down_empty(monkeypatch):
     assert envelope_recommend.recommend(_facts(), None, []) == []
 
 
+def test_recommend_injects_gig_structure_into_prompt(monkeypatch):
+    """긱 구조를 주면 프롬프트에 '긱 소득 구조' 블록이 실려 추천이 구조 인식으로 갈린다."""
+    from app.engines.gig_profile import GigProfile
+    gig = GigProfile(
+        volatility="고변동", volatility_cv=1.1, concentration="단일 의존", top_source_share=0.62,
+        rhythm="플랫폼 정기형", is_multi_gig=False, phase="감속 주의",
+        archetype="고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄",
+    )
+    seen = {}
+    monkeypatch.setattr(envelope_recommend.llm, "chat_json",
+                        lambda sys, user, **k: seen.update(prompt=user) or {"recommendations": []})
+    envelope_recommend.recommend(_facts(), None, [], gig=gig)
+    assert "긱 소득 구조" in seen["prompt"]
+    assert "단일 의존" in seen["prompt"] and "고변동" in seen["prompt"]
+    assert gig.archetype in seen["prompt"]
+
+
 # ── 오케스트레이션 + 확인 게이트 (라이브 API) ──
 
 def test_full_flow_confirm_moves_balances(monkeypatch):

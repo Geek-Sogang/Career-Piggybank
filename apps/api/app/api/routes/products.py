@@ -33,7 +33,8 @@ def match() -> dict:
     invest_available = float(latest["meta"].get("invest_available", 0.0))
     tax_balance = db.envelope_balances()["tax"]
     ctx = bank_flow.context_from_store()
-    candidates, vetoed = product_match.eligible(invest_available, tax_balance, ctx)
+    candidates, vetoed = product_match.eligible(
+        invest_available, tax_balance, ctx, bank_flow.has_confirmed_incoming())
 
     txns = db.list_txns()
     sheet = facts_svc.build_factsheet(txns, allocations, db.list_events())

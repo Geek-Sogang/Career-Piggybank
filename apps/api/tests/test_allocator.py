@@ -238,6 +238,22 @@ def test_early_decline_thickens_buffer_target() -> None:
     assert any("감속 추세" in r for r in declined.reasons)
 
 
+def test_compare_isolates_gig_concentration() -> None:
+    """대조 시연 엔드포인트: 같은 소득·입금, 집중도만 다르면 버퍼가 쿠션만큼 갈린다."""
+    from app.store.seed import ensure_seed
+    ensure_seed()
+    body = client.get("/v1/allocations/compare", params={"deposit": 3_000_000}).json()
+    div, single = body["cases"]
+    assert div["single_source"] is False and single["single_source"] is True
+    assert single["buffer_target_months"] == pytest.approx(
+        min(BUFFER_MONTHS_MAX, div["buffer_target_months"] + CONCENTRATION_EXTRA_MONTHS)
+    )
+    assert body["buffer_target_delta"] > 0            # 단일 의존이 더 두꺼운 버퍼 목표
+    assert body["invest_available_delta"] <= 0        # 그만큼 투자 가능액은 보수적으로
+    assert "한 곳에 몰려" in single["reason"]
+    assert "한 곳에 몰려" not in div["reason"]
+
+
 def test_single_source_dependence_thickens_buffer_not_split() -> None:
     """긱 구조: 단일 의존 → 버퍼 목표 +1개월(쿠션). 분할액은 안 바뀐다(폭포수 잔여 구조)."""
     base = propose(3_000_000, PROFILE)

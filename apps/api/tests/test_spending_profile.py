@@ -63,6 +63,28 @@ def test_avg_deposit_is_median_of_deposits() -> None:
     assert est.profile.avg_deposit == statistics.median([1_500_000, 800_000, 6_000_000, 1_200_000])
 
 
+def test_tax_annual_gross_is_annualized_sum_not_median() -> None:
+    """세금용 연매출은 합계 연환산 — 큰 대금이 가끔 오는 왜곡 소득에서 중앙값×12는 과소.
+
+    [100만×5 + 700만] 6개월: median×12 = 1,200만(절반) vs 합계 연환산 2,400만.
+    세금봉투가 절반만 쌓여 5월 종소세에 모자라던 버그를 막는다.
+    """
+    txns = [Txn(date=f"2026-0{m}-10", amount=(7_000_000 if m == 6 else 1_000_000), kind="income")
+            for m in range(1, 7)]
+    est = estimate(txns)
+    assert est.blend_weight == 1.0                    # 6개월 → 프리셋 혼합 없음
+    assert est.profile.annual_gross == 24_000_000     # 합 1,200만 ÷ 6 × 12 (중앙값 기준 1,200만 아님)
+
+
+def test_living_still_median_robust_to_income_skew() -> None:
+    """소득이 왜곡돼도 생활비 프로필은 중앙값 유지 (세금만 합계, 생활은 평소)."""
+    txns = [Txn(date=f"2026-0{m}-10", amount=(7_000_000 if m == 6 else 1_000_000), kind="income")
+            for m in range(1, 7)]
+    txns += [Txn(date=f"2026-0{m}-20", amount=1_000_000, kind="living") for m in range(1, 7)]
+    est = estimate(txns)
+    assert est.profile.expected_monthly_living == 1_000_000   # 중앙값 유지
+
+
 # ---------- 콜드스타트 (프리셋 혼합) ----------
 
 def test_no_history_uses_pure_preset() -> None:

@@ -141,10 +141,32 @@ def test_insufficient_data_is_none_not_invented():
 
 def test_every_fact_has_band_and_definition():
     facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
-    assert len(facts) == 12
+    assert len(facts) == 14   # F01~F12 + F13(소스 연결)·F14(앱 참여) 실제 행동
     for f in facts:
         assert f.band.strip(), f.id
         assert f.definition.strip(), f.id
+
+
+# ── 실제 행동 팩트 (비금융 — 유철/민영: 금융 아닌 진짜 행동) ──
+
+def test_behavioral_facts_from_real_actions():
+    events = [
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "github"}},
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "hometax"}},
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "portfolio"}},
+        {"type": "app_opened", "ts": "2025-02-16T09:00:00+00:00", "payload": {}},
+        {"type": "app_opened", "ts": "2025-03-02T09:00:00+00:00", "payload": {}},
+        {"type": "app_opened", "ts": "2025-03-23T09:00:00+00:00", "payload": {}},
+    ]
+    facts = facts_svc.build_factsheet(_burst_ledger(), [], events)
+    assert _fact(facts, "F13").value == 3.0        # distinct 소스 3곳
+    assert "비금융" in _fact(facts, "F13").band     # 실제 행동(비금융) 표기
+    assert _fact(facts, "F14").value == 3.0        # 3개 서로 다른 주
+
+
+def test_behavioral_facts_none_without_events():
+    facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
+    assert _fact(facts, "F13").value is None and _fact(facts, "F14").value is None
 
 
 def test_behavior_facts_from_allocations():
@@ -212,11 +234,11 @@ def test_facts_endpoint_and_snapshot():
     })
     body = client.get("/v1/facts").json()
     assert body["version"] == "v1"
-    assert body["count"] == 12
+    assert body["count"] == 14
     assert all("band" in f and "definition" in f for f in body["facts"])
 
     snap = client.post("/v1/facts/snapshot").json()
     stored = db.latest_snapshot()
     assert stored is not None and stored["id"] == snap["id"]
-    assert stored["factsheet"]["count"] == 12
+    assert stored["factsheet"]["count"] == 14
     assert stored["axes"] is None  # 판독(PR B) 전 — 사실만 고정

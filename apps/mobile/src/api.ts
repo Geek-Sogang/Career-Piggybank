@@ -152,6 +152,11 @@ export type GigProfile = {
 export function getGigProfile() {
   return get<GigProfile>('/v1/profile/gig');
 }
+// 실제 행동(비금융) 계측 — 소스 연결·앱 방문. 페르소나 계획성 축의 비금융 근거(F13·F14).
+// 실패해도 무시(계측은 있으면 좋고 없어도 됨).
+export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio_uploaded', source?: string) {
+  return post('/v1/behavior', { type, source }).catch(() => {});
+}
 export function readPersona() {
   return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
 }

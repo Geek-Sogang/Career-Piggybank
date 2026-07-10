@@ -192,7 +192,7 @@ def test_read_route_saves_snapshot(monkeypatch):
     snap = db.latest_snapshot()
     assert snap is not None and snap["id"] == body["snapshot_id"]
     assert snap["axes"]["self_control"]["value"] == 0.3
-    assert snap["factsheet"]["count"] == 12          # 판단 당시의 사실이 함께 고정
+    assert snap["factsheet"]["count"] == 14          # 판단 당시의 사실이 함께 고정
     assert snap["model_id"] == body["model_id"]
 
     persona = client.get("/v1/profile/persona").json()

@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     ollama_model_coach: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-GGUF:Q4_K_M"
     ollama_model_judgment: str = "hf.co/LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct-GGUF:Q4_K_M"
     ollama_timeout_s: float = 60.0
+    # 지연 완화: 모델을 메모리에 상주시켜 콜드 재로딩 stall 제거(데모 세션 내내 warm).
+    # "-1"=무기한, "30m"=30분. 16GB에선 2.4B↔7.8B 스왑이 있어 무기한 핀보다 세션 창이 안전.
+    ollama_keep_alive: str = "30m"
+    # 출력 상한 — 폭주 생성 방지(정상 출력은 EOS로 일찍 끝나니 캡은 천장일 뿐).
+    # 판단 JSON은 짧다(넉넉히 두어 절삭→폴백 방지), 코치 대화는 몇 문단까지 허용.
+    ollama_num_predict_json: int = 512
+    ollama_num_predict_text: int = 768
 
     # 영속 저장소 (SQLite) — 데모 스코프 단일 사용자
     db_path: str = "data/piggybank.db"

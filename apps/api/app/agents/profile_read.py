@@ -63,15 +63,32 @@ AXES: dict[str, dict[str, str]] = {
 
 F09_CUSHION = 0.2       # 저축여력 이 이상 = 쿠션 형성(안전) / 0 이하 = 무쿠션(위험 감내)
 F09_MIN_N = 3           # F09를 risk 앵커로 쓰려면 관측 최소치 — 콜드스타트 과신 차단
+F05_SELF_CONTROL_MIN_F09 = 0.15   # 가뭄에 '못 줄임'을 자기통제↓ 증거로 인정할 최소 저축여력
 
 
-def _expected_polarity(axis: str, fact_id: str, value: float, n: int = 99) -> str | None:
-    """정의된 기대 극성 — 'up'/'down'/None(무정의). n=표본 수(소표본 앵커 차단용)."""
+def _expected_polarity(
+    axis: str, fact_id: str, value: float, n: int = 99,
+    facts_by_id: dict | None = None,
+) -> str | None:
+    """정의된 기대 극성 — 'up'/'down'/None(무정의). n=표본 수(소표본 앵커 차단용).
+
+    facts_by_id: 다른 팩트를 참조하는 조건부 극성용(F05의 저축여력 게이트 등).
+    """
     if axis == "self_control":
         if fact_id == "F06":   # 입금 후 몰아쓰기
             return "down" if value >= 0.5 else ("up" if value <= 0.2 else None)
         if fact_id == "F05":   # 가뭄달 지출 반응
-            return "up" if value <= -0.3 else ("down" if value >= -0.1 else None)
+            if value <= -0.3:
+                return "up"    # 가뭄에 크게 줄임 = 높은 자기통제 (여력 무관 — 항상 유효)
+            if value >= -0.1:
+                # '못 줄임'은 자기통제↓ 증거로 쓰되, 저축 여력(F09)이 있을 때만 —
+                # 생계 최저선인 사람은 줄이고 싶어도 줄일 게 없다(유철 피드백, 코드 게이트).
+                f09 = (facts_by_id or {}).get("F09")
+                f09_val = f09.value if f09 is not None else None
+                if isinstance(f09_val, (int, float)) and f09_val >= F05_SELF_CONTROL_MIN_F09:
+                    return "down"
+                return None    # 저축 여력 부족 → 성향 증거로 인정 안 함
+            return None
         if fact_id == "F07":   # 생활비 변동
             return "up" if value <= 0.3 else ("down" if value >= 0.5 else None)
     if axis == "time_preference":
@@ -247,7 +264,8 @@ def _validate(
                 continue
             polarity[fid] = norm
             expected = _expected_polarity(
-                axis, fid, float(measured[fid].value), measured[fid].n)  # type: ignore[arg-type]
+                axis, fid, float(measured[fid].value), measured[fid].n,  # type: ignore[arg-type]
+                facts_by_id=measured)
             if expected and norm != "neutral" and norm != expected:
                 failures.append(f"polarity:{fid}:{norm}≠{expected}")
                 direction = "높이는(올림)" if expected == "up" else "낮추는(내림)"

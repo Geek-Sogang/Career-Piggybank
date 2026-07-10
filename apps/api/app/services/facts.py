@@ -306,6 +306,32 @@ def build_factsheet(txns: list[dict], allocations: list[dict], events: list[dict
         len(buffer_deltas),
     ))
 
+    # ── 실제 행동 (비금융 — 금융 거래가 아니라 '진짜 행동'을 잰다) ──
+    # F10~F12는 앱 안 금융 행동(태깅·승인·조정)이지만, F13~F14는 커리어 관리라는
+    # 실제 행동이다: 스스로 소스를 연결하고 앱을 꾸준히 여는 성실도(계획성 축의 진짜 근거).
+    src_events = [e for e in events if e["type"] == "source_connected"]
+    sources = {e["payload"].get("source") for e in src_events if e["payload"].get("source")}
+    facts.append(Fact(
+        "F13", "커리어 소스 연결", float(len(sources)) if src_events else None,
+        "관측 없음" if not src_events else f"{len(sources)}곳 연결",
+        "실제 행동(비금융): GitHub·홈택스·포트폴리오 등을 스스로 연결 — 3곳↑이면 적극적 커리어 관리",
+        "연결한 커리어 소스(계정)의 distinct 수 — source_connected 이벤트",
+        len(sources),
+    ))
+
+    open_events = [e for e in events if e["type"] == "app_opened"]
+    open_weeks: set[str] = set()
+    for e in open_events:
+        d = date.fromisoformat(e["ts"][:10])
+        open_weeks.add(f"{d.isocalendar().year}-W{d.isocalendar().week:02d}")
+    facts.append(Fact(
+        "F14", "앱 참여 리듬", float(len(open_weeks)) if open_events else None,
+        "관측 없음" if not open_events else f"{len(open_weeks)}주 활동 · {len(open_events)}회 방문",
+        "실제 행동(비금융): 앱을 꾸준히 여는 습관 — 3주↑ 규칙적이면 성실한 자기관리 신호",
+        "app_opened 이벤트가 걸친 서로 다른 주 수 (이벤트 로그 계측)",
+        len(open_weeks),
+    ))
+
     return facts
 
 

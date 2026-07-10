@@ -51,7 +51,8 @@ AXES: dict[str, dict[str, str]] = {
     },
     "planning": {
         "label": "계획성",
-        "definition": "높을수록 장기 관리 습관이 강하다(규칙적 태깅·안정적 지출 관리). "
+        "definition": "높을수록 장기 관리 습관이 강하다 — 규칙적 태깅·안정적 지출뿐 아니라 "
+                      "실제 커리어 관리 행동(소스 연결·꾸준한 앱 참여, 비금융)까지 포함. "
                       "0=관리 안 함, 1=철저.",
     },
 }
@@ -110,10 +111,14 @@ def _expected_polarity(
                 return "up"     # 구조적 적자(무쿠션) = 사실상 위험 감내
             return None
     if axis == "planning":
-        if fact_id == "F10":   # 태깅 활동
+        if fact_id == "F10":   # 태깅 활동 (앱 안 금융 행동)
             return "up" if value >= 4 else None
         if fact_id == "F07":
             return "up" if value <= 0.3 else None
+        if fact_id == "F13":   # 실제 행동(비금융): 커리어 소스 연결 — 3곳↑ 적극 관리
+            return "up" if value >= 3 else None
+        if fact_id == "F14":   # 실제 행동(비금융): 앱 참여 리듬 — 3주↑ 꾸준
+            return "up" if value >= 3 else None
     return None
 
 

@@ -308,9 +308,10 @@ def _alloc_dict(r: sqlite3.Row) -> dict:
 #    (지금 안 쌓으면 행동축은 영원히 데모 상수).
 # ② 코치 어젠다 큐 — spoken=0 인 행이 "피기가 아직 말하지 않은 사건"이다 (PR D).
 
-def log_event(type_: str, ref_id: str | None = None, payload: dict | None = None) -> str:
+def log_event(type_: str, ref_id: str | None = None, payload: dict | None = None,
+              ts: str | None = None) -> str:
     ev_id = uuid.uuid4().hex[:12]
-    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    ts = ts or datetime.now(timezone.utc).isoformat(timespec="seconds")
     with get_conn() as c:
         c.execute(
             "INSERT INTO events VALUES (?,?,?,?,?,?,?)",

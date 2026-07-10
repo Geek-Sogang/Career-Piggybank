@@ -1,5 +1,5 @@
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { EnvelopeSplit } from '@/api';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { logBehavior, type EnvelopeSplit } from '@/api';
 import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
@@ -50,9 +50,14 @@ function useAppState(startTab: Tab = 'home') {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setFlash(null), 1900);
   };
+  // 앱을 여는 것도 실제 행동(비금융) — 계획성 축의 근거 F14로 계측된다
+  useEffect(() => { logBehavior('app_opened'); }, []);
   const apply = (src: ConnSrc, on: boolean) => {
     setConn((c) => ({ ...c, [src]: on }));
-    if (on) fl(`+${SCORE_VAL[src]}점`);
+    if (on) {
+      fl(`+${SCORE_VAL[src]}점`);
+      logBehavior('source_connected', src);   // 스스로 소스를 연결 = 적극적 커리어 관리(F13)
+    }
   };
   const toggle = (src: ConnSrc) => {
     const on = !conn[src];

@@ -91,6 +91,27 @@ def test_polarity_neutral_is_weight_judgment_not_error(monkeypatch):
     assert not r.fallback
 
 
+def test_f05_low_self_control_gated_on_savings_capacity():
+    """유철 피드백: 가뭄에 '못 줄임'은 저축 여력(F09)이 있을 때만 자기통제↓ 증거.
+
+    생계 최저선(F09 낮음)인 사람은 줄이고 싶어도 줄일 게 없어 F05가 높게 나오는데,
+    이걸 자기통제 낮음으로 읽으면 억울하다 → 코드 게이트로 극성을 무효화.
+    """
+    from types import SimpleNamespace
+
+    from app.agents.profile_read import _expected_polarity
+
+    def fm(f09_value):
+        return {"F09": SimpleNamespace(value=f09_value)}
+
+    # F05 = 0(가뭄에 못 줄임): 여력 충분(F09 0.3)이면 자기통제↓('down'), 여력 부족(0.05)이면 무효(None)
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(0.30)) == "down"
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(0.05)) is None
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(None)) is None
+    # 가뭄에 크게 줄임(-0.4)은 여력 무관하게 항상 자기통제↑('up') — 최저선에서 줄이면 더 강한 증거
+    assert _expected_polarity("self_control", "F05", -0.4, facts_by_id=fm(0.05)) == "up"
+
+
 def test_menu_gate_rejects_free_value(monkeypatch):
     monkeypatch.setattr(profile_read.llm, "chat_json",
                         lambda *a, **k: _llm_out(value=0.42))

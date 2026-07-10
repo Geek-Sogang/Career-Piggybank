@@ -76,6 +76,50 @@ def test_gap_facts():
     assert _fact(facts, "F04").value == 69.0
 
 
+# ── 고정비 게이트 (유철 피드백: F06은 성향, 고정비는 구조) ──
+
+def _itemized_ledger() -> list[dict]:
+    """품목별 원장 — 정산 다음날 월세(고정) 자동이체 + 불규칙 변동 지출."""
+    led = []
+    for m in ("01", "02", "03"):
+        led.append(_txn(f"2025-{m}-10", 1_000_000, "income", "in", "크몽"))
+        led.append(_txn(f"2025-{m}-11", 600_000, "living", counterparty="행복부동산"))  # 월세(고정)
+    # 변동 지출 — 불규칙 날짜·금액 (창 밖, 고정비 조건 미달)
+    led.append(_txn("2025-01-23", 120_000, "living", counterparty="식비"))
+    led.append(_txn("2025-02-19", 350_000, "living", counterparty="식비"))
+    led.append(_txn("2025-03-27", 90_000, "living", counterparty="식비"))
+    return led
+
+
+def test_fixed_payee_detected_by_three_rules():
+    from app.services.facts import _fixed_payees
+    livings = [t for t in _itemized_ledger() if t["kind"] == "living"]
+    fixed = _fixed_payees(livings)
+    assert "행복부동산" in fixed        # 3회·간격 ~30일·금액 동일 → 고정비
+    assert "식비" not in fixed          # 불규칙 날짜·금액비 3.9배 → 변동
+
+
+def test_f06_excludes_fixed_costs():
+    """정산 다음날 월세 자동이체가 '몰아쓰기'로 잡히지 않는다 — 변동 지출만으로 F06."""
+    facts = facts_svc.build_factsheet(_itemized_ledger(), [], [])
+    f6 = _fact(facts, "F06")
+    # 월세(창 내지만 고정비) 제외 → 변동(식비) 전부 창 밖 → burst 0%
+    assert f6.value == 0.0
+    assert "고정비" in f6.definition
+    # 고정비를 안 뺐다면 월세 180만이 전부 창 내라 ~75%로 잡혔을 것
+
+
+def test_f06_falls_back_when_no_variable_spending():
+    """전부 고정(합계 1줄 원장 등)이면 분리 불가 → 전체로 폴백(회귀 없음)."""
+    led = []
+    for m in ("01", "02", "03"):
+        led.append(_txn(f"2025-{m}-10", 1_000_000, "income", "in", "크몽"))
+        led.append(_txn(f"2025-{m}-11", 800_000, "living", counterparty="생활비 합계"))
+    facts = facts_svc.build_factsheet(led, [], [])
+    f6 = _fact(facts, "F06")
+    assert f6.value == 1.0   # 전체 생활비가 전부 입금 다음날 → 폴백해 100%(고정비로 안 지움)
+
+
 # ── 원칙 (제외·정직·병기) ──
 
 def test_needs_review_excluded_everywhere():

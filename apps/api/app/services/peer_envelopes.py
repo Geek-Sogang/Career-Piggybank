@@ -15,12 +15,16 @@ LLM 없음 — 유사도·가중 비중·중앙값 전부 산수라서 services/
 """
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass
 
 MIN_SAME_JOB_POOL = 5   # 같은 직군 풀이 이보다 얇으면 전체 직군으로 확장 (정의)
 TOP_N = 3               # 추천 상한 (정의)
 AXIS_KEYS = ("risk_tolerance", "time_preference", "self_control", "planning")
+
+AFFORDABLE_MAX_MONTHS = 12   # 도달이 이보다 오래 걸리면 형편 기준 낮춘 금액을 함께 제안
+AFFORDABLE_UNIT = 100_000    # 낮춘 금액은 만원 단위로 절사 (10만원 단위)
 
 
 @dataclass(frozen=True)
@@ -34,12 +38,16 @@ class PeerIdea:
     pool: int                  # 비교한 또래 풀 크기
     scope: str                 # "job"(같은 직군) / "all"(풀이 얇아 전체로 확장)
     basis: str                 # 사용자에게 보일 근거 한 줄
+    months_to_reach: int | None = None   # 내 월 여윳돈 기준 또래 금액 도달 개월수 (여력 없으면 None)
+    affordable_amount: float | None = None  # 너무 길면 형편 기준 낮춘 금액 (≤12개월 도달)
 
     def as_dict(self) -> dict:
         return {
             "name": self.name, "suggested_amount": self.suggested_amount,
             "share": self.share, "count": self.count, "pool": self.pool,
             "scope": self.scope, "basis": self.basis,
+            "months_to_reach": self.months_to_reach,
+            "affordable_amount": self.affordable_amount,
         }
 
 
@@ -66,15 +74,35 @@ def similarity(my_axes: dict | None, peer_axes: dict | None) -> float | None:
     return round(1.0 - sum(diffs) / len(diffs), 4)
 
 
+def _affordability(amount: float, monthly_surplus: float) -> tuple[int | None, float | None]:
+    """월 여윳돈 기준 도달 개월수 + (너무 길면) 형편 기준 낮춘 금액 — 전부 산수(유철 피드백).
+
+    또래 중앙값이 그 사람 형편을 안 보면 5% 저축률 사용자에게 2년 반짜리 목표를 말없이
+    내미는 셈. 도달 개월수를 함께 보이고, 12개월 초과면 12개월에 닿는 금액을 대안으로 제안.
+    """
+    if monthly_surplus <= 0:
+        return None, None
+    months = math.ceil(amount / monthly_surplus)
+    affordable = None
+    if months > AFFORDABLE_MAX_MONTHS:
+        raw = monthly_surplus * AFFORDABLE_MAX_MONTHS
+        affordable = float(int(raw / AFFORDABLE_UNIT) * AFFORDABLE_UNIT)   # 10만원 단위 절사
+        if affordable <= 0:
+            affordable = None
+    return months, affordable
+
+
 def recommend(
     job: str,
     my_axes: dict | None,
     existing_names: set[str],
     peers: list[dict],
+    monthly_surplus: float = 0.0,
 ) -> list[PeerIdea]:
     """직군 → 페르소나 유사도 순의 또래 봉투 추천 (순수 함수).
 
     페르소나가 없으면(판독 전) 유사도 가중 없이 직군 인기순 — 그 사실을 근거에 표기.
+    monthly_surplus가 주어지면 또래 금액의 도달 개월수·감당 가능 금액을 함께 낸다.
     """
     same_job = [p for p in peers if p["job"] == job]
     scope = "job" if len(same_job) >= MIN_SAME_JOB_POOL else "all"
@@ -110,14 +138,20 @@ def recommend(
         share = round(s["w"] / total_w, 3)
         who = f"나와 성향이 비슷한 {job_label}" if (personalized and scope == "job") else (
             f"{job_label}" if scope == "job" else "긱워커 또래")
+        amount = round(statistics.median(s["amounts"]), 0)
+        months, affordable = _affordability(amount, monthly_surplus)
         basis = (
             f"{who} {len(pool)}명 중 {s['count']}명이 만든 봉투"
             + (f" — 유사 성향 가중 {share:.0%}" if personalized else " (성향 판독 전 — 직군 인기순)")
         )
+        if months is not None:
+            basis += f" · 월 여윳돈 기준 {months}개월 소요"
+            if affordable is not None:
+                basis += f" (부담되면 {affordable:,.0f}원부터 시작해도 좋아요)"
         ideas.append(PeerIdea(
-            name=name,
-            suggested_amount=round(statistics.median(s["amounts"]), 0),
+            name=name, suggested_amount=amount,
             share=share, count=s["count"], pool=len(pool), scope=scope, basis=basis,
+            months_to_reach=months, affordable_amount=affordable,
         ))
     ideas.sort(key=lambda i: (-i.share, -i.count, i.name))
     return ideas[:TOP_N]

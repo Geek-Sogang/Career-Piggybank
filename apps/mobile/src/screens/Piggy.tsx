@@ -174,7 +174,8 @@ function GoalSection({ goals, onCreated, onPace }: {
               key={p.name}
               onPress={() => {
                 setCreating(true); setName(p.name);
-                setAmount(String(Math.round(p.suggested_amount / 10_000)) + '만'); // 또래 중앙값 프리필
+                // 도달이 너무 길면 형편 기준 낮춘 금액으로, 아니면 또래 중앙값으로 프리필
+                setAmount(String(Math.round((p.affordable_amount ?? p.suggested_amount) / 10_000)) + '만');
               }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.bufferTint, borderWidth: 1, borderColor: '#CBE7F5', borderRadius: 11, padding: 10 }}
             >

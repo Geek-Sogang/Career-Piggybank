@@ -162,6 +162,7 @@ export type EnvelopeIdea = { name: string; why: string; evidence: string[] };
 export type PeerIdea = {
   name: string; suggested_amount: number; share: number; count: number;
   pool: number; scope: 'job' | 'all'; basis: string;
+  months_to_reach: number | null; affordable_amount: number | null;
 };
 export function recommendEnvelopes() {
   return post<{ recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean }>(

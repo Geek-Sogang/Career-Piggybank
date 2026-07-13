@@ -4,17 +4,17 @@ import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
 // 최근 입금 배분 이벤트 — 시트·피기 코치 챗·잠금화면 알림이 같은 사건을 이어 말한다
-export type AllocNotice = { deposit: number; windfall: number; split: EnvelopeSplit; confirmed: boolean };
+export type AllocNotice = { id?: string; deposit: number; windfall: number; split: EnvelopeSplit; reasons?: string[]; confirmed: boolean };
 
 export type Tab = 'home' | 'piggy' | 'ledger' | 'my';
 export type Push = null | 'connect' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState';
 export type Sheet = null | 'consent' | 'invest' | 'allocation' | 'pacing';
 export type Scenario = 'cons' | 'base' | 'opt';
-export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'behance' | 'portfolio';
+export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'kosa' | 'behance' | 'portfolio';
 type Conn = Record<ConnSrc, boolean>;
 
-const VAL: Record<ConnSrc, number> = { github: 500000, mydata: 1200000, hometax: 700000, behance: 400000, portfolio: 300000 };
-const SCORE_VAL: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, behance: 30, portfolio: 20 };
+const VAL: Record<ConnSrc, number> = { github: 500000, mydata: 1200000, hometax: 700000, kosa: 600000, behance: 400000, portfolio: 300000 };
+const SCORE_VAL: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
 const BASE_SCORE = 320;
 const AGE_KR = ['영', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'] as const;
 const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
@@ -37,11 +37,12 @@ function useAppState(startTab: Tab = 'home') {
   const [tab, setTab] = useState<Tab>(startTab);
   const [push, setPush] = useState<Push>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, behance: false, portfolio: false });
+  const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
+  const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +76,12 @@ function useAppState(startTab: Tab = 'home') {
     back: () => setPush(null),
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     noteAllocation: (n: AllocNotice) => setLastAlloc(n),
+    markAllocConfirmed: () => setLastAlloc((p) => (p ? { ...p, confirmed: true } : p)),
+    // ⑤b 페이싱 확정(프론트 시뮬) — 목표별 담은 금액을 오버레이로 기록하고 저금통으로 이동
+    applyPacing: (deposits: Record<string, number>) => {
+      setPacingApplied((p) => ({ ...p, ...deposits }));
+      setTab('piggy'); setSheet(null); setPush(null);
+    },
     closeSheet: () => setSheet(null),
     confirm: () => { apply('mydata', true); setSheet(null); },
     scen: (s: Scenario) => setScenario(s),
@@ -90,7 +97,7 @@ function useAppState(startTab: Tab = 'home') {
     const toNext = 100 - (score % 100);
     const scr = push || tab;
     const cnt = Object.values(c).filter(Boolean).length;
-    const stage: keyof typeof STAGE_MAP = c.hometax ? '확정' : cnt >= 2 ? '준검증' : '잠정';
+    const stage: keyof typeof STAGE_MAP = (c.hometax || c.kosa) ? '확정' : cnt >= 2 ? '준검증' : '잠정';
     const sc = SC[scenario];
     return {
       scr, conn: c, limit, stage, score, toNext, ageLabel: `${AGE_KR[ageIdx]} 살`, nextAgeLabel: `${AGE_KR[nextIdx]} 살`,
@@ -105,7 +112,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, lastAlloc, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

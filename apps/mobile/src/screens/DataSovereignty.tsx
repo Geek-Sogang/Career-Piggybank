@@ -9,6 +9,7 @@ const SOURCES: { key: ConnSrc; label: string }[] = [
   { key: 'github', label: 'GitHub' },
   { key: 'mydata', label: '마이데이터' },
   { key: 'hometax', label: '홈택스' },
+  { key: 'kosa', label: 'KOSA 경력인증' },
   { key: 'behance', label: 'Behance' },
 ];
 const CONSENTS = [

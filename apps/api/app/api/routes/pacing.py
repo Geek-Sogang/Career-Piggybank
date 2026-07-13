@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 
 from app.agents import amount_pacing
 from app.api.routes.bank import _boot
-from app.services import facts as facts_svc
-from app.services import pacing as pacing_svc
+from app.profile import build_user_profile
+from app.engines import pacing as pacing_svc
 from app.store import db
 
 router = APIRouter(prefix="/v1/pacing", tags=["pacing"])
@@ -23,6 +23,11 @@ class ProposeRequest(BaseModel):
     buffer_shortfall: float = Field(default=0.0, ge=0,
                                     description="버퍼 목표 부족분 — 배분 제안 meta의 buffer_target 기준")
     today: str = Field(description="기준일 ISO — 기한까지 남은 입금 횟수 계산용")
+    # 돈의 출처 — 회계가 달라진다:
+    #   deposit(기본) = 아직 봉투에 안 담긴 새 돈 → confirm 시 목표·버퍼 모두 '추가'
+    #   buffer       = 이미 버퍼에 있는 돈을 목표로 재배치 → confirm 시 목표 추가 + 버퍼 차감
+    #                  (합계 보존 — 새 돈을 찍어내지 않는다)
+    source: str = Field(default="deposit", description="deposit | buffer")
 
 
 class DecisionRequest(BaseModel):
@@ -32,12 +37,15 @@ class DecisionRequest(BaseModel):
 @router.post("/propose")
 def propose(req: ProposeRequest) -> dict:
     _boot()
+    if req.source not in ("deposit", "buffer"):
+        raise HTTPException(status_code=422, detail="source must be deposit|buffer")
+    if req.source == "buffer" and req.available > db.envelope_balances()["buffer"] + 0.01:
+        raise HTTPException(status_code=422, detail="available exceeds buffer balance")
     goals = db.list_goals()
-    txns = db.list_txns()
-    sheet = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
-    snap = db.latest_snapshot()
-    axes = snap["axes"] if snap else None
-    staleness = facts_svc.snapshot_staleness(snap, len(txns))
+    up = build_user_profile()                                   # 배분·추천과 같은 프로필 SSOT
+    sheet = list(up.factsheet)
+    axes = up.persona_axes
+    staleness = up.persona_staleness
 
     judgment = amount_pacing.judge(goals, sheet, axes)          # 판단 (⑤b — 번호만)
 
@@ -56,10 +64,14 @@ def propose(req: ProposeRequest) -> dict:
                    "stance": g.stance, "amount": g.amount} for g in plan.goals],
         "buffer_first": plan.buffer_first,
         "persona_staleness": staleness,
+        "source": req.source,
     })
     return {"id": pid, "status": "proposed", "available": req.available,
             "split": plan.split(), "reasons": list(plan.reasons),
             "judgment": judgment.as_dict(),
+            "goals": [{"id": g.goal_id, "name": g.name, "base": g.base,
+                       "stance": g.stance, "amount": g.amount} for g in plan.goals],
+            "source": req.source,
             "persona_staleness": staleness}
 
 
@@ -75,18 +87,28 @@ def decide(pid: str, req: DecisionRequest) -> dict:
     if req.action not in ("confirm", "reject"):
         raise HTTPException(status_code=422, detail="action must be confirm|reject")
 
+    # source=buffer면 목표로 가는 총액이 지금 버퍼에 실제로 있어야 한다 (초과 인출 가드)
+    from_buffer = stored["meta"].get("source") == "buffer"
+    goal_total = round(sum(v for k, v in stored["split"].items() if k != "buffer" and v > 0), 2)
+    if req.action == "confirm" and from_buffer and \
+            db.envelope_balances()["buffer"] + 0.01 < goal_total:
+        raise HTTPException(status_code=409, detail="buffer balance changed — insufficient for goals")
+
     # 상태 전이를 원자적으로 먼저 따내고(레이스 가드), 성공한 쪽만 잔액을 움직인다
     status = "confirmed" if req.action == "confirm" else "rejected"
     if not db.decide_pacing(pid, status):
         raise HTTPException(status_code=409, detail="already decided (concurrent)")
     if req.action == "confirm":
         for key, amount in stored["split"].items():
-            if amount <= 0:
+            if amount <= 0 or key == "buffer":
                 continue
-            if key == "buffer":
-                db.envelope_add({"buffer": amount})
-            else:
-                db.goal_add_balance(key, amount)
+            db.goal_add_balance(key, amount)
+        if from_buffer:
+            # 재배치 회계: 목표로 간 만큼만 버퍼에서 차감 (남긴 슬라이스는 버퍼에 이미 있음)
+            db.envelope_add({"buffer": -goal_total})
+        else:
+            # 새 돈 회계: 남는 슬라이스를 버퍼에 추가 (기존 동작 그대로)
+            db.envelope_add({"buffer": stored["split"].get("buffer", 0.0)})
 
     db.log_event("pacing_decided", ref_id=pid, payload={"action": req.action})
     return {"id": pid, "status": "confirmed" if req.action == "confirm" else "rejected"}

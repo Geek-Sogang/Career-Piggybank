@@ -5,8 +5,11 @@
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi import APIRouter, HTTPException
 
+from app.profile import build_user_profile
 from app.schemas.allocation import (
     AllocationResponse,
     DecisionRequest,
@@ -15,8 +18,8 @@ from app.schemas.allocation import (
     ProductHook,
     ProposeRequest,
 )
-from app.services import allocation_policy, allocator, product_match
-from app.services.allocator import EnvelopeBalances, SpendingProfile
+from app.engines import allocation_policy, allocator, product_match
+from app.engines.allocator import EnvelopeBalances, SpendingProfile
 from app.store import db
 
 router = APIRouter(prefix="/v1/allocations", tags=["allocations"])
@@ -39,6 +42,7 @@ def to_response(a: dict) -> AllocationResponse:
         reasons=meta.get("reasons", []),
         assumptions=meta.get("assumptions", {}),
         product_hooks=[ProductHook(**h) for h in meta.get("product_hooks", [])],
+        gig_archetype=meta.get("gig_archetype", ""),
     )
 
 
@@ -61,6 +65,56 @@ def propose(req: ProposeRequest) -> AllocationResponse:
         },
     )
     return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
+
+
+@router.get("/compare")
+def compare(deposit: float = 3_000_000) -> dict:
+    """긱 구조 대조 시연 — 같은 소득·같은 입금, 소득 집중도만 다르면 버퍼가 어떻게 갈리나.
+
+    현재 사용자(원장)의 실제 소득 파라미터·정책 버퍼 개월을 고정하고, 긱 집중도만 토글해
+    (다각화 vs 단일 의존) allocator를 두 번 돌린다(읽기 전용, 원장 안 건드림). 변수를
+    '긱 소득 구조' 하나로 격리해 개인화가 실제로 배분을 바꾸는 걸 보여준다("측정된 AI").
+    """
+    from app.api.routes.bank import _boot
+    _boot()
+    if deposit <= 0:
+        raise HTTPException(status_code=422, detail="deposit must be positive")
+    up = build_user_profile()
+    prof = up.spending.profile
+    balances = EnvelopeBalances(buffer=db.envelope_balances()["buffer"])
+    policy = allocation_policy.choose(
+        income_dates=list(up.income_dates), axes=up.persona_axes, income_cv=prof.income_cv,
+    )
+    base = replace(up.allocation_context(),
+                   buffer_months_override=policy.months, buffer_months_reason=policy.reason)
+
+    def case(single_source: bool, label: str) -> dict:
+        p = allocator.propose(deposit, prof, balances,
+                              replace(base, single_source_dependence=single_source))
+        reason = next((r for r in p.reasons if "한 곳에 몰려" in r),
+                      next((r for r in p.reasons if "여윳돈" in r), ""))
+        return {
+            "gig_type": label, "single_source": single_source,
+            "buffer_target": p.buffer_target,
+            "buffer_target_months": p.assumptions["buffer_target_months"],
+            "invest_available": p.invest_available,
+            "reason": reason,
+        }
+
+    diversified = case(False, "다각화형 (소득원 분산)")
+    single = case(True, "단일 의존형 (한 채널 집중)")
+    return {
+        "deposit": round(deposit, 2),
+        "income_profile": {
+            "annual_gross": prof.annual_gross,
+            "expected_monthly_living": prof.expected_monthly_living,
+            "income_cv": prof.income_cv,
+        },
+        "cases": [diversified, single],
+        "buffer_target_delta": round(single["buffer_target"] - diversified["buffer_target"], 2),
+        "invest_available_delta": round(single["invest_available"] - diversified["invest_available"], 2),
+        "note": "같은 소득·같은 입금 — 긱 소득 구조(집중도)만 다르면 버퍼 목표·투자 가능액이 이렇게 갈려요",
+    }
 
 
 @router.post("/{alloc_id}/decision", response_model=AllocationResponse)
@@ -109,11 +163,17 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
     # 공백 관측 0건이면 arm이 출력에 영향을 준 게 없으므로 귀속하지 않는다 (무영향 무보상).
     policy_meta = decided["meta"].get("policy") if decided else None
     if policy_meta and decided and policy_meta.get("observed_gaps", 0) > 0:
-        reward = allocation_policy.reward_for(
-            req.action, decided["proposed"], decided["final"], decided["deposit"]
+        credits = allocation_policy.credits_for(
+            req.action, decided["proposed"], decided["final"], decided["deposit"],
+            policy_meta["arm_id"],
         )
-        allocation_policy.update(policy_meta["arm_id"], reward)
-        payload.update({"policy_arm": policy_meta["arm_id"], "policy_reward": round(reward, 4)})
+        for arm, reward in credits:
+            allocation_policy.update(arm, reward)
+        if credits:
+            payload.update({
+                "policy_arm": policy_meta["arm_id"],
+                "policy_credits": [[arm, round(reward, 4)] for arm, reward in credits],
+            })
 
     db.log_event("allocation_decided", ref_id=alloc_id, payload=payload)
     return to_response(decided)  # type: ignore[arg-type]

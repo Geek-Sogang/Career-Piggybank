@@ -37,8 +37,8 @@ export function VerifiedDetail() {
       </Card>
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>
-        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>{v ? '3자 교차검증' : '데이터 출처'}</Text>
-        <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{v ? '세 곳의 데이터가 일치' : '검증에 필요한 출처'}</Text>
+        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>{v ? `${job.nodes.length}자 교차검증` : '데이터 출처'}</Text>
+        <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{v ? `${job.nodes.length}곳의 데이터가 일치` : '검증에 필요한 출처'}</Text>
       </View>
 
       {/* 타임라인 */}

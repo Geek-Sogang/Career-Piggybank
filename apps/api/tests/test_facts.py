@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import facts as facts_svc
+from app.engines import facts as facts_svc
 from app.store import db
 
 client = TestClient(app)
@@ -76,6 +76,50 @@ def test_gap_facts():
     assert _fact(facts, "F04").value == 69.0
 
 
+# ── 고정비 게이트 (유철 피드백: F06은 성향, 고정비는 구조) ──
+
+def _itemized_ledger() -> list[dict]:
+    """품목별 원장 — 정산 다음날 월세(고정) 자동이체 + 불규칙 변동 지출."""
+    led = []
+    for m in ("01", "02", "03"):
+        led.append(_txn(f"2025-{m}-10", 1_000_000, "income", "in", "크몽"))
+        led.append(_txn(f"2025-{m}-11", 600_000, "living", counterparty="행복부동산"))  # 월세(고정)
+    # 변동 지출 — 불규칙 날짜·금액 (창 밖, 고정비 조건 미달)
+    led.append(_txn("2025-01-23", 120_000, "living", counterparty="식비"))
+    led.append(_txn("2025-02-19", 350_000, "living", counterparty="식비"))
+    led.append(_txn("2025-03-27", 90_000, "living", counterparty="식비"))
+    return led
+
+
+def test_fixed_payee_detected_by_three_rules():
+    from app.engines.facts import _fixed_payees
+    livings = [t for t in _itemized_ledger() if t["kind"] == "living"]
+    fixed = _fixed_payees(livings)
+    assert "행복부동산" in fixed        # 3회·간격 ~30일·금액 동일 → 고정비
+    assert "식비" not in fixed          # 불규칙 날짜·금액비 3.9배 → 변동
+
+
+def test_f06_excludes_fixed_costs():
+    """정산 다음날 월세 자동이체가 '몰아쓰기'로 잡히지 않는다 — 변동 지출만으로 F06."""
+    facts = facts_svc.build_factsheet(_itemized_ledger(), [], [])
+    f6 = _fact(facts, "F06")
+    # 월세(창 내지만 고정비) 제외 → 변동(식비) 전부 창 밖 → burst 0%
+    assert f6.value == 0.0
+    assert "고정비" in f6.definition
+    # 고정비를 안 뺐다면 월세 180만이 전부 창 내라 ~75%로 잡혔을 것
+
+
+def test_f06_falls_back_when_no_variable_spending():
+    """전부 고정(합계 1줄 원장 등)이면 분리 불가 → 전체로 폴백(회귀 없음)."""
+    led = []
+    for m in ("01", "02", "03"):
+        led.append(_txn(f"2025-{m}-10", 1_000_000, "income", "in", "크몽"))
+        led.append(_txn(f"2025-{m}-11", 800_000, "living", counterparty="생활비 합계"))
+    facts = facts_svc.build_factsheet(led, [], [])
+    f6 = _fact(facts, "F06")
+    assert f6.value == 1.0   # 전체 생활비가 전부 입금 다음날 → 폴백해 100%(고정비로 안 지움)
+
+
 # ── 원칙 (제외·정직·병기) ──
 
 def test_needs_review_excluded_everywhere():
@@ -97,10 +141,32 @@ def test_insufficient_data_is_none_not_invented():
 
 def test_every_fact_has_band_and_definition():
     facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
-    assert len(facts) == 12
+    assert len(facts) == 14   # F01~F12 + F13(소스 연결)·F14(앱 참여) 실제 행동
     for f in facts:
         assert f.band.strip(), f.id
         assert f.definition.strip(), f.id
+
+
+# ── 실제 행동 팩트 (비금융 — 유철/민영: 금융 아닌 진짜 행동) ──
+
+def test_behavioral_facts_from_real_actions():
+    events = [
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "github"}},
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "hometax"}},
+        {"type": "source_connected", "ts": "2025-02-16T09:00:00+00:00", "payload": {"source": "portfolio"}},
+        {"type": "app_opened", "ts": "2025-02-16T09:00:00+00:00", "payload": {}},
+        {"type": "app_opened", "ts": "2025-03-02T09:00:00+00:00", "payload": {}},
+        {"type": "app_opened", "ts": "2025-03-23T09:00:00+00:00", "payload": {}},
+    ]
+    facts = facts_svc.build_factsheet(_burst_ledger(), [], events)
+    assert _fact(facts, "F13").value == 3.0        # distinct 소스 3곳
+    assert "비금융" in _fact(facts, "F13").band     # 실제 행동(비금융) 표기
+    assert _fact(facts, "F14").value == 3.0        # 3개 서로 다른 주
+
+
+def test_behavioral_facts_none_without_events():
+    facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
+    assert _fact(facts, "F13").value is None and _fact(facts, "F14").value is None
 
 
 def test_behavior_facts_from_allocations():
@@ -168,11 +234,11 @@ def test_facts_endpoint_and_snapshot():
     })
     body = client.get("/v1/facts").json()
     assert body["version"] == "v1"
-    assert body["count"] == 12
+    assert body["count"] == 14
     assert all("band" in f and "definition" in f for f in body["facts"])
 
     snap = client.post("/v1/facts/snapshot").json()
     stored = db.latest_snapshot()
     assert stored is not None and stored["id"] == snap["id"]
-    assert stored["factsheet"]["count"] == 12
+    assert stored["factsheet"]["count"] == 14
     assert stored["axes"] is None  # 판독(PR B) 전 — 사실만 고정

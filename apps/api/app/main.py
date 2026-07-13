@@ -8,6 +8,7 @@ from app.api.routes import (
     agents,
     allocations,
     bank,
+    behavior,
     classify,
     coach,
     envelopes,
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(coach.router)
     app.include_router(strength.router)
     app.include_router(bank.router)
+    app.include_router(behavior.router)
     app.include_router(forecast.router)
     app.include_router(facts.router)
     app.include_router(envelopes.router)

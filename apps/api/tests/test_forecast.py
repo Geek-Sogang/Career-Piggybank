@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.forecast import next_income_window, retirement_bands
+from app.engines.forecast import next_income_window, retirement_bands
 from app.store.seed import ensure_seed
 
 client = TestClient(app)
@@ -24,6 +24,23 @@ def test_gap_cold_start_fallback() -> None:
     g = next_income_window(["2025-05-02", "2025-05-10"])
     assert g.median_gap_days == 30  # 3건 미만 → 직군 기본값
     assert any("콜드스타트" in r for r in g.reasons)
+
+
+def test_gap_empty_income_returns_honest_blank_not_1970() -> None:
+    """입금 0건 — 가짜 앵커(1970-01-01)로 날짜를 지어내지 않고 빈 날짜를 반환한다."""
+    g = next_income_window([])
+    assert g.last_income_date == "" and g.expected_next_date == ""
+    assert g.observed_deposits == 0
+    assert "1970" not in str(g)
+    assert any("예측할 근거" in r for r in g.reasons)
+
+
+def test_gap_same_day_deposits_fall_back_not_today() -> None:
+    """같은 날 뭉침(간격 전부 0) — '오늘 또 입금'이 아니라 기본 간격으로 폴백한다."""
+    g = next_income_window(["2025-03-01", "2025-03-01", "2025-03-01"])
+    assert g.median_gap_days == 30
+    assert g.expected_next_date == "2025-03-31"   # 3-01 + 기본 30일 (같은 날 아님)
+    assert any("간격 신호가 없어요" in r for r in g.reasons)
 
 
 # ---------- 은퇴 밴드 ----------
@@ -77,9 +94,83 @@ def test_trend_is_clamped() -> None:
     assert abs(a["personal_trend_annual"]) <= 0.03 + 1e-9
 
 
+# ---------- 자금 달성형 은퇴 (B) — 저축이 예측을 움직인다 ----------
+
+from app.engines.forecast import SAFE_WITHDRAWAL_RATE, funded_retirement  # noqa: E402
+
+
+def _funded(incomes, living=1_150_000, tax=0.1, cv=0.3, months=4, savings=0.0, expense=0.0):
+    return funded_retirement(incomes, living, tax, cv, months, base_year=2025,
+                             current_savings=savings, monthly_expense=expense)
+
+
+def test_funded_target_is_25x_annual_living() -> None:
+    fr = _funded(INCOMES, living=1_000_000)
+    assert fr.target == round(1_000_000 * 12 / SAFE_WITHDRAWAL_RATE, 2)   # 4% 룰 = 25배
+
+
+def test_funded_savings_move_the_prediction() -> None:
+    """소득 소멸형(A)과 달리 B는 저축이 예측을 움직인다 — 더 벌면 더 일찍 달성."""
+    poor = _funded([1_100_000, 1_200_000, 1_150_000, 1_250_000])   # 생활비 언저리 — 여력 얇음
+    rich = _funded([2_500_000, 3_000_000, 2_700_000, 3_200_000])   # 여력 큼
+    assert rich.funded_year < poor.funded_year
+    assert rich.annual_surplus0 > poor.annual_surplus0
+
+
+def test_funded_starting_savings_pull_it_earlier() -> None:
+    base = _funded([2_000_000, 2_200_000, 2_100_000, 2_300_000], savings=0)
+    seeded = _funded([2_000_000, 2_200_000, 2_100_000, 2_300_000], savings=200_000_000)
+    assert seeded.funded_year <= base.funded_year
+
+
+def test_funded_no_surplus_is_unreachable_and_honest() -> None:
+    # 세후 소득이 생활비 밑이면 저축 여력 0 → 도달 불가, 지어내지 않고 정직하게 표기
+    fr = _funded([900_000, 950_000, 1_000_000, 1_050_000], living=1_500_000)
+    assert fr.annual_surplus0 == 0
+    assert fr.reached is False
+    assert any("여력이 없" in r for r in fr.reasons)
+
+
+def test_funded_volatility_widens_band() -> None:
+    # 같은 평균이라도 변동성이 크면 밴드(P10~P90)가 넓어진다 (누적 저축의 순서 위험)
+    steady = _funded([2_400_000, 2_400_000, 2_400_000, 2_400_000])
+    swingy = _funded([600_000, 4_200_000, 800_000, 4_000_000])
+    assert (swingy.mc_p90 - swingy.mc_p10) >= (steady.mc_p90 - steady.mc_p10)
+
+
+def test_funded_expense_reduces_surplus_by_exactly_annual_expense() -> None:
+    """유철 피드백: 경비(AWS·장비)는 실제 유출 — 저축 여력에서 연 경비만큼 정확히 빠진다.
+
+    경비를 안 빼면 여력이 부풀어 funded_year가 앞당겨지는(지키기 어려운 약속) 버그.
+    """
+    incomes = [2_500_000, 3_000_000, 2_700_000, 3_200_000]
+    no_exp = _funded(incomes, expense=0)
+    with_exp = _funded(incomes, expense=500_000)   # 월 50만 = 연 600만원
+    assert round(no_exp.annual_surplus0 - with_exp.annual_surplus0, 2) == 6_000_000
+    assert with_exp.funded_year >= no_exp.funded_year   # 경비 반영 = 달성이 늦어짐(정직)
+
+
+def test_funded_surplus_definition_matches_f09_subtractions() -> None:
+    """저축 여력의 뺄셈 항이 F09(저축여력률)와 통일 — 둘 다 소득에서 생활비·경비를 뺀다.
+
+    차이는 세금뿐(F09는 세전 비율, funded는 세후 원화). 세율 0이면 funded 여력 =
+    (소득 − 생활비 − 경비)로 F09 분자와 동일 구조여야 한다.
+    """
+    incomes = [3_000_000] * 4          # 월 300만 균일 → 연 3,600만
+    fr = _funded(incomes, living=1_200_000, expense=500_000, tax=0.0)
+    # 세율 0: 연소득 3,600만 − 생활비 1,440만 − 경비 600만 = 1,560만
+    assert fr.annual_surplus0 == 15_600_000
+
+
+def test_funded_path_and_mc_order() -> None:
+    fr = _funded([2_500_000, 3_000_000, 2_700_000, 3_200_000])
+    assert len(fr.years) == len(fr.savings_path)
+    assert fr.mc_p10 <= fr.mc_median <= fr.mc_p90
+
+
 # ---------- 긱워커 전용 커리어 신호 ----------
 
-from app.services.forecast import career_signals  # noqa: E402
+from app.engines.forecast import career_signals  # noqa: E402
 
 
 def make_income(dates_clients_amounts):
@@ -126,7 +217,7 @@ def test_signals_cold_start_neutral() -> None:
 
 # ---------- 연도별 소득 경로 (차트 좌표의 원천) ----------
 
-from app.services.forecast import income_path  # noqa: E402
+from app.engines.forecast import income_path  # noqa: E402
 
 
 def make_path(signals=None, **kw):
@@ -198,7 +289,7 @@ def test_forecast_route_with_seed() -> None:
 
 # ---------- 몬테카를로 은퇴 시뮬레이션 (부트스트랩, seed 고정) ----------
 
-from app.services.forecast import monte_carlo_retirement  # noqa: E402
+from app.engines.forecast import monte_carlo_retirement  # noqa: E402
 
 
 def make_mc(incomes=INCOMES, cv=0.3, seed=42, runs=500, signals=None):
@@ -272,7 +363,7 @@ def test_erratic_history_widens_calibrated_window() -> None:
 
 # ---------- 하락 국면 연속화 — 임계값 절벽 제거 ----------
 
-from app.services.forecast import CareerSignals, decline_severity  # noqa: E402
+from app.engines.forecast import CareerSignals, decline_severity  # noqa: E402
 
 
 def test_severity_is_continuous_and_monotonic() -> None:

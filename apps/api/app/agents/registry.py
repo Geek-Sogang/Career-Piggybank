@@ -24,7 +24,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
             "배심 합의 실패 = needs_review로 사람에게",
         ),
         fallback="룰 캐스케이드(classifier) 결과 유지",
-        module="app.services.classifier_llm",
+        module="app.agents.classifier_llm",
         implemented=True,
     ),
     AgentSpec(
@@ -39,7 +39,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
             "답변 선택지는 코드가 결정론으로 고정 — 에이전트는 질문만",
         ),
         fallback="결정론 질문 템플릿",
-        module="app.services.clarify",
+        module="app.agents.clarify",
         implemented=True,
     ),
     AgentSpec(
@@ -55,7 +55,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
             "파싱은 '표시'일 뿐 — 돈은 움직이지 않는다",
         ),
         fallback="조용한 무시(이벤트 없음) — 예측은 원장 통계로",
-        module="app.services.event_capture",
+        module="app.agents.event_capture",
         implemented=True,
     ),
     AgentSpec(
@@ -139,7 +139,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
             "재작성 금지 — 후보는 결정론이 만들고 에이전트는 번호만",
         ),
         fallback="우선순위 룰로 첫 후보",
-        module="app.services.strength",
+        module="app.agents.strength",
         implemented=True,
     ),
     AgentSpec(
@@ -169,7 +169,7 @@ _ROSTER: tuple[AgentSpec, ...] = (
             "트리아지(무엇을 먼저·무엇을 묶어·무엇을 침묵)는 코드 룰",
         ),
         fallback="근거(reasons) 결정론 나열 — LLM이 죽어도 데모가 산다",
-        module="app.services.coach",
+        module="app.agents.coach",
         implemented=True,
         is_mouth=True,
         notes=("컨텍스트=coach_live(라이브 조립 — 고아 출력 연결), 선발화=coach_agenda(트리아지 코드 룰, GET /v1/coach/agenda)",),

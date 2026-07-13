@@ -1,8 +1,8 @@
 """상품 훅 — 선택은 룰, 문구는 결정론 템플릿 (하나 상품만, 숫자는 제안 인용만)."""
 from __future__ import annotations
 
-from app.services import product_match
-from app.services.allocator import AllocationContext, EnvelopeBalances, SpendingProfile, propose
+from app.engines import product_match
+from app.engines.allocator import AllocationContext, EnvelopeBalances, SpendingProfile, propose
 
 PROFILE = SpendingProfile(
     annual_gross=30_000_000, expected_monthly_expense=400_000,
@@ -28,11 +28,13 @@ def test_invest_available_suggests_isa_first() -> None:
     assert f"{p.invest_available:,.0f}원" in hooks[0]["line"]
 
 
-def test_long_gap_suggests_bridge() -> None:
+def test_long_gap_suggests_bridge_only_with_confirmed_income() -> None:
     ctx = AllocationContext(expected_gap_days=45)
     p = propose(1_000_000, PROFILE, context=ctx)
-    hooks = product_match.hooks_for(p, ctx)
-    assert any(h["product_id"] == "emergency" for h in hooks)
+    # 확정 예정 수입 있음 → 브릿지 안내 (공백만 메우면 되는 상황)
+    assert any(h["product_id"] == "emergency" for h in product_match.hooks_for(p, ctx, True))
+    # 확정 예정 수입 없음 → 대출 권하지 않음 (부채 유도 방지, 준모 피드백)
+    assert not any(h["product_id"] == "emergency" for h in product_match.hooks_for(p, ctx, False))
 
 
 def test_early_decline_suggests_irp() -> None:

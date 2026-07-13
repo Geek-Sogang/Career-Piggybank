@@ -22,7 +22,11 @@ def chat_text(system: str, user: str, temperature: float = 0.4, model: str | Non
             {"role": "user", "content": user},
         ],
         "stream": False,
-        "options": {"temperature": temperature},
+        "keep_alive": settings.ollama_keep_alive,   # 모델 warm 유지 — 콜드 재로딩 stall 제거
+        "options": {
+            "temperature": temperature,
+            "num_predict": settings.ollama_num_predict_text,  # 출력 상한(폭주 방지)
+        },
     }).encode()
     req = urllib.request.Request(
         f"{settings.ollama_base_url}/api/chat",
@@ -51,7 +55,11 @@ def chat_json(system: str, user: str, model: str | None = None) -> dict | None:
         ],
         "stream": False,
         "format": "json",           # JSON 외 출력 차단
-        "options": {"temperature": 0},  # 같은 입력 → 같은 답 (재현성)
+        "keep_alive": settings.ollama_keep_alive,   # 모델 warm 유지 — 콜드 재로딩 stall 제거
+        "options": {
+            "temperature": 0,       # 같은 입력 → 같은 답 (재현성)
+            "num_predict": settings.ollama_num_predict_json,  # JSON 출력 상한(폭주 방지)
+        },
     }).encode()
     req = urllib.request.Request(
         f"{settings.ollama_base_url}/api/chat",

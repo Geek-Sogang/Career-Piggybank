@@ -32,8 +32,48 @@ _TXNS = [
 _ENVELOPES = {"tax": 320_000, "expense": 0, "spendable": 0, "buffer": 99_555}
 
 
+def _ax(risk: float, time: float, ctrl: float, plan: float) -> dict:
+    """또래 페르소나 축 — 프로필 판독 스냅샷과 같은 형태 (값은 메뉴 {0.1..0.9})."""
+    labels = {"risk_tolerance": "위험감내", "time_preference": "시간선호",
+              "self_control": "자기통제", "planning": "계획성"}
+    values = {"risk_tolerance": risk, "time_preference": time,
+              "self_control": ctrl, "planning": plan}
+    return {k: {"axis": k, "label": labels[k], "value": v, "fallback": False, "evidence": []}
+            for k, v in values.items()}
+
+
+# 합성 또래 풀 — (직군, 봉투 이름, 목표액, 페르소나 축). 실서비스에선 실사용자 개설이
+# 이 풀에 기여한다(origin='user'); 데모는 합성 또래로 콜드스타트를 채운다(origin='seed').
+# 성향이 봉투를 가른다: 안전지향은 '일 없는 달', 계획형은 '세금 넉넉히', 공격형은 장비 투자.
+_PEERS = [
+    # 개발자 — 안전·계획형 (조대흠 유사 성향대)
+    ("developer", "일 없는 달", 2_000_000, _ax(0.3, 0.7, 0.7, 0.7)),
+    ("developer", "일 없는 달", 1_500_000, _ax(0.1, 0.7, 0.5, 0.9)),
+    ("developer", "장비 교체", 2_400_000, _ax(0.3, 0.7, 0.7, 0.9)),
+    ("developer", "장비 교체", 3_000_000, _ax(0.3, 0.5, 0.7, 0.7)),
+    ("developer", "세금 넉넉히", 1_000_000, _ax(0.1, 0.9, 0.7, 0.9)),
+    ("developer", "컨퍼런스·강의", 600_000, _ax(0.3, 0.7, 0.5, 0.7)),
+    # 개발자 — 공격·현재선호형 (다른 성향대 — 유사도 가중에서 밀려야 정상)
+    ("developer", "여행", 1_800_000, _ax(0.9, 0.3, 0.3, 0.3)),
+    ("developer", "주식 시드", 3_000_000, _ax(0.9, 0.3, 0.5, 0.5)),
+    ("developer", "여행", 1_200_000, _ax(0.7, 0.1, 0.3, 0.3)),
+    # 디자이너
+    ("designer", "태블릿 교체", 1_600_000, _ax(0.3, 0.7, 0.7, 0.7)),
+    ("designer", "작업실 보증금", 5_000_000, _ax(0.1, 0.9, 0.7, 0.9)),
+    ("designer", "일 없는 달", 1_800_000, _ax(0.3, 0.7, 0.5, 0.7)),
+    ("designer", "포트폴리오 촬영", 400_000, _ax(0.5, 0.5, 0.5, 0.5)),
+    # 크리에이터
+    ("creator", "카메라 업그레이드", 2_800_000, _ax(0.7, 0.5, 0.5, 0.5)),
+    ("creator", "일 없는 달", 2_500_000, _ax(0.3, 0.7, 0.5, 0.7)),
+    ("creator", "편집 외주비", 900_000, _ax(0.5, 0.5, 0.7, 0.7)),
+]
+
+
 def ensure_seed() -> bool:
     """원장이 비어 있으면 시드. 시드했으면 True."""
+    if db.peer_pool_count() == 0:      # 또래 풀은 원장과 독립적으로 1회 시드
+        for job, name, amount, axes in _PEERS:
+            db.insert_peer_envelope(job, name, amount, axes, origin="seed")
     if db.list_txns():
         return False
     for date, amount, direction, cp, memo, kind, subtype, review in _TXNS:
@@ -45,4 +85,11 @@ def ensure_seed() -> bool:
         )
     for name, balance in _ENVELOPES.items():
         db.envelope_set(name, balance)
+
+    # 실제 행동(비금융) 계측 시드 — 조대흠은 커리어 소스 3곳을 연결하고 앱을 꾸준히 여는
+    # 적극적 자기관리형(계획성 축의 비금융 근거). F13=3곳, F14=여러 주 활동.
+    for src in ("github", "hometax", "portfolio"):
+        db.log_event("source_connected", payload={"source": src})
+    for d in ("2025-02-16", "2025-03-02", "2025-03-23", "2025-04-13", "2025-05-04"):
+        db.log_event("app_opened", payload={}, ts=f"{d}T09:00:00+00:00")   # 5주에 걸친 방문
     return True

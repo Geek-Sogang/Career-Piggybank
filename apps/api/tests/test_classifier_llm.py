@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.services import classifier_llm
-from app.services.classifier import TxnInput
-from app.services.classifier_llm import classify_with_fallback
+from app.agents import classifier_llm
+from app.engines.classifier import TxnInput
+from app.agents.classifier_llm import classify_with_fallback
 
 JUROR_COUNT = len(classifier_llm._JURORS)
 

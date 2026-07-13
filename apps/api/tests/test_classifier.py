@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.classifier import TxnInput, classify
+from app.engines.classifier import TxnInput, classify
 
 
 def txn(amount: float, counterparty: str, direction: str = "in", memo: str = "") -> TxnInput:

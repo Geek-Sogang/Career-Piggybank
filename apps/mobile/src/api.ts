@@ -61,6 +61,15 @@ export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT)
 export type EnvelopeSplit = { tax: number; expense: number; spendable: number; buffer: number };
 // 배분 → 하나 상품 훅 — 선택은 백엔드 룰, product_id는 products.ts ProductKey와 1:1
 export type ProductHook = { product_id: string; envelope: string; name: string; line: string };
+
+// ⑥ 상품 매칭 (AI) — 핫패스 아님: 시트는 룰 훅을 즉시 보여주고, 이 호출이 돌아오면 승급.
+// 후보는 적합성 veto(결정론)를 통과한 것만 — AI는 그 메뉴 안에서 고르고 근거 팩트를 인용.
+export type ProductMatchPick = ProductHook & { evidence: string[]; source: 'llm' | 'rule' };
+export function fetchProductMatch() {
+  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string }>(
+    '/v1/products/match', {}, 60_000, // 로컬 7.8B 생성 대기
+  );
+}
 export type Allocation = {
   id: string;
   status: 'proposed' | 'confirmed' | 'adjusted' | 'rejected';
@@ -70,6 +79,7 @@ export type Allocation = {
   needs_confirmation: boolean;
   reasons: string[];
   product_hooks?: ProductHook[];
+  gig_archetype?: string;   // 이 배분을 만든 긱워커 소득 유형 한 줄
 };
 
 export function proposeAllocation(deposit: number, profile = DEMO_PROFILE) {
@@ -119,6 +129,91 @@ export function tagTransaction(id: string, kind: 'income' | 'expense' | 'living'
   );
 }
 
+// ── 페르소나 (④ 프로필 판독의 SSOT) — 판독은 명시 트리거만 (핫패스 아님) ──
+export type PersonaAxis = {
+  axis: string; label: string; value: number;
+  evidence: string[]; reason: string; fallback: boolean; retried?: boolean;
+};
+export type Persona = {
+  id: string;
+  axes: Record<string, PersonaAxis>;
+  staleness: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
+};
+export function getPersona() {
+  return get<Persona>('/v1/profile/persona'); // 404 = 아직 판독 전
+}
+// 긱워커 소득 프로필 — 결정론 구조 층(판독 전에도 항상 있음). 심리 4축과 구분되는 긱 특화.
+export type GigProfile = {
+  volatility: string; volatility_cv: number | null;
+  concentration: string; top_source_share: number | null;
+  rhythm: string; is_multi_gig: boolean; phase: string;
+  archetype: string; notes: string[];
+};
+export function getGigProfile() {
+  return get<GigProfile>('/v1/profile/gig');
+}
+// 실제 행동(비금융) 계측 — 소스 연결·앱 방문. 페르소나 계획성 축의 비금융 근거(F13·F14).
+// 실패해도 무시(계측은 있으면 좋고 없어도 됨).
+export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio_uploaded', source?: string) {
+  return post('/v1/behavior', { type, source }).catch(() => {});
+}
+export function readPersona() {
+  return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
+}
+
+// ── 목표 봉투 + 금액 페이싱 — 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만 ──
+export type Goal = {
+  id: string; name: string; target_amount: number; target_date: string | null;
+  balance: number; status: string; source: string; seq: number;
+};
+export function getGoals() {
+  return get<Goal[]>('/v1/envelopes/goals');
+}
+export function createGoal(name: string, target_amount: number, target_date: string | null) {
+  return post<Goal>('/v1/envelopes/goals', { name, target_amount, target_date });
+}
+// ⑤a 봉투 추천(내 팩트, LLM) + 또래 추천(같은 직군·유사 페르소나의 개설 관찰, 결정론).
+// 개설은 사용자가 탭해서 결정 — 개설하면 내 봉투가 또래 풀에 기여한다(카탈로그 성장)
+export type EnvelopeIdea = { name: string; why: string; evidence: string[] };
+export type PeerIdea = {
+  name: string; suggested_amount: number; share: number; count: number;
+  pool: number; scope: 'job' | 'all'; basis: string;
+  months_to_reach: number | null; affordable_amount: number | null;
+};
+export function recommendEnvelopes() {
+  return post<{ recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean }>(
+    '/v1/envelopes/recommend', {}, 60_000, // 로컬 7.8B 생성 대기
+  );
+}
+// ⑤b 금액 페이싱 — 판단(우선순위·스탠스)은 AI, 원화 번역은 산수, 실행은 confirm만
+export type PacingProposal = {
+  id: string; status: string; available: number;
+  split: Record<string, number>;
+  reasons: string[];
+  judgment: { reason: string; fallback: boolean; evidence: string[]; stances: Record<string, string> };
+  goals: { id: string; name: string; base: number; stance: string; amount: number }[];
+  source: string;
+};
+export function proposePacing(available: number, today: string, source: 'deposit' | 'buffer') {
+  return post<PacingProposal>('/v1/pacing/propose',
+    { available, buffer_shortfall: 0, today, source }, 120_000); // 로컬 7.8B 판단 대기
+}
+export function decidePacing(id: string, action: 'confirm' | 'reject') {
+  return post<{ id: string; status: string }>(`/v1/pacing/${id}/decision`, { action });
+}
+export function getEnvelopeBalances() {
+  return get<{ balances: Record<string, number> }>('/v1/bank/envelopes');
+}
+
+// ── 벨 인박스 (어젠다 큐) — 피기가 아직 말하지 않은 사건의 트리아지. 발화문은 결정론 템플릿 ──
+export type AgendaItem = { kind: string; priority: number; line: string };
+export function getAgenda() {
+  return get<{ items: AgendaItem[]; silent_count: number }>('/v1/coach/agenda');
+}
+export function consumeAgenda() {
+  return post<{ consumed: number }>('/v1/coach/agenda/consume', {});
+}
+
 // ── 예측 (원장 시계열 → 다음 수입 창 + 은퇴 밴드) — 전부 결정론, 논문 근거는 백엔드 주석 ──
 export type Forecast = {
   income_gap: { median_gap_days: number; expected_next_date: string; window: [string, string]; reasons: string[] };
@@ -140,6 +235,17 @@ export type Forecast = {
   };
   // 부트스트랩 몬테카를로 — 미래 1,000개의 은퇴 해 분포 (seed 고정, 재현 가능)
   mc: { runs: number; band_start_year: number; median_year: number; band_end_year: number; prob_in_base_band: number };
+  // 자금 달성형 은퇴(B) — "충분히 모아서 그만둘 수 있는 해". 저축이 예측을 움직인다.
+  // A(위 retirement — 일감 흐름 소멸)와 병행: 서로 다른 질문에 답하므로 둘 다 보여준다.
+  funded: {
+    target: number;             // 은퇴 넘버 = 연 생활비 ÷ 4% (25배)
+    funded_year: number;
+    reached: boolean;
+    annual_surplus0: number;    // 첫 해 저축 여력 — 0이면 저축 불가(정직 표기)
+    mc_p10: number; mc_median: number; mc_p90: number;
+    years: number[]; savings_path: number[];
+    reasons: string[];
+  };
   monthly_income_level: number;
   income_cv: number;
 };
@@ -168,4 +274,5 @@ export const OFFLINE_ALLOCATION: Allocation = {
       line: '세금봉투 108,900원은 하나 긱워커 파킹통장(연 3.0%)에 두면 5월 종소세 때까지 이자가 붙어요',
     },
   ],
+  gig_archetype: '고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄',
 };

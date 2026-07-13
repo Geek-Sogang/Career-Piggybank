@@ -9,18 +9,13 @@ from __future__ import annotations
 import statistics
 from dataclasses import replace
 
-from app.services import (
-    allocation_policy,
-    allocator,
-    classifier,
-    classifier_llm,
-    forecast,
-    product_match,
-    spending_profile,
-)
-from app.services.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
-from app.services.classifier import Classification, TxnInput
-from app.services.spending_profile import ProfileEstimate, Txn
+from app.engines import allocation_policy, allocator, classifier, forecast, gig_profile, income_streams, product_match, spending_profile
+from app.agents import classifier_llm
+from app.profile import build_user_profile
+from app.engines import facts as facts_svc
+from app.engines.allocator import AllocationContext, AllocationProposal, EnvelopeBalances
+from app.engines.classifier import Classification, TxnInput
+from app.engines.spending_profile import ProfileEstimate, Txn
 from app.store import db
 
 ADJUSTMENT_LOOKBACK = 5  # 조정 성향 집계에 쓰는 최근 조정 건수
@@ -76,37 +71,64 @@ def _income_txns() -> list[dict]:
     ]
 
 
+def has_confirmed_incoming() -> bool:
+    """확정 예정 수입이 있는가 — 코치에게 알린 미래 예정 수입 또는 미결 잔금(착수금 관측).
+
+    비상금대출(신용상품)은 '갚을 근거'가 있을 때만 권한다(준모 피드백) — 돈 없다고 바로
+    대출을 연결하면 부채 유도라, 확정 예정 수입이 있어 공백만 메우면 되는 상황으로 제한.
+    """
+    income = _income_txns()
+    as_of = max((t["date"] for t in db.list_txns()), default=None)
+    future_events = [e for e in db.list_expected_events() if not as_of or e["date"] > as_of]
+    if future_events:
+        return True
+    streams = income_streams.decompose(income, as_of=as_of)
+    return bool(streams.pending_settlements)
+
+
 def context_from_store() -> AllocationContext:
-    """긱워커 컨텍스트 — 원장·배분 이력에서 결정론으로 산출 (신호는 통계, 보정은 룰)."""
-    income_txns = _income_txns()
-    gap = forecast.next_income_window([t["date"] for t in income_txns]) if income_txns else None
-    signals = forecast.career_signals(income_txns)
-    return AllocationContext(
-        expected_gap_days=gap.median_gap_days if gap else None,
-        early_decline=signals.career_trend <= forecast.EARLY_DECLINE_THRESHOLD,
-        buffer_bias=buffer_adjustment_bias(),
-    )
+    """긱워커 배분 컨텍스트 — 프로필 SSOT에 위임한다 (coach_live·products가 배분과 같은 신호를 쓰게).
+
+    수주 주기·커리어 추세·조정 성향에 더해 긱 구조(단일 의존)까지 한 곳에서 나온다 —
+    이전엔 여기서 signals·gap을 따로 재계산했으나, 이제 build_user_profile이 상류를 1회만 돈다.
+    """
+    return build_user_profile().allocation_context()
+
+
+def gig_archetype() -> str:
+    """이 사용자의 긱워커 소득 유형 한 줄 — 배분·화면이 인용하는 긱 정체성 (결정론)."""
+    income = _income_txns()
+    facts = facts_svc.build_factsheet(db.list_txns(), db.list_allocations(), db.list_events())
+    signals = forecast.career_signals(income)
+    as_of = max((t["date"] for t in db.list_txns()), default=None)
+    months = len({t["date"][:7] for t in db.list_txns()})
+    streams = income_streams.decompose(income, months_observed=float(months), as_of=as_of)
+    return gig_profile.build_gig_profile(facts, signals, streams).archetype
 
 
 def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[str, AllocationProposal]:
     """저장된 프로필·컨텍스트·이번 달 배분 이력·버퍼 잔액 기준으로 제안 생성 후 DB 기록.
 
+    프로필 전 조각(소득·긱·스트림·성향·행동)은 build_user_profile()이 원장 1회 읽기로
+    합성한다 — 이전엔 est·ctx·gig·has_confirmed_incoming을 따로 불러 career_signals 2회·
+    income_streams 3회·factsheet를 배분 핫패스에서 중복 계산했다. 값은 그대로다(특성화 테스트).
+
     버퍼 목표는 학습 배분 정책이 고른다(안전 분위수 — 페르소나 prior + 반응 사후분포).
     정책 기록은 meta["policy"]로 남아, 사람의 결정(승인/조정/거절)이 보상으로 귀속된다.
     """
-    est = profile_from_store()
+    up = build_user_profile()
+    est = up.spending
     allocated = db.month_allocated(date[:7])
     balances = EnvelopeBalances(
         expense=allocated["expense"],
         spendable=allocated["spendable"],
         buffer=db.envelope_balances()["buffer"],
     )
-    ctx = context_from_store()
-    snap = db.latest_snapshot()
+    ctx = up.allocation_context()
     policy = allocation_policy.choose(
-        income_dates=[t["date"] for t in _income_txns()],
-        axes=snap["axes"] if snap else None,
-        fallback_months=allocator.buffer_target_months(est.profile.income_cv),
+        income_dates=list(up.income_dates),
+        axes=up.persona_axes,
+        income_cv=est.profile.income_cv,   # 공식(prior)은 policy가 스스로 계산 — 여기선 원자재만
     )
     ctx = replace(ctx, buffer_months_override=policy.months, buffer_months_reason=policy.reason)
     p = allocator.propose(deposit, est.profile, balances, ctx)
@@ -118,8 +140,9 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "profile_notes": est.notes, "months_observed": est.months_observed,
-            "product_hooks": product_match.hooks_for(p, ctx),
+            "product_hooks": product_match.hooks_for(p, ctx, up.has_confirmed_incoming),
             "policy": policy.as_dict(),
+            "gig_archetype": up.gig_archetype,   # 배분 시트가 앞세울 긱 정체성
         },
         txn_id=txn_id,
     )

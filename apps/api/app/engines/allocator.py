@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.services import tax_envelope
+from app.engines import tax_envelope
 
 WINDFALL_RATIO = 1.5      # 평균 입금 대비 이 배수 이상이면 '평소와 다른 입금' → 코치 확인
 BUFFER_MONTHS_MIN = 1.0   # 여윳돈(버퍼) 목표 하한 — 생활비 1개월치
@@ -24,6 +24,7 @@ BUFFER_CV_SLOPE = 4.0     # 소득 변동계수 1당 버퍼 개월 수 가산
 # ── 컨텍스트 보정 상수 (§6-2④ "다음 수입까지 공백에 맞춰 동적 조정") ──
 LIVING_MONTHS_MAX = 2.0            # 수주 공백이 길어도 생활비 확보는 2개월치까지
 EARLY_DECLINE_EXTRA_MONTHS = 1.0   # 커리어 신호 악화 시 버퍼 목표 가산(개월)
+CONCENTRATION_EXTRA_MONTHS = EARLY_DECLINE_EXTRA_MONTHS  # 같은 쿠션 단위(구조 위험 1건=+1개월) — 새 계수 아님
 BIAS_CAP_FRACTION = 0.2            # 조정 성향 선반영 상한 — 입금액의 20%
 BIAS_MIN_SAMPLES = 2               # 조정 이력 최소 건수 — 1건은 노이즈로 본다
 
@@ -39,6 +40,7 @@ class AllocationContext:
 
     expected_gap_days: float | None = None  # 다음 수입까지 예상 간격(중앙값, 일)
     early_decline: bool = False             # 커리어 신호 악화(수주 간격↑·발주처↓·단가↓)
+    single_source_dependence: bool = False  # 긱 구조: 소득이 한 채널에 몰림(단일 의존) → 버퍼 쿠션
     buffer_bias: float = 0.0                # 조정 성향: 사용자가 버퍼로 늘려온 중앙값(원, ≥0)
     # 학습 배분 정책(allocation_policy)이 고른 버퍼 목표 개월 — None이면 기존 공식(하위 호환).
     # 이 엔진은 정책을 모른다: 값과 근거 문장만 받는다 (판단은 밖, 여기는 산수).
@@ -165,6 +167,13 @@ def propose(
         reasons.append(
             f"최근 수주 흐름이 감속 추세라 여윳돈 목표를 {EARLY_DECLINE_EXTRA_MONTHS:.0f}개월치 더 두껍게 잡았어요"
         )
+    if ctx.single_source_dependence:
+        # 긱 구조 위험 — 소득이 한 채널에 몰리면 그 채널이 끊길 때 소득 절벽. 쿠션을 얹는다.
+        months = min(BUFFER_MONTHS_MAX, months + CONCENTRATION_EXTRA_MONTHS)
+        reasons.append(
+            f"소득이 한 곳에 몰려 있어(단일 의존) 그 채널이 끊길 때를 대비해 "
+            f"여윳돈 목표를 {CONCENTRATION_EXTRA_MONTHS:.0f}개월치 더 두껍게 잡았어요"
+        )
     buffer_target = round(profile.expected_monthly_living * months, 2)
 
     # 조정 성향 선반영(행동 신호): 늘 버퍼를 늘려온 사용자의 습관을 제안에 미리 반영.
@@ -223,6 +232,7 @@ def propose(
             "living_months": living_months,
             "expected_gap_days": ctx.expected_gap_days if ctx.expected_gap_days is not None else 0.0,
             "early_decline": 1.0 if ctx.early_decline else 0.0,
+            "single_source_dependence": 1.0 if ctx.single_source_dependence else 0.0,
             "buffer_bias_applied": bias_applied,
             "buffer_months_from_policy": 1.0 if ctx.buffer_months_override is not None else 0.0,
         },

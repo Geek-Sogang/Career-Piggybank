@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, decideAllocation, OFFLINE_ALLOCATION, type Allocation, type EnvelopeSplit } from '@/api';
+import { bankDeposit, consumeAgenda, decideAllocation, fetchProductMatch, getAgenda, getEnvelopeBalances, getGoals, OFFLINE_ALLOCATION, type AgendaItem, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
@@ -46,6 +46,19 @@ function Shell() {
   const insets = useSafeAreaInsets();
   const Screen = SCREENS[vals.scr] || Home;
 
+  // 벨 인박스 — 어젠다 큐(피기가 아직 말하지 않은 사건). 시트가 닫힐 때마다 재조회:
+  // 배분 승인/조정 직후가 바로 어젠다(후속 질문·브리핑)가 생기는 순간이다
+  const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [inbox, setInbox] = useState(false);
+  useEffect(() => {
+    if (!sheet && entered) getAgenda().then((r) => setAgenda(r.items)).catch(() => {});
+  }, [sheet, entered]);
+  const openInbox = () => { if (agenda.length) setInbox(true); };
+  const closeInbox = (consume: boolean) => {
+    setInbox(false);
+    if (consume) { consumeAgenda().catch(() => {}); setAgenda([]); }
+  };
+
   // 인트로 플로우 / 풀스크린(자체 chrome) 화면들
   if (!entered) return <Intro />;
   if (push === 'chat') return <Chat />;
@@ -63,10 +76,14 @@ function Shell() {
               <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자</Text>
             </View>
           </View>
-          <View style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="bell" size={22} color="#3A4047" sw={1.8} />
-            <View style={{ position: 'absolute', top: 8, right: 9, width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF4D4F', borderWidth: 1.5, borderColor: colors.bg }} />
-          </View>
+            {agenda.length > 0 && (
+              <View style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: '#FF4D4F', borderWidth: 1.5, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+                <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#fff' }}>{agenda.length}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       )}
       {vals.showTabTitle && (
@@ -111,41 +128,235 @@ function Shell() {
       {sheet === 'consent' && <ConsentSheet onConfirm={actions.confirm} onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'invest' && <InvestSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
       {sheet === 'allocation' && <AllocationSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {sheet === 'pacing' && <PacingSheet onClose={actions.closeSheet} bottomInset={insets.bottom} />}
+      {inbox && (
+        <InboxSheet
+          items={agenda}
+          bottomInset={insets.bottom}
+          onAsk={() => { closeInbox(true); actions.pushScr('chat'); }}
+          onClose={() => closeInbox(true)}
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+// ⑤b 금액 페이싱 시트 — 여윳돈(버퍼)에서 목표 봉투로. 판단(우선순위·스탠스)은 AI,
+// 원화 번역은 산수(합계 보존), 실행은 confirm만 — source=buffer 재배치 회계.
+const STANCE_COLOR: Record<string, string> = { 당김: '#7C5CBF', 기본: colors.sub, 보류: colors.sub3 };
+
+type PacingAssigned = { id: string; name: string; stance: string; amount: number };
+function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
+  const { actions } = useApp();
+  const [prop, setProp] = useState<{ available: number; goals: PacingAssigned[]; leftover: number; reason: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    Promise.all([getEnvelopeBalances(), getGoals()])
+      .then(([e, goalsList]) => {
+        const buffer = Math.floor(e.balances.buffer ?? 0);
+        if (buffer <= 0) { if (live) setError('아직 여윳돈이 없어요 — 입금 배분 후 다시 열어주세요'); return; }
+        if (!goalsList.length) { if (live) setError('목표 봉투가 없어요 — 먼저 봉투를 만들어 주세요'); return; }
+        // 온디바이스 AI 판단 시뮬레이션 — 약 3초 뒤 목표별 적정 금액을 채운다 (백엔드는 나중에)
+        setTimeout(() => {
+          if (!live) return;
+          const distributable = Math.floor((buffer * 0.7) / 10000) * 10000; // 여윳돈 70%만 목표로, 30%는 비상용으로 남김
+          const withNeed = goalsList
+            .map((g) => ({ g, need: Math.max(0, g.target_amount - g.balance) }))
+            .filter((x) => x.need > 0);
+          const totalNeed = withNeed.reduce((a, x) => a + x.need, 0) || 1;
+          let left = distributable;
+          const assigned: PacingAssigned[] = withNeed
+            .map(({ g, need }, i) => {
+              const raw = i === withNeed.length - 1 ? left : Math.round(((need / totalNeed) * distributable) / 10000) * 10000;
+              const amount = Math.max(0, Math.min(need, raw, left));
+              left -= amount;
+              const stance = g.target_date ? '당김' : need / totalNeed > 0.4 ? '기본' : '보류';
+              return { id: g.id, name: g.name, stance, amount };
+            })
+            .filter((x) => x.amount > 0);
+          const leftover = buffer - assigned.reduce((a, x) => a + x.amount, 0);
+          setProp({ available: buffer, goals: assigned, leftover, reason: '기한과 목표 잔여액을 반영해 여윳돈 일부만 목표로 옮겨요 — 비상 여윳돈은 남겨둬요' });
+        }, 3000);
+      })
+      .catch(() => { if (live) setError('제안을 불러오지 못했어요 — 서버 연결을 확인해 주세요'); });
+    return () => { live = false; };
+  }, []);
+
+  const confirm = () => {
+    if (!prop) return;
+    const deposits: Record<string, number> = {};
+    prop.goals.forEach((g) => { deposits[g.id] = g.amount; });
+    actions.applyPacing(deposits); // 저금통으로 이동 + 담은 금액 오버레이 표시
+  };
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        {error ? (
+          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '600', textAlign: 'center', lineHeight: 19 }}>{error}</Text>
+            <Pressable onPress={onClose} style={{ alignSelf: 'stretch', borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 14, alignItems: 'center' }}>
+              <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>닫기</Text>
+            </Pressable>
+          </View>
+        ) : !prop ? (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 22 }}>
+            <Mascot head size={48} radius={15} />
+            <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '600', textAlign: 'center' }}>피기가 목표별 페이스를 판단하고 있어요 …{'\n'}<Text style={{ fontSize: 11.5, color: colors.sub3 }}>온디바이스 AI라 몇 초 걸릴 수 있어요</Text></Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Mascot head size={44} radius={13} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>여윳돈 ₩{prop.available.toLocaleString('en-US')} 나누기</Text>
+                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>페르소나·팩트를 읽고 우선순위를 판단했어요</Text>
+              </View>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판단</Text>
+            </View>
+            <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
+              {prop.goals.map((g) => (
+                <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: STANCE_COLOR[g.stance] ?? colors.sub, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>{g.stance}</Text>
+                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{g.name}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>₩{g.amount.toLocaleString('en-US')}</Text>
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 9 }}>
+                <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.sub2 }}>여윳돈에 남김</Text>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{prop.leftover.toLocaleString('en-US')}</Text>
+              </View>
+            </View>
+            <View style={{ marginTop: 12, gap: 5 }}>
+              <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.reason}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>이번엔 안 할래요</Text>
+              </Pressable>
+              <Pressable onPress={confirm} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 담기</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// 벨 인박스 시트 — 어젠다 큐의 발화문(결정론 템플릿) 목록. 열람 = spoken 처리(consume).
+const AGENDA_BADGE: Record<string, string> = {
+  follow_up_adjust: '질문', follow_up_reject: '질문',
+  deposit_briefing: '브리핑', stale_settlement: '확인 필요',
+};
+
+function InboxSheet({ items, bottomInset, onAsk, onClose }: {
+  items: AgendaItem[]; bottomInset: number; onAsk: () => void; onClose: () => void;
+}) {
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Mascot head size={40} radius={12} />
+          <Text style={{ flex: 1, fontSize: 16.5, fontWeight: '800', color: colors.ink }}>피기가 전할 소식 {items.length}건</Text>
+        </View>
+        <View style={{ marginTop: 14, gap: 8 }}>
+          {items.map((it, i) => (
+            <View key={i} style={{ flexDirection: 'row', gap: 9, backgroundColor: colors.bg, borderRadius: 13, padding: 12 }}>
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: it.priority === 1 ? colors.pinkStrong : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden', alignSelf: 'flex-start' }}>
+                {AGENDA_BADGE[it.kind] ?? '소식'}
+              </Text>
+              <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.ink, lineHeight: 18 }}>{it.line}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+          <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>확인했어요</Text>
+          </Pressable>
+          <Pressable onPress={onAsk} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>피기와 이야기하기</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
   );
 }
 
 // 입금 도착 → 배분 제안 시트 — 백엔드 파이프라인(예측→배분→코치 확인) 라이브 데모.
 // 서버가 꺼져 있으면 동일 수치의 오프라인 제안으로 폴백(데모가 죽지 않는 원칙).
+// 조정 = 즉시가용 ↔ 여윳돈만 (세금·경비는 불가침) — 조정 방향은 학습 배분 정책의
+// 방향 크레딧으로 귀속돼 다음 제안의 안전 수준을 움직인다 (백엔드 credits_for).
+const ADJUST_STEP = 100_000;
+
 function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
   const { actions } = useApp();
   const [alloc, setAlloc] = useState<Allocation | null>(null);
   const [offline, setOffline] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<null | 'confirmed' | 'adjusted'>(null);
+  const [adjusting, setAdjusting] = useState(false);
+  const [delta, setDelta] = useState(0); // 즉시가용 → 여윳돈 이동액 (음수 = 반대 방향)
+  // ⑥ AI 상품 매칭 — 룰 훅을 즉시 보여주고, 로컬 LLM 매칭이 돌아오면 승급 (핫패스 비차단)
+  const [aiHooks, setAiHooks] = useState<ProductMatchPick[] | null>(null);
   // 같은 사건을 코치 챗·잠금화면 알림이 이어 말하도록 스토어에 기록
-  const note = (a: Allocation, confirmed: boolean) =>
-    actions.noteAllocation({ deposit: a.deposit, windfall: a.windfall_ratio, split: a.proposed, confirmed });
+  const note = (a: Allocation, split: EnvelopeSplit, confirmed: boolean) =>
+    actions.noteAllocation({ id: a.id, deposit: a.deposit, windfall: a.windfall_ratio, split, reasons: a.reasons, confirmed });
   useEffect(() => {
+    let live = true;
     // 실제 입금 플로우: 백엔드가 원장 기록 + 분류 + 저장 이력 기반 제안까지 수행
     bankDeposit()
       .then((r) => {
-        if (r.allocation) { setAlloc(r.allocation); note(r.allocation, false); }
-        else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, false); }
+        if (!live) return;
+        if (r.allocation) {
+          setAlloc(r.allocation); note(r.allocation, r.allocation.proposed, false);
+          // 비동기 AI 승급 — 실패·타임아웃이면 룰 훅 그대로 (조용한 폴백)
+          fetchProductMatch()
+            .then((m) => { if (live && m.matches.length) setAiHooks(m.matches); })
+            .catch(() => {});
+        }
+        else { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, OFFLINE_ALLOCATION.proposed, false); }
       })
-      .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, false); });
+      .catch(() => { setOffline(true); setAlloc(OFFLINE_ALLOCATION); note(OFFLINE_ALLOCATION, OFFLINE_ALLOCATION.proposed, false); });
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 조정본 — 합계는 구조적으로 보존된다 (한쪽에서 뺀 만큼 다른 쪽에 더함)
+  const split: EnvelopeSplit | null = alloc
+    ? {
+        tax: alloc.proposed.tax,
+        expense: alloc.proposed.expense,
+        spendable: Math.round((alloc.proposed.spendable - delta) * 100) / 100,
+        buffer: Math.round((alloc.proposed.buffer + delta) * 100) / 100,
+      }
+    : null;
+  const canToBuffer = !!split && split.spendable - ADJUST_STEP >= 0;
+  const canToSpendable = !!split && split.buffer - ADJUST_STEP >= 0;
 
   const confirm = async () => {
     if (!alloc) return;
     if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); } catch {} }
-    note(alloc, true);
-    setDone(true);
+    note(alloc, alloc.proposed, true);
+    setDone('confirmed');
   };
 
-  const ENV: { key: keyof EnvelopeSplit; label: string; color: string }[] = [
-    { key: 'tax', label: '세금봉투', color: colors.tax },
-    { key: 'expense', label: '경비봉투', color: colors.expense },
+  const applyAdjust = async () => {
+    if (!alloc || !split) return;
+    if (delta === 0) return confirm(); // 조정 0 = 그대로 승인
+    if (!offline) { try { await decideAllocation(alloc.id, 'adjust', split); } catch {} }
+    note(alloc, split, true);
+    setDone('adjusted');
+  };
+
+  const ENV: { key: keyof EnvelopeSplit; label: string; color: string; locked?: boolean }[] = [
+    { key: 'tax', label: '세금봉투', color: colors.tax, locked: true },
+    { key: 'expense', label: '경비봉투', color: colors.expense, locked: true },
     { key: 'spendable', label: '즉시가용', color: colors.spendable },
     { key: 'buffer', label: '여윳돈', color: colors.buffer },
   ];
@@ -155,13 +366,19 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
         <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
-        {!alloc ? (
+        {!alloc || !split ? (
           <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '600', textAlign: 'center', paddingVertical: 30 }}>피기가 배분을 계산하고 있어요 …</Text>
         ) : done ? (
           <View style={{ alignItems: 'center', gap: 12, paddingVertical: 8 }}>
             <Mascot head size={56} radius={17} />
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>봉투에 반영했어요 ✓</Text>
-            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500' }}>승인해 주신 그대로 4개 봉투에 나눠 담았어요</Text>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>
+              {done === 'adjusted' ? '조정하신 대로 반영했어요 ✓' : '봉투에 반영했어요 ✓'}
+            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', textAlign: 'center', lineHeight: 18 }}>
+              {done === 'adjusted'
+                ? `${delta > 0 ? '여윳돈을 더 두껍게' : '지금 쓸 돈을 더 넉넉히'} 가져가시는 방향을 학습했어요 — 다음 제안부터 반영돼요`
+                : '승인해 주신 그대로 4개 봉투에 나눠 담았어요'}
+            </Text>
             <Pressable onPress={onClose} style={{ alignSelf: 'stretch', backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', marginTop: 6 }}>
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>확인</Text>
             </Pressable>
@@ -173,47 +390,108 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>₩{alloc.deposit.toLocaleString('en-US')} 도착!</Text>
                 <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>
-                  평소의 {alloc.windfall_ratio.toFixed(1)}배 큰 입금이에요. 이렇게 나눌까요?
+                  {adjusting ? '세금·경비는 지켜드려요 — 즉시가용과 여윳돈만 조정돼요' : `평소의 ${alloc.windfall_ratio.toFixed(1)}배 큰 입금이에요. 이렇게 나눌까요?`}
                 </Text>
               </View>
               {offline && (
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colors.sub2, backgroundColor: '#F1F2F4', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>오프라인</Text>
               )}
             </View>
+            {/* 긱워커 소득 유형 — 이 배분이 왜 이 사람에게 맞는지의 근거(결정론 측정) */}
+            {!adjusting && alloc.gig_archetype ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.greenTint2, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 }}>
+                <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>내 긱 유형</Text>
+                <Text style={{ flex: 1, fontSize: 11, fontWeight: '600', color: colors.greenInk, lineHeight: 15 }}>{alloc.gig_archetype}</Text>
+              </View>
+            ) : null}
             <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
-              {ENV.map((e) => (
-                <View key={e.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-                  <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: e.color }} />
-                  <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{e.label}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>₩{alloc.proposed[e.key].toLocaleString('en-US')}</Text>
+              {ENV.map((e) => {
+                const changed = adjusting && !e.locked && split[e.key] !== alloc.proposed[e.key];
+                return (
+                  <View key={e.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                    <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: e.color }} />
+                    <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{e.label}</Text>
+                    {adjusting && e.locked && (
+                      <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.sub3, backgroundColor: '#F1F2F4', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>잠금</Text>
+                    )}
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: changed ? colors.green : colors.ink }}>
+                      ₩{split[e.key].toLocaleString('en-US')}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            {adjusting ? (
+              /* 조정 컨트롤 — 방향이 곧 신호: 이 조정이 다음 제안의 안전 수준을 학습시킨다 */
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Pressable
+                    onPress={() => canToSpendable && setDelta((d) => d - ADJUST_STEP)}
+                    style={{ flex: 1, borderWidth: 1.4, borderColor: canToSpendable ? colors.spendable : colors.line, borderRadius: 12, paddingVertical: 11, alignItems: 'center', opacity: canToSpendable ? 1 : 0.4 }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.sub }}>← 지금 쓸 돈 +10만</Text>
+                  </Pressable>
+                  <Text style={{ minWidth: 86, textAlign: 'center', fontSize: 12, fontWeight: '800', color: delta === 0 ? colors.sub3 : colors.green }}>
+                    {delta === 0 ? '제안 그대로' : delta > 0 ? `여윳돈 +${(delta / 10_000).toFixed(0)}만` : `생활비 +${(-delta / 10_000).toFixed(0)}만`}
+                  </Text>
+                  <Pressable
+                    onPress={() => canToBuffer && setDelta((d) => d + ADJUST_STEP)}
+                    style={{ flex: 1, borderWidth: 1.4, borderColor: canToBuffer ? colors.buffer : colors.line, borderRadius: 12, paddingVertical: 11, alignItems: 'center', opacity: canToBuffer ? 1 : 0.4 }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.sub }}>여윳돈 +10만 →</Text>
+                  </Pressable>
                 </View>
-              ))}
-            </View>
-            <View style={{ marginTop: 12, gap: 5 }}>
-              {alloc.reasons.slice(0, 4).map((r, i) => (
-                <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
-              ))}
-            </View>
-            {/* 하나 상품 훅 — 선택은 백엔드 룰, 탭하면 상품 상세로 */}
-            {(alloc.product_hooks ?? []).map((h) => (
-              <Pressable
-                key={h.product_id}
-                onPress={() => actions.openProduct(h.product_id as ProductKey)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
-              >
-                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>하나 상품</Text>
-                <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
-                <Icon name="chevronRight" size={15} color={colors.green} sw={2.2} />
-              </Pressable>
-            ))}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
-                <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>나중에</Text>
-              </Pressable>
-              <Pressable onPress={confirm} style={{ flex: 2, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
-                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 반영</Text>
-              </Pressable>
-            </View>
+                <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15 }}>
+                  조정 방향은 피기가 학습해요 — 자주 늘리시는 쪽으로 다음 제안의 안전 수준이 움직여요
+                </Text>
+              </View>
+            ) : (
+              <View style={{ marginTop: 12, gap: 5 }}>
+                {alloc.reasons.map((r, i) => (
+                  <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
+                ))}
+              </View>
+            )}
+            {/* 하나 상품 훅 — 룰 훅 즉시 표시 → AI 매칭(페르소나·팩트 접지) 도착 시 승급.
+                AI 배지만 보라(시각 스킴: AI가 판단한 곳만 표시), 탭하면 상품 상세로 (조정 중 숨김) */}
+            {!adjusting && (aiHooks ?? alloc.product_hooks ?? []).map((h) => {
+              const isAi = 'source' in h && h.source === 'llm';
+              return (
+                <Pressable
+                  key={h.product_id}
+                  onPress={() => actions.openProduct(h.product_id as ProductKey)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isAi ? '#F5F1FB' : colors.greenTint2, borderWidth: 1, borderColor: isAi ? '#E2D8F3' : colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
+                >
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAi ? '#7C5CBF' : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
+                    {isAi ? 'AI 맞춤' : '하나 상품'}
+                  </Text>
+                  <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
+                  <Icon name="chevronRight" size={15} color={isAi ? '#7C5CBF' : colors.green} sw={2.2} />
+                </Pressable>
+              );
+            })}
+            {adjusting ? (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <Pressable onPress={() => { setAdjusting(false); setDelta(0); }} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                  <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>취소</Text>
+                </Pressable>
+                <Pressable onPress={applyAdjust} style={{ flex: 2, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>{delta === 0 ? '그대로 반영' : '이렇게 반영'}</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                  <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>나중에</Text>
+                </Pressable>
+                <Pressable onPress={() => setAdjusting(true)} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+                  <Text style={{ color: colors.green, fontSize: 14.5, fontWeight: '800' }}>조정</Text>
+                </Pressable>
+                <Pressable onPress={confirm} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 반영</Text>
+                </Pressable>
+              </View>
+            )}
           </>
         )}
       </View>

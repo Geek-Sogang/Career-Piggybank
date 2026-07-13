@@ -18,9 +18,9 @@ import re
 from dataclasses import dataclass
 
 from app.core.config import settings
-from app.services import llm
-from app.services.facts import Fact
-from app.services.pacing import MULTIPLIERS
+from app.core import llm
+from app.engines.facts import Fact
+from app.engines.pacing import MULTIPLIERS
 
 STANCE_MENU = tuple(MULTIPLIERS)   # ("보류", "기본", "당김")
 
@@ -52,12 +52,14 @@ class PacingJudgment:
     reason: str
     fallback: bool
     gate_failures: tuple[str, ...]
+    retried: bool = False              # 교정 재시도 1회로 통과 (첫 위반은 gate_failures에)
 
     def as_dict(self) -> dict:
         return {
             "priorities": list(self.priorities), "stances": self.stances,
             "evidence": list(self.evidence), "reason": self.reason,
             "fallback": self.fallback, "gate_failures": list(self.gate_failures),
+            "retried": self.retried,
         }
 
 
@@ -113,17 +115,12 @@ def _context(goals: list[dict], facts: list[Fact], axes: dict | None) -> str:
     return "\n".join(lines)
 
 
-def judge(goals: list[dict], facts: list[Fact], axes: dict | None) -> PacingJudgment:
-    """페이싱 판단 — 게이트 실패·LLM 다운이면 산수 폴백 (페이싱은 항상 산다)."""
-    if not goals:
-        return PacingJudgment((), {}, (), "목표 없음", False, ())
-
-    out = llm.chat_json(_system_prompt(), _context(goals, facts, axes),
-                        model=settings.ollama_model_coach)
-    if not isinstance(out, dict):
-        return _fallback(goals, ["llm_unavailable"])
-
+def _validate(
+    goals: list[dict], facts: list[Fact], out: dict,
+) -> tuple[list[str], list[str], list[str], dict, list[str]]:
+    """게이트 3종 검증 — (실패 코드, 교정 메시지, 우선순위, 스탠스, 근거)."""
     failures: list[str] = []
+    corrections: list[str] = []
     goal_ids = {g["id"] for g in goals}
 
     # 게이트 1 — 우선순위는 전체 목표의 순열이어야 한다 (빠짐·중복·유령 금지)
@@ -131,13 +128,20 @@ def judge(goals: list[dict], facts: list[Fact], axes: dict | None) -> PacingJudg
     priorities = [p for p in raw_pri] if isinstance(raw_pri, list) else []
     if sorted(map(str, priorities)) != sorted(goal_ids):
         failures.append("priorities_not_permutation")
+        corrections.append(
+            f"priorities는 전체 목표 ID를 정확히 한 번씩 담아야 한다 — 목표: {sorted(goal_ids)}"
+        )
 
     # 게이트 2 — 스탠스는 메뉴에서만
     raw_st = out.get("stances")
     stances = dict(raw_st) if isinstance(raw_st, dict) else {}
+    menu = " | ".join(STANCE_MENU)
     for gid in goal_ids:
         if stances.get(gid) not in STANCE_MENU:
             failures.append(f"stance_menu:{gid}")
+            corrections.append(
+                f"stances['{gid}'] = {stances.get(gid)!r}는 보기에 없다 — 반드시 {menu} 중 하나."
+            )
 
     # 게이트 3 — 접지: 근거 팩트 실존 (형식 노이즈는 정규화, 지어낸 ID는 탈락)
     measured = {f.id for f in facts if f.value is not None}
@@ -147,14 +151,50 @@ def judge(goals: list[dict], facts: list[Fact], axes: dict | None) -> PacingJudg
     )
     if invented:
         failures.append(f"grounding:{','.join(invented)}")
+        corrections.append(
+            f"evidence의 {', '.join(invented)}는 팩트시트에 없는 ID다 — 실측 팩트 ID만 인용하라."
+        )
 
+    return failures, corrections, priorities, stances, evidence
+
+
+def judge(goals: list[dict], facts: list[Fact], axes: dict | None) -> PacingJudgment:
+    """페이싱 판단 — 게이트 실패는 교정 재시도 1회, 그래도 실패·LLM 다운이면 산수 폴백.
+
+    재시도는 위반을 명시한 다른 입력이다(temp 0에서 같은 프롬프트는 같은 답) — 1회 한정,
+    통과할 때까지 조르는 건 검증이 아니라 유도다. 페이싱은 항상 산다(폴백 = 산수).
+    """
+    if not goals:
+        return PacingJudgment((), {}, (), "목표 없음", False, ())
+
+    context = _context(goals, facts, axes)
+    out = llm.chat_json(_system_prompt(), context, model=settings.ollama_model_coach)
+    if not isinstance(out, dict):
+        return _fallback(goals, ["llm_unavailable"])
+
+    failures, corrections, priorities, stances, evidence = _validate(goals, facts, out)
+    retried = False
     if failures:
-        return _fallback(goals, failures)
+        retry_user = (
+            f"{context}\n\n[교정 재시도 — 직전 응답이 검증에서 탈락했다]\n"
+            + "\n".join(f"· {c}" for c in corrections)
+            + "\n위 문제를 고쳐 같은 JSON 형식으로 다시 판단하라."
+        )
+        out2 = llm.chat_json(_system_prompt(), retry_user, model=settings.ollama_model_coach)
+        if not isinstance(out2, dict):
+            return _fallback(goals, [*failures, "retry:llm_unavailable"])
+        failures2, _c2, priorities2, stances2, evidence2 = _validate(goals, facts, out2)
+        if failures2:
+            return _fallback(goals, failures + [f"retry:{f}" for f in failures2])
+        retried, out = True, out2
+        priorities, stances, evidence = priorities2, stances2, evidence2
 
     return PacingJudgment(
         priorities=tuple(map(str, priorities)),
         stances={str(k): str(v) for k, v in stances.items()},
         evidence=tuple(evidence),
         reason=str(out.get("reason", "")).strip()[:200],
-        fallback=False, gate_failures=(),
+        fallback=False,
+        gate_failures=tuple(failures) if retried else (),
+        retried=retried,
     )

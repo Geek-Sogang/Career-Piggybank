@@ -7,7 +7,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.api.routes.bank import _boot
-from app.services import bank_flow, forecast, income_streams
+from app.orchestration import bank_flow
+from app.engines import forecast, income_streams, tax_envelope
 from app.store import db
 
 router = APIRouter(prefix="/v1/forecast", tags=["forecast"])
@@ -95,6 +96,25 @@ class MonteCarloOut(BaseModel):
     prob_in_base_band: float      # 결정론 기본 밴드 안에 떨어진 미래의 비율
 
 
+class FundedRetirementOut(BaseModel):
+    """자금 달성형 은퇴 (B) — 저축이 은퇴 넘버에 도달하는 해. 소득 소멸형(A)과 병행.
+
+    A(위 retirement/mc)는 '일감이 생활을 못 버티는 해', B는 '충분히 모아 그만둘 수 있는 해'.
+    저축이 예측을 움직인다 — 저축 앱의 은퇴 예측이라면 이 정의가 논리적으로 맞다.
+    """
+
+    target: float                 # 은퇴 넘버 = 연 생활비 ÷ 4%
+    funded_year: int              # 결정론 달성 해 (미달이면 지평선 끝)
+    reached: bool                 # 지평선 안에 도달했나
+    annual_surplus0: float        # 첫 해 저축 여력(세후 소득 − 생활비) — 0이면 저축 불가
+    mc_p10: int                   # 부트스트랩 분포: 이르게 달성한 10%
+    mc_median: int
+    mc_p90: int
+    years: list[int]              # 누적 저축 경로 x축
+    savings_path: list[float]     # 연도별 누적 저축 (차트용)
+    reasons: list[str]
+
+
 class ForecastResponse(BaseModel):
     income_gap: IncomeGapOut
     retirement: list[RetirementBandOut]
@@ -102,6 +122,7 @@ class ForecastResponse(BaseModel):
     path: IncomePathOut
     streams: StreamsOut
     mc: MonteCarloOut
+    funded: FundedRetirementOut
     monthly_income_level: float
     monthly_living_target: float
     income_cv: float
@@ -163,6 +184,19 @@ def get_forecast() -> ForecastResponse:
     )
     in_band = sum(1 for y in mc.years if base_band.band_start_year <= y <= base_band.band_end_year)
 
+    # B — 자금 달성형: 세율(연 매출 기준 실효 추가세율)로 저축 여력을 계산해 은퇴 넘버 도달 해를 낸다
+    tax_rate = max(0.0, tax_envelope.estimate_annual_tax(est.profile.annual_gross).effective_tax_rate)
+    funded = forecast.funded_retirement(
+        monthly_incomes=monthly_incomes,
+        monthly_living_target=est.profile.expected_monthly_living,
+        tax_rate=tax_rate,
+        income_cv=est.profile.income_cv,
+        months_observed=est.months_observed,
+        base_year=base_year,
+        signals=signals,
+        monthly_expense=est.profile.expected_monthly_expense,  # 경비도 실제 유출 — 저축 여력에서 뺀다
+    )
+
     path = forecast.income_path(
         monthly_incomes=monthly_incomes,
         monthly_living_target=est.profile.expected_monthly_living,
@@ -192,6 +226,12 @@ def get_forecast() -> ForecastResponse:
         mc=MonteCarloOut(
             runs=mc.runs, band_start_year=mc.band_start_year, median_year=mc.median_year,
             band_end_year=mc.band_end_year, prob_in_base_band=round(in_band / mc.runs, 3),
+        ),
+        funded=FundedRetirementOut(
+            target=funded.target, funded_year=funded.funded_year, reached=funded.reached,
+            annual_surplus0=funded.annual_surplus0, mc_p10=funded.mc_p10,
+            mc_median=funded.mc_median, mc_p90=funded.mc_p90, years=funded.years,
+            savings_path=funded.savings_path, reasons=funded.reasons,
         ),
         monthly_income_level=assumptions["monthly_income_level"],  # type: ignore[arg-type]
         monthly_living_target=round(est.profile.expected_monthly_living, 2),

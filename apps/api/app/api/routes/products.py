@@ -10,9 +10,9 @@ from fastapi import APIRouter
 
 from app.agents import product_match as product_match_agent
 from app.api.routes.bank import _boot
-from app.services import bank_flow
-from app.services import facts as facts_svc
-from app.services import product_match
+from app.orchestration import bank_flow
+from app.engines import facts as facts_svc
+from app.engines import product_match
 from app.store import db
 
 router = APIRouter(prefix="/v1/products", tags=["products"])
@@ -33,7 +33,8 @@ def match() -> dict:
     invest_available = float(latest["meta"].get("invest_available", 0.0))
     tax_balance = db.envelope_balances()["tax"]
     ctx = bank_flow.context_from_store()
-    candidates, vetoed = product_match.eligible(invest_available, tax_balance, ctx)
+    candidates, vetoed = product_match.eligible(
+        invest_available, tax_balance, ctx, bank_flow.has_confirmed_incoming())
 
     txns = db.list_txns()
     sheet = facts_svc.build_factsheet(txns, allocations, db.list_events())

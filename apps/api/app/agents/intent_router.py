@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass
 
 from app.core.config import settings
-from app.services import llm
+from app.core import llm
 
 INTENTS: tuple[str, ...] = (
     "report_income",     # 예정 수입 보고 → 예정 수입 파서(event_capture)

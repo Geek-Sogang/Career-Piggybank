@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import coach
+from app.agents import coach
 
 CONTEXT = {
     "proposed": {"tax": 108900, "expense": 400000, "spendable": 1200000, "buffer": 1291100},
@@ -56,6 +56,26 @@ def test_fabricated_number_is_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
     assert r.verified is False
     assert "2,900,000" not in r.reply           # 할루시네이션 금액이 사용자에게 닿지 않음
     assert "108,900" in r.reply                 # 폴백은 실제 근거를 전달
+
+
+def test_substring_of_real_number_is_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """조작된 291,100은 컨텍스트 1,291,100의 부분열이지만 전체 일치가 아니므로 차단 (구멍 봉합).
+
+    이전 부분열 매칭은 이걸 통과시켰다 — 정확 일치라 이제 폴백으로 떨어진다.
+    """
+    set_llm_reply(monkeypatch, "여윳돈에 291,100원만 담았어요.")
+    r = coach.chat("얼마 넣었어?", CONTEXT)
+    assert r.source == "fallback"      # 지어낸 부분열 금액이 차단됨
+    assert r.verified is False
+
+
+def test_float_artifact_number_still_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """컨텍스트가 108900.0(float)이어도 코치가 108,900원을 인용하면 통과 (소수부 버림 정규화)."""
+    ctx = {"proposed": {"tax": 108900.0, "buffer": 1291100.0}, "reasons": ["세금 108,900원"]}
+    set_llm_reply(monkeypatch, "세금봉투에 108,900원을 먼저 뗐어요.")
+    r = coach.chat("세금 얼마야?", ctx)
+    assert r.source == "llm"
+    assert r.verified is True
 
 
 def test_llm_down_uses_reason_fallback(monkeypatch: pytest.MonkeyPatch) -> None:

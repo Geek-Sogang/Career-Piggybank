@@ -20,9 +20,9 @@ import re
 from dataclasses import dataclass
 
 from app.core.config import settings
-from app.services import llm
-from app.services.facts import Fact
-from app.services.product_match import MAX_HOOKS, Candidate
+from app.core import llm
+from app.engines.facts import Fact
+from app.engines.product_match import MAX_HOOKS, Candidate
 
 _DIGITS = re.compile(r"\d[\d,\.]*")
 

@@ -1,0 +1,32 @@
+"""행동 계측 라우트 — 실제 행동(비금융) 이벤트를 로그로 남긴다.
+
+커리어 소스 연결·앱 방문은 금융 거래가 아니라 '진짜 행동'이다. 이 이벤트들이 팩트시트의
+F13(소스 연결)·F14(앱 참여)가 되고, 페르소나 계획성 축의 비금융 근거가 된다.
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from app.api.routes.bank import _boot
+from app.store import db
+
+router = APIRouter(prefix="/v1/behavior", tags=["behavior"])
+
+_ALLOWED = {"source_connected", "app_opened", "portfolio_uploaded"}
+
+
+class BehaviorEvent(BaseModel):
+    type: str = Field(description="source_connected | app_opened | portfolio_uploaded")
+    source: str | None = Field(default=None, description="source_connected일 때 소스명(github 등)")
+
+
+@router.post("")
+def log_behavior(req: BehaviorEvent) -> dict:
+    """실제 행동 이벤트 1건 기록 — 계측만 (돈·상태 변경 없음)."""
+    _boot()
+    if req.type not in _ALLOWED:
+        raise HTTPException(status_code=422, detail=f"type must be one of {sorted(_ALLOWED)}")
+    payload = {"source": req.source} if req.source else {}
+    ev_id = db.log_event(req.type, payload=payload)
+    return {"ok": True, "event_id": ev_id}

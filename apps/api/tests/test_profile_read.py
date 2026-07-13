@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.agents import profile_read
 from app.main import app
-from app.services import facts as facts_svc
+from app.engines import facts as facts_svc
 from app.store import db
 
 client = TestClient(app)
@@ -91,6 +91,27 @@ def test_polarity_neutral_is_weight_judgment_not_error(monkeypatch):
     assert not r.fallback
 
 
+def test_f05_low_self_control_gated_on_savings_capacity():
+    """유철 피드백: 가뭄에 '못 줄임'은 저축 여력(F09)이 있을 때만 자기통제↓ 증거.
+
+    생계 최저선(F09 낮음)인 사람은 줄이고 싶어도 줄일 게 없어 F05가 높게 나오는데,
+    이걸 자기통제 낮음으로 읽으면 억울하다 → 코드 게이트로 극성을 무효화.
+    """
+    from types import SimpleNamespace
+
+    from app.agents.profile_read import _expected_polarity
+
+    def fm(f09_value):
+        return {"F09": SimpleNamespace(value=f09_value)}
+
+    # F05 = 0(가뭄에 못 줄임): 여력 충분(F09 0.3)이면 자기통제↓('down'), 여력 부족(0.05)이면 무효(None)
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(0.30)) == "down"
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(0.05)) is None
+    assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(None)) is None
+    # 가뭄에 크게 줄임(-0.4)은 여력 무관하게 항상 자기통제↑('up') — 최저선에서 줄이면 더 강한 증거
+    assert _expected_polarity("self_control", "F05", -0.4, facts_by_id=fm(0.05)) == "up"
+
+
 def test_menu_gate_rejects_free_value(monkeypatch):
     monkeypatch.setattr(profile_read.llm, "chat_json",
                         lambda *a, **k: _llm_out(value=0.42))
@@ -104,6 +125,50 @@ def test_llm_down_falls_back_neutral(monkeypatch):
     reading = profile_read.read_profile(_facts())
     assert reading["fallback_count"] == 4
     assert all(a["value"] == 0.5 for a in reading["axes"].values())
+
+
+# ── 교정 재시도 — 게이트가 잡은 위반을 명시해 1회 재판단 (답변 안정성) ──
+
+def test_corrective_retry_rescues_menu_violation(monkeypatch):
+    """1차: 메뉴 밖 0.55 → 재시도 프롬프트에 위반 명시 → 2차 정상이면 기권 대신 채택."""
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        if len(calls) == 1:
+            return _llm_out(value=0.55)          # 메뉴 위반
+        return _llm_out(value=0.3)               # 교정됨
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    r = profile_read.read_axis("self_control", _facts())
+    assert not r.fallback
+    assert r.value == 0.3
+    assert r.retried is True
+    assert any(g.startswith("menu_violation") for g in r.gate_failures)  # 감사: 첫 위반 기록
+    assert "교정 재시도" in calls[1] and "0.55" in calls[1]              # 위반이 명시된 다른 입력
+
+
+def test_corrective_retry_still_bad_falls_back(monkeypatch):
+    """재시도도 위반이면 유도하지 않고 중립 폴백 — 1회 한정 (게이트는 게이트)."""
+    monkeypatch.setattr(profile_read.llm, "chat_json",
+                        lambda *a, **k: _llm_out(value=0.42))
+    r = profile_read.read_axis("self_control", _facts())
+    assert r.fallback and r.value == 0.5
+    assert any(g.startswith("retry:") for g in r.gate_failures)   # 2차 위반도 감사 기록
+
+
+def test_clean_first_answer_does_not_retry(monkeypatch):
+    """1차가 깨끗하면 재호출 없음 — 재시도는 예외 경로지 상시 2배 호출이 아니다."""
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        return _llm_out()
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    r = profile_read.read_axis("self_control", _facts())
+    assert not r.fallback and not r.retried
+    assert len(calls) == 1
 
 
 # ── 오케스트레이션 (라우트 + 스냅샷) ──
@@ -127,7 +192,7 @@ def test_read_route_saves_snapshot(monkeypatch):
     snap = db.latest_snapshot()
     assert snap is not None and snap["id"] == body["snapshot_id"]
     assert snap["axes"]["self_control"]["value"] == 0.3
-    assert snap["factsheet"]["count"] == 12          # 판단 당시의 사실이 함께 고정
+    assert snap["factsheet"]["count"] == 14          # 판단 당시의 사실이 함께 고정
     assert snap["model_id"] == body["model_id"]
 
     persona = client.get("/v1/profile/persona").json()

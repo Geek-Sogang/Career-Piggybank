@@ -4,8 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.schemas.classify import ClassificationOut, ClassifyRequest, ClassifyResponse
-from app.services import classifier, classifier_llm
-from app.services.classifier import TxnInput
+from app.engines import classifier
+from app.agents import classifier_llm
+from app.engines.classifier import TxnInput
 
 router = APIRouter(prefix="/v1/classify", tags=["classify"])
 

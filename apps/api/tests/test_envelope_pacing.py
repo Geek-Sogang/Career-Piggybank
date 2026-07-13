@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 
 from app.agents import amount_pacing, envelope_recommend
 from app.main import app
-from app.services import facts as facts_svc
-from app.services import pacing as pacing_svc
+from app.engines import facts as facts_svc
+from app.engines import pacing as pacing_svc
 from app.store import db
 
 client = TestClient(app)
@@ -133,6 +133,27 @@ def test_pacing_llm_down_arithmetic_fallback(monkeypatch):
     assert all(s == "기본" for s in j.stances.values())
 
 
+def test_pacing_corrective_retry_rescues(monkeypatch):
+    """1차 스탠스 메뉴 위반 → 위반 명시 재시도 → 2차 정상이면 산수 폴백 대신 판단 채택."""
+    _seed_ledger()
+    g1, g2 = _goals_db()
+    calls: list[str] = []
+
+    def fake(system, user, **k):
+        calls.append(user)
+        if len(calls) == 1:
+            return {"priorities": [g2, g1], "stances": {g1: "빨리", g2: "당김"},
+                    "evidence": ["F01"], "reason": ""}          # '빨리'는 메뉴에 없음
+        return {"priorities": [g2, g1], "stances": {g1: "보류", g2: "당김"},
+                "evidence": ["F01"], "reason": "교정됨"}
+
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", fake)
+    j = amount_pacing.judge(db.list_goals(), _facts(), None)
+    assert not j.fallback and j.retried is True
+    assert j.stances[g1] == "보류"
+    assert "교정 재시도" in calls[1] and "빨리" in calls[1]     # 위반이 명시된 다른 입력
+
+
 # ── ⑤a 추천 게이트 ──
 
 def test_recommend_gates(monkeypatch):
@@ -153,6 +174,23 @@ def test_recommend_gates(monkeypatch):
 def test_recommend_llm_down_empty(monkeypatch):
     monkeypatch.setattr(envelope_recommend.llm, "chat_json", lambda *a, **k: None)
     assert envelope_recommend.recommend(_facts(), None, []) == []
+
+
+def test_recommend_injects_gig_structure_into_prompt(monkeypatch):
+    """긱 구조를 주면 프롬프트에 '긱 소득 구조' 블록이 실려 추천이 구조 인식으로 갈린다."""
+    from app.engines.gig_profile import GigProfile
+    gig = GigProfile(
+        volatility="고변동", volatility_cv=1.1, concentration="단일 의존", top_source_share=0.62,
+        rhythm="플랫폼 정기형", is_multi_gig=False, phase="감속 주의",
+        archetype="고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄",
+    )
+    seen = {}
+    monkeypatch.setattr(envelope_recommend.llm, "chat_json",
+                        lambda sys, user, **k: seen.update(prompt=user) or {"recommendations": []})
+    envelope_recommend.recommend(_facts(), None, [], gig=gig)
+    assert "긱 소득 구조" in seen["prompt"]
+    assert "단일 의존" in seen["prompt"] and "고변동" in seen["prompt"]
+    assert gig.archetype in seen["prompt"]
 
 
 # ── 오케스트레이션 + 확인 게이트 (라이브 API) ──
@@ -177,6 +215,39 @@ def test_full_flow_confirm_moves_balances(monkeypatch):
     assert db.envelope_balances()["buffer"] - before == prop["split"]["buffer"]
     assert db.get_goal(goal["id"])["balance"] == prop["split"][goal["id"]]
     assert any(e["type"] == "pacing_decided" for e in db.list_events())
+
+
+def test_buffer_source_rebalances_without_printing_money(monkeypatch):
+    """source=buffer — 버퍼에 이미 있는 돈의 재배치: 목표↑ = 버퍼↓, 총액 보존 (새 돈 금지)."""
+    _seed_ledger()
+    db.envelope_set("buffer", 1_500_000)
+    goal = client.post("/v1/envelopes/goals", json={
+        "name": "새 맥북", "target_amount": 2_400_000, "target_date": "2025-08-01",
+    }).json()
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", lambda *a, **k: None)  # 산수 폴백
+    prop = client.post("/v1/pacing/propose", json={
+        "available": 1_000_000, "buffer_shortfall": 0, "today": "2025-05-01", "source": "buffer",
+    }).json()
+    goal_slice = prop["split"][goal["id"]]
+    assert goal_slice > 0
+
+    before = db.envelope_balances()["buffer"]
+    client.post(f"/v1/pacing/{prop['id']}/decision", json={"action": "confirm"})
+    after = db.envelope_balances()["buffer"]
+    assert round(before - after, 2) == round(goal_slice, 2)        # 버퍼는 목표로 간 만큼만 감소
+    assert db.get_goal(goal["id"])["balance"] == goal_slice        # 총액 보존 — 화폐 발행 없음
+
+
+def test_buffer_source_overdraft_guarded(monkeypatch):
+    """버퍼 잔액보다 큰 available은 propose에서 422 — 없는 돈은 나눌 수 없다."""
+    _seed_ledger()
+    db.envelope_set("buffer", 100_000)
+    client.post("/v1/envelopes/goals", json={"name": "새 맥북", "target_amount": 2_400_000})
+    monkeypatch.setattr(amount_pacing.llm, "chat_json", lambda *a, **k: None)
+    res = client.post("/v1/pacing/propose", json={
+        "available": 1_000_000, "buffer_shortfall": 0, "today": "2025-05-01", "source": "buffer",
+    })
+    assert res.status_code == 422
 
 
 def test_reject_moves_nothing(monkeypatch):

@@ -11,9 +11,9 @@ from app.agents import profile_read
 from app.api.routes.bank import _boot
 from app.schemas.allocation import SpendingProfileIn
 from app.schemas.profile import ProfileEstimateRequest, ProfileEstimateResponse
-from app.services import facts as facts_svc
-from app.services import spending_profile
-from app.services.spending_profile import Txn
+from app.engines import facts as facts_svc
+from app.engines import forecast, gig_profile, income_streams, spending_profile
+from app.engines.spending_profile import Txn
 from app.store import db
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])
@@ -65,3 +65,22 @@ def latest_persona() -> dict:
         raise HTTPException(status_code=404, detail="no persona snapshot — POST /v1/profile/read first")
     # 신선도 게이트 — 원장은 자랐는데 축은 예전이면 다운스트림이 알아야 한다 (판정만, 자동 재판독 없음)
     return {**snap, "staleness": facts_svc.snapshot_staleness(snap, len(db.list_txns()))}
+
+
+@router.get("/gig")
+def gig() -> dict:
+    """긱워커 소득 프로필 — 페르소나의 긱 특화 층 (전부 결정론, 판독 전에도 항상 있음).
+
+    심리 4축(/persona, AI 판독 필요)과 달리 이건 원장에서 잰 구조라 언제나 조회 가능하다 —
+    변동성·소득원 구조·수입 리듬·국면·N잡 여부. "구조는 측정, 성향은 AI"의 측정 쪽.
+    """
+    _boot()
+    txns = db.list_txns()
+    income = [t for t in txns if t["kind"] == "income" and t["direction"] == "in"
+              and not t["needs_review"]]
+    facts = facts_svc.build_factsheet(txns, db.list_allocations(), db.list_events())
+    signals = forecast.career_signals(income)
+    as_of = max((t["date"] for t in txns), default=None)
+    est_months = len({t["date"][:7] for t in txns})
+    streams = income_streams.decompose(income, months_observed=float(est_months), as_of=as_of)
+    return gig_profile.build_gig_profile(facts, signals, streams).as_dict()

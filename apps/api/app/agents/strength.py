@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.services import llm
+from app.core import llm
 
 _SELECT_SYSTEM = """너는 선택 에이전트다. 긱워커의 검증 이력 요약과 강점 후보 문장들을 보고,
 이 사람을 가장 잘 대변하는 후보의 번호 하나만 고른다. 문장을 새로 쓰거나 고치지 않는다.

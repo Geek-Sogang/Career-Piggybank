@@ -77,10 +77,10 @@ function useAppState(startTab: Tab = 'home') {
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     noteAllocation: (n: AllocNotice) => setLastAlloc(n),
     markAllocConfirmed: () => setLastAlloc((p) => (p ? { ...p, confirmed: true } : p)),
-    // ⑤b 페이싱 확정(프론트 시뮬) — 목표별 담은 금액을 오버레이로 기록하고 저금통으로 이동
+    // ⑤b 페이싱 확정(프론트 시뮬) — 담은 금액을 오버레이로 기록하고 가계부 → 자동봉투(봉투 모아진 화면)로 이동
     applyPacing: (deposits: Record<string, number>) => {
       setPacingApplied((p) => ({ ...p, ...deposits }));
-      setTab('piggy'); setSheet(null); setPush(null);
+      setTab('ledger'); setPush('tax'); setSheet(null);
     },
     closeSheet: () => setSheet(null),
     confirm: () => { apply('mydata', true); setSheet(null); },

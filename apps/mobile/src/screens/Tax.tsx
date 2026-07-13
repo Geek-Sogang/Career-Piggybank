@@ -4,13 +4,13 @@ import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, T } from '@/components/ui';
 import { useApp } from '@/store';
-import { getEnvelopeBalances } from '@/api';
+import { getEnvelopeBalances, getGoals, type Goal } from '@/api';
 import { splitDeposit, estimateAnnualTax, won } from '@/lib/taxEnvelope';
 
 const ANNUAL = 30_000_000;
 
 export function Tax() {
-  const { lastAlloc, actions } = useApp();
+  const { lastAlloc, actions, pacingApplied } = useApp();
   // 방금 배분한 실제 입금이 있으면 그 금액·분배로, 없으면 데모 기본값(결정론 엔진 라이브 계산)
   const DEPOSIT = lastAlloc?.deposit ?? 500_000;
   const e = lastAlloc?.split ?? splitDeposit(DEPOSIT, ANNUAL);
@@ -19,8 +19,10 @@ export function Tax() {
 
   // 봉투별 총 잔액 — '총액 (+이번 입금)' 표시용
   const [balances, setBalances] = useState<Record<string, number> | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
   useEffect(() => {
     getEnvelopeBalances().then((r) => setBalances(r.balances)).catch(() => {});
+    getGoals().then(setGoals).catch(() => {});   // 목표 봉투 — ⑤b 페이싱으로 담긴 것 포함
   }, []);
 
   const rows = [
@@ -81,6 +83,39 @@ export function Tax() {
           ))}
         </View>
       </Card>
+
+      {/* 목표 봉투 — ⑤b 페이싱으로 여윳돈에서 담긴 봉투가 여기 모인다 */}
+      {goals.length > 0 && (
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>목표 봉투</Text>
+            <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>여윳돈에서 담아 모으는 봉투</Text>
+          </View>
+          <View style={{ marginTop: 14, gap: 15 }}>
+            {goals.map((g) => {
+              const added = pacingApplied[g.id] ?? 0;      // 방금 페이싱으로 담은 금액
+              const bal = g.balance + added;
+              const p = Math.min(1, bal / Math.max(1, g.target_amount));
+              return (
+                <View key={g.id} style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{g.name}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.ink, ...T.num }}>
+                      {won(bal)} <Text style={{ fontSize: 11, color: colors.sub3, fontWeight: '600' }}>/ {won(g.target_amount)}</Text>
+                    </Text>
+                  </View>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
+                    <View style={{ width: `${p * 100}%`, height: 8, borderRadius: 4, backgroundColor: colors.buffer }} />
+                  </View>
+                  {added > 0 ? (
+                    <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.green }}>방금 여윳돈에서 +{won(added)} 담았어요 ✓</Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        </Card>
+      )}
 
       {/* 5월 종소세 미리보기 */}
       <Card>

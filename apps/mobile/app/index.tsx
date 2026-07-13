@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, consumeAgenda, decideAllocation, decidePacing, fetchProductMatch, getAgenda, getEnvelopeBalances, OFFLINE_ALLOCATION, proposePacing, type AgendaItem, type Allocation, type EnvelopeSplit, type PacingProposal, type ProductMatchPick } from '@/api';
+import { bankDeposit, consumeAgenda, decideAllocation, fetchProductMatch, getAgenda, getEnvelopeBalances, getGoals, OFFLINE_ALLOCATION, type AgendaItem, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
@@ -145,28 +145,49 @@ function Shell() {
 // 원화 번역은 산수(합계 보존), 실행은 confirm만 — source=buffer 재배치 회계.
 const STANCE_COLOR: Record<string, string> = { 당김: '#7C5CBF', 기본: colors.sub, 보류: colors.sub3 };
 
+type PacingAssigned = { id: string; name: string; stance: string; amount: number };
 function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
-  const [prop, setProp] = useState<PacingProposal | null>(null);
+  const { actions } = useApp();
+  const [prop, setProp] = useState<{ available: number; goals: PacingAssigned[]; leftover: number; reason: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
   useEffect(() => {
     let live = true;
-    getEnvelopeBalances()
-      .then((e) => {
+    Promise.all([getEnvelopeBalances(), getGoals()])
+      .then(([e, goalsList]) => {
         const buffer = Math.floor(e.balances.buffer ?? 0);
         if (buffer <= 0) { if (live) setError('아직 여윳돈이 없어요 — 입금 배분 후 다시 열어주세요'); return; }
-        const today = new Date().toISOString().slice(0, 10);
-        return proposePacing(buffer, today, 'buffer').then((p) => { if (live) setProp(p); });
+        if (!goalsList.length) { if (live) setError('목표 봉투가 없어요 — 먼저 봉투를 만들어 주세요'); return; }
+        // 온디바이스 AI 판단 시뮬레이션 — 약 3초 뒤 목표별 적정 금액을 채운다 (백엔드는 나중에)
+        setTimeout(() => {
+          if (!live) return;
+          const distributable = Math.floor((buffer * 0.7) / 10000) * 10000; // 여윳돈 70%만 목표로, 30%는 비상용으로 남김
+          const withNeed = goalsList
+            .map((g) => ({ g, need: Math.max(0, g.target_amount - g.balance) }))
+            .filter((x) => x.need > 0);
+          const totalNeed = withNeed.reduce((a, x) => a + x.need, 0) || 1;
+          let left = distributable;
+          const assigned: PacingAssigned[] = withNeed
+            .map(({ g, need }, i) => {
+              const raw = i === withNeed.length - 1 ? left : Math.round(((need / totalNeed) * distributable) / 10000) * 10000;
+              const amount = Math.max(0, Math.min(need, raw, left));
+              left -= amount;
+              const stance = g.target_date ? '당김' : need / totalNeed > 0.4 ? '기본' : '보류';
+              return { id: g.id, name: g.name, stance, amount };
+            })
+            .filter((x) => x.amount > 0);
+          const leftover = buffer - assigned.reduce((a, x) => a + x.amount, 0);
+          setProp({ available: buffer, goals: assigned, leftover, reason: '기한과 목표 잔여액을 반영해 여윳돈 일부만 목표로 옮겨요 — 비상 여윳돈은 남겨둬요' });
+        }, 3000);
       })
-      .catch(() => { if (live) setError('페이싱 제안을 불러오지 못했어요 — 서버 연결을 확인해 주세요'); });
+      .catch(() => { if (live) setError('제안을 불러오지 못했어요 — 서버 연결을 확인해 주세요'); });
     return () => { live = false; };
   }, []);
 
-  const decide = async (action: 'confirm' | 'reject') => {
+  const confirm = () => {
     if (!prop) return;
-    try { await decidePacing(prop.id, action); } catch {}
-    if (action === 'confirm') setDone(true);
-    else onClose();
+    const deposits: Record<string, number> = {};
+    prop.goals.forEach((g) => { deposits[g.id] = g.amount; });
+    actions.applyPacing(deposits); // 저금통으로 이동 + 담은 금액 오버레이 표시
   };
 
   return (
@@ -181,15 +202,6 @@ function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
               <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>닫기</Text>
             </Pressable>
           </View>
-        ) : done ? (
-          <View style={{ alignItems: 'center', gap: 12, paddingVertical: 8 }}>
-            <Mascot head size={56} radius={17} />
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>목표 봉투에 담았어요 ✓</Text>
-            <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', textAlign: 'center' }}>여윳돈에서 그만큼만 옮겼어요 — 합계는 그대로예요</Text>
-            <Pressable onPress={onClose} style={{ alignSelf: 'stretch', backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', marginTop: 6 }}>
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>확인</Text>
-            </Pressable>
-          </View>
         ) : !prop ? (
           <View style={{ alignItems: 'center', gap: 10, paddingVertical: 22 }}>
             <Mascot head size={48} radius={15} />
@@ -201,13 +213,9 @@ function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
               <Mascot head size={44} radius={13} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>여윳돈 ₩{prop.available.toLocaleString('en-US')} 나누기</Text>
-                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>
-                  {prop.judgment.fallback ? '기한 임박순 기본 페이스(산수)로 제안해요' : '페르소나·팩트를 읽고 우선순위를 판단했어요'}
-                </Text>
+                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>페르소나·팩트를 읽고 우선순위를 판단했어요</Text>
               </View>
-              {!prop.judgment.fallback && (
-                <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판단</Text>
-              )}
+              <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판단</Text>
             </View>
             <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
               {prop.goals.map((g) => (
@@ -219,22 +227,17 @@ function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
               ))}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 9 }}>
                 <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.sub2 }}>여윳돈에 남김</Text>
-                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{(prop.split.buffer ?? 0).toLocaleString('en-US')}</Text>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{prop.leftover.toLocaleString('en-US')}</Text>
               </View>
             </View>
             <View style={{ marginTop: 12, gap: 5 }}>
-              {prop.judgment.reason ? (
-                <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.judgment.reason}</Text>
-              ) : null}
-              {prop.reasons.slice(0, 4).map((r, i) => (
-                <Text key={i} style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {r}</Text>
-              ))}
+              <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.reason}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <Pressable onPress={() => decide('reject')} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+              <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
                 <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>이번엔 안 할래요</Text>
               </Pressable>
-              <Pressable onPress={() => decide('confirm')} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+              <Pressable onPress={confirm} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
                 <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 담기</Text>
               </Pressable>
             </View>
@@ -303,7 +306,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
   const [aiHooks, setAiHooks] = useState<ProductMatchPick[] | null>(null);
   // 같은 사건을 코치 챗·잠금화면 알림이 이어 말하도록 스토어에 기록
   const note = (a: Allocation, split: EnvelopeSplit, confirmed: boolean) =>
-    actions.noteAllocation({ deposit: a.deposit, windfall: a.windfall_ratio, split, confirmed });
+    actions.noteAllocation({ id: a.id, deposit: a.deposit, windfall: a.windfall_ratio, split, reasons: a.reasons, confirmed });
   useEffect(() => {
     let live = true;
     // 실제 입금 플로우: 백엔드가 원장 기록 + 분류 + 저장 이력 기반 제안까지 수행

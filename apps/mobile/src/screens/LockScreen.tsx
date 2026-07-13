@@ -33,7 +33,7 @@ export function LockScreen() {
         </View>
         <View style={{ flex: 1, justifyContent: 'flex-end', gap: 10, paddingHorizontal: 14, paddingBottom: 36 }}>
           {notis.map((n, i) => (
-            <View key={i} style={{ backgroundColor: `rgba(255,255,255,${n.op})`, borderRadius: 20, padding: 14, flexDirection: 'row', gap: 12 }}>
+            <Pressable key={i} onPress={() => actions.pushScr('chat')} style={{ backgroundColor: `rgba(255,255,255,${n.op})`, borderRadius: 20, padding: 14, flexDirection: 'row', gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 11, overflow: 'hidden', backgroundColor: colors.green }}>
                 <Mascot head size={40} />
               </View>
@@ -45,7 +45,7 @@ export function LockScreen() {
                 <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.ink, marginTop: 3 }}>{n.title}</Text>
                 <Text style={{ fontSize: 12.5, color: '#5A6069', marginTop: 2, lineHeight: 17 }}>{n.body}</Text>
               </View>
-            </View>
+            </Pressable>
           ))}
           <Text style={{ textAlign: 'center', fontSize: 11.5, color: 'rgba(255,255,255,.5)', fontWeight: '500', marginTop: 6 }}>탭하면 닫혀요</Text>
         </View>

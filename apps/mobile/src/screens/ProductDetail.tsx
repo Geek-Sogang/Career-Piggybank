@@ -6,7 +6,7 @@ import { useApp } from '@/store';
 import { PRODUCTS } from '@/products';
 
 export function ProductDetail() {
-  const { product } = useApp();
+  const { product, vals } = useApp();
   const p = PRODUCTS[product];
   const [applied, setApplied] = useState(false);
   return (
@@ -42,7 +42,7 @@ export function ProductDetail() {
       <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>검증 연동</Text>{'\n'}
-          검증된 커리어 데이터가 보조지표로 들어가, 같은 조건에서 더 나은 한도·우대를 받을 수 있어요.
+          내 커리어 점수 {vals.score}점(검증 {vals.stage})이 보조지표로 들어가요 — 지금 검증 한도 ₩{vals.limitWon}. 데이터를 더 연결하면 같은 조건에서 더 나은 한도·우대를 받아요.
         </Text>
       </View>
 

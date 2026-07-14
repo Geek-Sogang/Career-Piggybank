@@ -13,9 +13,12 @@ export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'kosa' | 'behance' | 'portfolio';
 type Conn = Record<ConnSrc, boolean>;
 
-const VAL: Record<ConnSrc, number> = { github: 500000, mydata: 1200000, hometax: 700000, kosa: 600000, behance: 400000, portfolio: 300000 };
+// 검증된 이력(원장 실적) — 저금통 '검증된 이력' 카드와 점수 산정이 같은 수치를 쓴다(SSOT)
+export const VERIFIED = { count: 12, streakMonths: 8, spanMonths: 30 };
 const SCORE_VAL: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
-const BASE_SCORE = 320;
+// 커리어 점수 = 검증 실적 + 연결 소스. 장식 숫자가 아니라 검증 한도 산정의 입력.
+// 실적 점수: 검증건수×10 + 연속활동(개월)×10 + 거래기간(개월)×4 = 320
+const HISTORY_SCORE = VERIFIED.count * 10 + VERIFIED.streakMonths * 10 + VERIFIED.spanMonths * 4;
 const AGE_KR = ['영', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'] as const;
 const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
 const SC = {
@@ -90,19 +93,22 @@ function useAppState(startTab: Tab = 'home') {
 
   const vals = useMemo(() => {
     const c = conn;
-    const limit = (Object.keys(VAL) as ConnSrc[]).reduce((a, k) => a + (c[k] ? VAL[k] : 0), 0);
-    const score = BASE_SCORE + (Object.keys(SCORE_VAL) as ConnSrc[]).reduce((a, k) => a + (c[k] ? SCORE_VAL[k] : 0), 0);
+    const score = HISTORY_SCORE + (Object.keys(SCORE_VAL) as ConnSrc[]).reduce((a, k) => a + (c[k] ? SCORE_VAL[k] : 0), 0);
     const ageIdx = Math.min(Math.floor(score / 100), AGE_KR.length - 1);
     const nextIdx = Math.min(ageIdx + 1, AGE_KR.length - 1);
     const toNext = 100 - (score % 100);
     const scr = push || tab;
     const cnt = Object.values(c).filter(Boolean).length;
     const stage: keyof typeof STAGE_MAP = (c.hometax || c.kosa) ? '확정' : cnt >= 2 ? '준검증' : '잠정';
+    // 검증 한도 = 점수 × ₩5,000 × 검증 단계 배수(확정 1.0 · 준검증 0.7 · 잠정 0.4), 10만원 단위 반올림
+    const stageMult = stage === '확정' ? 1 : stage === '준검증' ? 0.7 : 0.4;
+    const limit = Math.round((score * 5000 * stageMult) / 100000) * 100000;
     const sc = SC[scenario];
     return {
       scr, conn: c, limit, stage, score, toNext, ageLabel: `${AGE_KR[ageIdx]} 살`, nextAgeLabel: `${AGE_KR[nextIdx]} 살`,
       stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
       limitWon: limit.toLocaleString('en-US'),
+      limitManwon: Math.round(limit / 10_000),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
       headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '은퇴 곡선', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '저금통 (빈 상태)' } as Record<string, string>)[push || ''] || '',

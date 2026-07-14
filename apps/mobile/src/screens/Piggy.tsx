@@ -4,7 +4,7 @@ import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeI
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
-import { useApp } from '@/store';
+import { useApp, VERIFIED } from '@/store';
 
 // 서버/LLM 미가동 시 오프라인 폴백 문구
 const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
@@ -43,9 +43,9 @@ export function Piggy() {
           <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>확정 ✓</Text>
         </View>
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <Stat value="12" unit="건" label="검증 완료" />
-          <Stat value="8" unit="개월" label="연속 활동" borderLeft />
-          <Stat value="30" unit="개월" label="거래 기간" flex={1.2} borderLeft />
+          <Stat value={`${VERIFIED.count}`} unit="건" label="검증 완료" />
+          <Stat value={`${VERIFIED.streakMonths}`} unit="개월" label="연속 활동" borderLeft />
+          <Stat value={`${VERIFIED.spanMonths}`} unit="개월" label="거래 기간" flex={1.2} borderLeft />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 }}>
           {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.green }} />)}

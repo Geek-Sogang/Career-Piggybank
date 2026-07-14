@@ -28,10 +28,10 @@ export function Home() {
           <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', opacity: 0.9 }}>점</Text>
         </View>
-        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>검증된 커리어로 키우는 신뢰 점수 · {vals.nextAgeLabel}까지 {vals.toNext}점</Text>
+        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>검증 이력 + 연결 데이터로 산출 · {vals.nextAgeLabel}까지 {vals.toNext}점</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 15 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 확정 ✓</Text>
-          <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>이번 달 +50점</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 {vals.stage}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 한도 ₩{vals.limitWon}</Text>
         </View>
         <Mascot size={132} style={{ position: 'absolute', right: 2, bottom: -8 }} />
       </View>

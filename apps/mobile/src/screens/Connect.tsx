@@ -16,7 +16,8 @@ export function Connect() {
           <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', opacity: 0.9 }}>점</Text>
         </View>
-        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.78)', marginTop: 3 }}>데이터를 연결(give)하면 커리어 점수(get)가 올라가요</Text>
+        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.78)', marginTop: 3 }}>데이터를 연결(give)하면 점수가 오르고 한도(get)가 커져요</Text>
+        <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#fff', marginTop: 9 }}>검증 한도 ₩{vals.limitWon} <Text style={{ fontWeight: '600', color: 'rgba(255,255,255,.78)' }}>= 점수 × 검증 단계({vals.stage})</Text></Text>
         {flash ? (
           <Text style={{ position: 'absolute', top: 18, right: 18, backgroundColor: colors.pink, color: '#fff', fontSize: 12.5, fontWeight: '800', paddingVertical: 7, paddingHorizontal: 11, borderRadius: 11, overflow: 'hidden' }}>{flash}</Text>
         ) : null}

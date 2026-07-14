@@ -11,11 +11,13 @@ const MORE: { key: ProductKey; icon: IconName; bg: string; color: string; name: 
 ];
 
 export function Products() {
-  const { actions } = useApp();
+  const { actions, vals } = useApp();
+  // 비상금대출 한도 = min(상품 상한 200만, 검증 한도) — 점수·검증 단계가 실제 조건을 가른다
+  const heroLimit = Math.min(2_000_000, vals.limit);
   return (
     <View style={{ gap: 14 }}>
       <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '500', lineHeight: 20, marginHorizontal: 2 }}>
-        검증된 한도 <Text style={{ color: colors.ink, fontWeight: '700' }}>240만원</Text> 기준으로, 지금 받을 수 있는 조건이에요.
+        검증된 한도 <Text style={{ color: colors.ink, fontWeight: '700' }}>{vals.limitManwon}만원</Text> 기준으로, 지금 받을 수 있는 조건이에요. <Text style={{ color: colors.sub2 }}>커리어 점수 {vals.score}점 × 검증 {vals.stage}</Text>
       </Text>
 
       {/* 히어로 — 비상금 대출 */}
@@ -27,7 +29,7 @@ export function Products() {
         <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginTop: 14 }}>하나 긱워커 비상금대출</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
           <Text style={{ fontSize: 13, color: 'rgba(255,255,255,.82)' }}>한도</Text>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: -0.4, ...T.num }}>2,000,000원</Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: -0.4, ...T.num }}>{heroLimit.toLocaleString('en-US')}원</Text>
         </View>
         <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', fontWeight: '500', marginTop: 4 }}>연 5.9%~ · 검증 활동 기반 중도상환 수수료 면제</Text>
         <Pressable onPress={() => actions.openProduct('emergency')} style={{ backgroundColor: '#fff', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 }}>

@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
-import { getForecast, type Forecast } from '@/api';
+import { getEnvelopeBalances, getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { CareerPiggybank } from '@/components/CareerPiggybank';
-import { Card, Mascot } from '@/components/ui';
+import { Card, Mascot, T } from '@/components/ui';
 import { CAREER_SCORE_VALUES, useApp } from '@/store';
 
 export function Home() {
-  const { vals, actions } = useApp();
+  const { vals, actions, sheet } = useApp();
   // 일감 소득 밴드·미니 곡선 — 원장 시계열 라이브 계산 (서버 다운 시 정적 폴백)
   const [fc, setFc] = useState<Forecast | null>(null);
   const [forecastUnavailable, setForecastUnavailable] = useState(false);
+  // 봉투 잔액 — 홈의 첫 질문 "내 돈 지금 어때"의 답. 시트가 닫힐 때 재조회(배분·페이싱이 잔액을 움직인 직후)
+  const [env, setEnv] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    if (!sheet) getEnvelopeBalances().then((r) => setEnv(r.balances)).catch(() => {});
+  }, [sheet]);
   useEffect(() => {
     let live = true;
     getForecast()
@@ -34,9 +39,17 @@ export function Home() {
       sub: '첫 정산 승인 미션 · +25 XP',
       onPress: () => actions.nav('ledger' as const),
     };
+  const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;
+  const ENV_META: { key: string; label: string; color: string }[] = [
+    { key: 'tax', label: '세금', color: colors.tax },
+    { key: 'expense', label: '경비', color: colors.expense },
+    { key: 'spendable', label: '즉시가용', color: colors.spendable },
+    { key: 'buffer', label: '여윳돈', color: colors.buffer },
+  ];
+
   return (
     <View style={{ gap: 14 }}>
-      {/* 홈의 주인공은 저금통 하나 — 검증 점수는 칩으로 요약하고 상세는 일감 증명(Connect)이 담당 */}
+      {/* 저금통 히어로 — 브랜드의 얼굴이 맨 위 (색으로 카드와 구분, 상세는 미션 탭) */}
       <Pressable onPress={() => actions.nav('missions')}>
         <CareerPiggybank
           piggybank={vals.piggybank}
@@ -45,16 +58,44 @@ export function Home() {
         />
       </Pressable>
 
-      {/* 3단계 진입 */}
-      <Card p={6} style={{ flexDirection: 'row' }}>
-        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="커리어 연결" onPress={() => actions.pushScr('connect')} />
-        <Divider />
-        <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
-        <Divider />
-        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 기반 상품" onPress={() => actions.pushScr('products')} />
-      </Card>
+      {/* 머니 히어로 — 홈의 첫 질문 "지금 쓸 수 있는 돈". 봉투 상태 요약, 탭 = 정산 */}
+      {env && (
+        <Pressable onPress={() => actions.nav('ledger')}>
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>내 봉투</Text>
+              <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+            </View>
+            <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600', marginTop: 10 }}>지금 쓸 수 있는 돈</Text>
+            <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -0.8, color: colors.ink, marginTop: 2, ...T.num }}>
+              ₩{Math.round(env.spendable ?? 0).toLocaleString('en-US')}
+            </Text>
+            {envTotal > 0 && (
+              <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', gap: 2, marginTop: 12 }}>
+                {ENV_META.map((m) => {
+                  const w = Math.max(0, env[m.key] ?? 0) / envTotal;
+                  return w > 0.005 ? <View key={m.key} style={{ flex: w, backgroundColor: m.color }} /> : null;
+                })}
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', marginTop: 12 }}>
+              {ENV_META.filter((m) => m.key !== 'spendable').map((m, i) => (
+                <View key={m.key} style={{ flex: 1, borderLeftWidth: i ? 1 : 0, borderLeftColor: colors.line, paddingLeft: i ? 14 : 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: m.color }} />
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: colors.sub2 }}>{m.label}</Text>
+                  </View>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink, marginTop: 3, ...T.num }}>
+                    ₩{Math.round(env[m.key] ?? 0).toLocaleString('en-US')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        </Pressable>
+      )}
 
-      {/* 오늘의 미션 — 홈은 최우선 1개만 보여준다 (전체는 커리어 탭) */}
+      {/* 오늘의 미션 — 홈은 최우선 1개만 보여준다 (전체는 미션 탭) */}
       <Pressable onPress={nextTask.onPress}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }} p={16}>
           <Mascot head size={44} radius={13} />
@@ -66,6 +107,15 @@ export function Home() {
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>
       </Pressable>
+
+      {/* 3단계 진입 */}
+      <Card p={6} style={{ flexDirection: 'row' }}>
+        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="커리어 연결" onPress={() => actions.pushScr('connect')} />
+        <Divider />
+        <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
+        <Divider />
+        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 기반 상품" onPress={() => actions.pushScr('products')} />
+      </Card>
 
       {/* 미래 소득 미리보기 — 실제 은퇴자금 달성 시점과 구분 */}
       <Pressable onPress={() => actions.pushScr('retirement')}>

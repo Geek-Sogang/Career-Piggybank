@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { DEMO_DEPOSIT, getClarify, getTransactions, tagTransaction, type Clarify, type Txn } from '@/api';
+import { DEMO_DEPOSIT, getClarify, getGoals, getTransactions, tagTransaction, type Clarify, type Goal, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
+import { GoalSection } from '@/components/GoalSection';
 import { Card, Mascot, T } from '@/components/ui';
 import { useApp } from '@/store';
 
 export function Ledger() {
-  const { actions, lastAlloc } = useApp();
+  const { actions, lastAlloc, sheet } = useApp();
+  // 목표 봉투 — 돈 층이라 정산 탭 소속. 페이싱 시트가 닫힐 때 재조회(confirm이 잔액을 움직인 직후)
+  const [goals, setGoals] = useState<Goal[]>([]);
+  useEffect(() => {
+    if (!sheet) getGoals().then(setGoals).catch(() => {});
+  }, [sheet]);
   // 라이브 원장 (백엔드 SQLite) — 서버 다운이면 null → 정적 폴백 UI (데모 불사)
   const [txns, setTxns] = useState<Txn[] | null>(null);
   const [transactionsReady, setTransactionsReady] = useState(false);
@@ -126,6 +132,9 @@ export function Ledger() {
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>
       </Pressable>
+
+      {/* 목표 봉투 — 여윳돈에서 목표로 나눠 담는 돈 층 (개설·확정은 사람) */}
+      <GoalSection goals={goals} onCreated={(g) => { setGoals((prev) => [...prev, g]); actions.refreshCareer(); }} onPace={() => actions.openSheet('pacing')} />
 
       <View style={{ marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>
         <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>입금 · 자동 분류</Text>

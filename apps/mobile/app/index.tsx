@@ -8,6 +8,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { AppProvider, useApp } from '@/store';
 import { Home } from '@/screens/Home';
+import { Missions } from '@/screens/Missions';
 import { Piggy } from '@/screens/Piggy';
 import { Connect } from '@/screens/Connect';
 import { VerifiedDetail } from '@/screens/VerifiedDetail';
@@ -35,7 +36,7 @@ export default function Index() {
 }
 
 const SCREENS: Record<string, () => JSX.Element> = {
-  home: Home, piggy: Piggy, ledger: Ledger, my: My,
+  home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My,
   connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
   dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
   productDetail: ProductDetail, emptyState: EmptyState,
@@ -133,7 +134,8 @@ function Shell() {
       {/* 탭바 */}
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
         <TabButton icon="tabHome" label="홈" active={tab === 'home'} onPress={() => actions.nav('home')} />
-        <TabButton icon="tabPiggy" label="커리어" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
+        <TabButton icon="tabPiggy" label="미션" active={tab === 'missions'} onPress={() => actions.nav('missions')} />
+        <TabButton icon="shield" label="커리어" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
         <TabButton icon="tabLedger" label="정산" active={tab === 'ledger'} onPress={() => actions.nav('ledger')} />
         <TabButton icon="tabMy" label="마이" active={tab === 'my'} onPress={() => actions.nav('my')} />
       </View>

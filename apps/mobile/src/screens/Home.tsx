@@ -37,7 +37,7 @@ export function Home() {
   return (
     <View style={{ gap: 14 }}>
       {/* 홈의 주인공은 저금통 하나 — 검증 점수는 칩으로 요약하고 상세는 일감 증명(Connect)이 담당 */}
-      <Pressable onPress={() => actions.nav('piggy')}>
+      <Pressable onPress={() => actions.nav('missions')}>
         <CareerPiggybank
           piggybank={vals.piggybank}
           compact
@@ -51,7 +51,7 @@ export function Home() {
         <Divider />
         <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
         <Divider />
-        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 기반 상품" onPress={() => actions.nav('piggy')} />
+        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 기반 상품" onPress={() => actions.pushScr('products')} />
       </Card>
 
       {/* 오늘의 미션 — 홈은 최우선 1개만 보여준다 (전체는 커리어 탭) */}

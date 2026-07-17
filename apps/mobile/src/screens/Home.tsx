@@ -4,6 +4,7 @@ import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
+import { CareerRhythmMap } from '@/components/CareerRhythmMap';
 import { Card, Mascot, T } from '@/components/ui';
 import { CAREER_SCORE_VALUES, useApp } from '@/store';
 
@@ -22,25 +23,40 @@ export function Home() {
   const band = fc?.retirement.find((b) => b.scenario === 'base')?.label
     ?? (forecastUnavailable ? '2041 ~ 2044' : '계산 중…');
   const mini = fc ? buildMini(fc.path) : null;
+  const nextTask = !vals.conn.hometax
+    ? {
+      title: `홈택스 연결하고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
+      sub: '확정 단계 · 검증 발판 1칸',
+      onPress: () => actions.pushScr('connect' as const),
+    }
+    : {
+      title: '다음 입금 배분을 확인하고 리듬 잇기',
+      sub: '정산 승인 · 소득리듬 발판 1칸',
+      onPress: () => actions.nav('ledger' as const),
+    };
   return (
     <View style={{ gap: 14 }}>
-      {/* 커리어 점수 카드 */}
+      {/* 커리어 검증 점수 — 한도와 분리된 평판 신호 */}
       <View style={{ borderRadius: 22, padding: 20, paddingBottom: 18, paddingRight: 96, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,.82)' }}>내 커리어 점수</Text>
-          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, overflow: 'hidden' }}>{vals.ageLabel}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,.82)' }}>커리어 검증 점수</Text>
+          <Text style={{ fontSize: 10.5, fontWeight: '600', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, overflow: 'hidden' }}>성장 {vals.journey.step}/{vals.journey.total_steps}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 9 }}>
           <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', opacity: 0.9 }}>점</Text>
         </View>
-        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', marginTop: 3 }}>검증 이력 + 연결 데이터로 산출 · {vals.nextAgeLabel}까지 {vals.toNext}점</Text>
+        <Text style={{ fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,.82)', marginTop: 3 }}>검증 이력과 연결 자료로 만든 이식 가능한 평판</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 15 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 {vals.stage}</Text>
-          <Text style={{ fontSize: 11, fontWeight: '700', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 한도 ₩{vals.limitWon}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>검증 {vals.stage}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '600', backgroundColor: colors.pink, color: '#fff', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{vals.reviewLabel}</Text>
         </View>
         <Mascot size={132} style={{ position: 'absolute', right: 2, bottom: -8 }} />
       </View>
+
+      <Pressable onPress={() => actions.nav('piggy')}>
+        <CareerRhythmMap journey={vals.journey} compact />
+      </Pressable>
 
       {/* 3단계 진입 */}
       <Card p={6} style={{ flexDirection: 'row' }}>
@@ -52,13 +68,13 @@ export function Home() {
       </Card>
 
       {/* 다음 할 일 */}
-      <Pressable onPress={() => actions.pushScr('connect')}>
+      <Pressable onPress={nextTask.onPress}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }} p={16}>
           <Mascot head size={44} radius={13} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>다음 할 일</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>홈택스 연결하고 +{CAREER_SCORE_VALUES.hometax}점 받기</Text>
-            <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>검증 완료 · 약 1분</Text>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.green, letterSpacing: 0.2 }}>다음 할 일</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>{nextTask.title}</Text>
+            <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '400' }}>{nextTask.sub}</Text>
           </View>
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>

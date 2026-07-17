@@ -77,14 +77,14 @@ def latest_persona() -> dict:
 
 @router.get("/verification")
 def get_verification() -> dict:
-    """커리어 검증 SSOT — 점수·단계·상품 한도를 백엔드 결정론으로 계산한다."""
+    """커리어 검증 SSOT — 점수·단계·심사 연결·소득리듬을 결정론으로 계산한다."""
     _boot()
     return career_verification.latest(db.list_events()).as_dict()
 
 
 @router.post("/verification")
 def update_verification(req: CareerVerificationRequest) -> dict:
-    """활성 연결 상태 동기화 — 소비 배분이 아니라 상품 한도·직군 추천에만 사용한다."""
+    """활성 연결 상태 동기화 — 신뢰 점수·단계만 바꾸며 금융 금액에는 관여하지 않는다."""
     _boot()
     if req.job not in {"developer", "designer", "creator"}:
         raise HTTPException(status_code=422, detail="job must be developer|designer|creator")
@@ -96,7 +96,8 @@ def update_verification(req: CareerVerificationRequest) -> dict:
         "career_verification_updated",
         payload={"job": result.job, "sources": list(result.sources)},
     )
-    return result.as_dict()
+    # 방금 기록한 상태를 전체 사건 로그와 함께 다시 읽어 리듬 여정도 같은 SSOT로 돌려준다.
+    return career_verification.latest(db.list_events()).as_dict()
 
 
 class ManagementOverrideRequest(BaseModel):

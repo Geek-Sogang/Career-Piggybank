@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
-import { Card, T } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useApp } from '@/store';
 import type { ProductKey } from '@/products';
 
@@ -12,28 +12,23 @@ const MORE: { key: ProductKey; icon: IconName; bg: string; color: string; name: 
 
 export function Products() {
   const { actions, vals } = useApp();
-  // 비상금대출 한도 = min(상품 상한 200만, 검증 한도) — 점수·검증 단계가 실제 조건을 가른다
-  const heroLimit = Math.min(2_000_000, vals.limit);
   return (
     <View style={{ gap: 14 }}>
       <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '500', lineHeight: 20, marginHorizontal: 2 }}>
-        검증된 한도 <Text style={{ color: colors.ink, fontWeight: '700' }}>{vals.limitManwon}만원</Text> 기준으로, 지금 받을 수 있는 조건이에요. <Text style={{ color: colors.sub2 }}>커리어 점수 {vals.score}점 × 검증 {vals.stage}</Text>
+        커리어 점수는 한도를 계산하지 않아요. <Text style={{ color: colors.ink, fontWeight: '700' }}>검증 {vals.stage}</Text> 단계에 따라 연결할 수 있는 심사자료만 달라집니다.
       </Text>
 
       {/* 히어로 — 비상금 대출 */}
       <View style={{ backgroundColor: colors.green, borderRadius: 18, padding: 20, shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 22, shadowOffset: { width: 0, height: 12 } }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>지금 가장 잘 맞아요</Text>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: '#fff', backgroundColor: 'rgba(255,255,255,.18)', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{vals.reviewLabel}</Text>
           <Text style={{ fontSize: 11, color: 'rgba(255,255,255,.8)', fontWeight: '600' }}>비상금</Text>
         </View>
         <Text style={{ fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4, marginTop: 14 }}>하나 긱워커 비상금대출</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
-          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,.82)' }}>한도</Text>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', letterSpacing: -0.4, ...T.num }}>{heroLimit.toLocaleString('en-US')}원</Text>
-        </View>
-        <Text style={{ fontSize: 12.5, color: 'rgba(255,255,255,.82)', fontWeight: '500', marginTop: 4 }}>연 5.9%~ · 검증 활동 기반 중도상환 수수료 면제</Text>
-        <Pressable onPress={() => actions.openProduct('emergency')} style={{ backgroundColor: '#fff', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 }}>
-          <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.green }}>자세히 보고 신청</Text>
+        <Text style={{ fontSize: 15.5, color: '#fff', fontWeight: '700', marginTop: 9 }}>{vals.reviewReady ? '연결된 자료를 심사 화면에 함께 가져갈 수 있어요' : '홈택스 또는 KOSA 확인 후 심사자료 연결이 열려요'}</Text>
+        <Text style={{ fontSize: 11.5, color: 'rgba(255,255,255,.76)', fontWeight: '400', lineHeight: 17, marginTop: 5 }}>상품 자격·한도·금리는 하나원큐의 실제 심사에서 결정돼요</Text>
+        <Pressable onPress={() => vals.reviewReady ? actions.openProduct('emergency') : actions.pushScr('connect')} style={{ backgroundColor: '#fff', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 }}>
+          <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.green }}>{vals.reviewReady ? '검증자료와 함께 심사 보기' : '검증자료 준비하기'}</Text>
         </Pressable>
       </View>
 

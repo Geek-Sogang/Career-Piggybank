@@ -64,7 +64,7 @@ class UserProfile:
     gap: IncomeGap | None             # 다음 수입까지 예상 간격 (income 이력 없으면 None)
     factsheet: tuple[Fact, ...]       # 팩트 12종 (한 번만 빌드)
     gig: GigProfile                   # 긱워커 소득 프로필 (facts·signals·streams 합성)
-    career: CareerVerification        # 커리어 검증 점수·단계·상품 한도(결정론)
+    career: CareerVerification        # 커리어 검증 점수·단계·심사자료 연결·소득리듬(결정론)
     persona_axes: dict | None         # 금액 판단에 사용 가능한 최신 심리 4축(없거나 stale이면 None)
     persona_staleness: dict | None    # 판독 스냅샷 신선도 (판독 없으면 None — 다운스트림 경고용)
     buffer_bias: float                # 조정 성향(행동) — 버퍼를 늘려온 중앙값

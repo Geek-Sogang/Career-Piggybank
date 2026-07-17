@@ -3,6 +3,7 @@ import { View, Text, Pressable, TextInput } from 'react-native';
 import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeIdea, type Goal, type PeerIdea } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
+import { CareerRhythmMap } from '@/components/CareerRhythmMap';
 import { Card, Mascot, Stat, T } from '@/components/ui';
 import { useApp, VERIFIED } from '@/store';
 
@@ -10,7 +11,7 @@ import { useApp, VERIFIED } from '@/store';
 const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
 
 export function Piggy() {
-  const { actions, sheet } = useApp();
+  const { actions, sheet, vals } = useApp();
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
   const [goals, setGoals] = useState<Goal[]>([]);
   useEffect(() => {
@@ -25,24 +26,26 @@ export function Piggy() {
 
   return (
     <View style={{ gap: 14 }}>
+      <CareerRhythmMap journey={vals.journey} />
+
       {/* 검증된 이력 */}
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>검증된 이력</Text>
-          <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>확정 ✓</Text>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{vals.stage}</Text>
         </View>
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
           <Stat value={`${VERIFIED.count}`} unit="건" label="검증 완료" />
-          <Stat value={`${VERIFIED.streakMonths}`} unit="개월" label="연속 활동" borderLeft />
+          <Stat value={`${VERIFIED.streakMonths}`} unit="개월" label="활동 확인 기간" borderLeft />
           <Stat value={`${VERIFIED.spanMonths}`} unit="개월" label="거래 기간" flex={1.2} borderLeft />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 }}>
-          {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.green }} />)}
+          {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: i <= ['잠정', '준검증', '확정'].indexOf(vals.stage) ? colors.green : colors.line }} />)}
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
           <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>잠정</Text>
           <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>준검증</Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.green }}>확정</Text>
+          <Text style={{ fontSize: 11, fontWeight: '500', color: vals.stage === '확정' ? colors.green : colors.faint2 }}>확정</Text>
         </View>
       </Card>
 
@@ -62,8 +65,8 @@ export function Piggy() {
       {/* CTA */}
       <Pressable onPress={() => actions.pushScr('connect')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>커리어 연결하고 한도 늘리기</Text>
-          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '500' }}>연결할수록 검증 한도가 커져요</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>커리어 검증자료 연결하기</Text>
+          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '400' }}>점수는 평판을, 단계는 자료 연결 범위를 보여줘요</Text>
         </View>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={20} color="#fff" sw={2.2} />

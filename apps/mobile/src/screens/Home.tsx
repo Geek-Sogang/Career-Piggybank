@@ -4,7 +4,7 @@ import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
-import { CareerRhythmMap } from '@/components/CareerRhythmMap';
+import { CareerPiggybank } from '@/components/CareerPiggybank';
 import { Card, Mascot, T } from '@/components/ui';
 import { CAREER_SCORE_VALUES, useApp } from '@/store';
 
@@ -26,12 +26,12 @@ export function Home() {
   const nextTask = !vals.conn.hometax
     ? {
       title: `홈택스 연결하고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
-      sub: '확정 단계 · 검증 발판 1칸',
+      sub: '확정 단계 · 미션 경험치 +30 XP',
       onPress: () => actions.pushScr('connect' as const),
     }
     : {
-      title: '다음 입금 배분을 확인하고 리듬 잇기',
-      sub: '정산 승인 · 소득리듬 발판 1칸',
+      title: '다음 입금 배분을 확인하고 XP 받기',
+      sub: '첫 정산 승인 미션 · +25 XP',
       onPress: () => actions.nav('ledger' as const),
     };
   return (
@@ -40,7 +40,7 @@ export function Home() {
       <View style={{ borderRadius: 22, padding: 20, paddingBottom: 18, paddingRight: 96, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
           <Text style={{ fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,.82)' }}>커리어 검증 점수</Text>
-          <Text style={{ fontSize: 10.5, fontWeight: '600', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, overflow: 'hidden' }}>성장 {vals.journey.step}/{vals.journey.total_steps}</Text>
+          <Text style={{ fontSize: 10.5, fontWeight: '600', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 7, overflow: 'hidden' }}>저금통 Lv.{vals.piggybank.level}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 9 }}>
           <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
@@ -55,7 +55,7 @@ export function Home() {
       </View>
 
       <Pressable onPress={() => actions.nav('piggy')}>
-        <CareerRhythmMap journey={vals.journey} compact />
+        <CareerPiggybank piggybank={vals.piggybank} compact />
       </Pressable>
 
       {/* 3단계 진입 */}

@@ -77,9 +77,9 @@ def latest_persona() -> dict:
 
 @router.get("/verification")
 def get_verification() -> dict:
-    """커리어 검증 SSOT — 점수·단계·심사 연결·소득리듬을 결정론으로 계산한다."""
+    """커리어 검증 SSOT — 점수·단계·심사 연결·커리어 저금통 XP를 계산한다."""
     _boot()
-    return career_verification.latest(db.list_events()).as_dict()
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
 
 
 @router.post("/verification")
@@ -96,8 +96,8 @@ def update_verification(req: CareerVerificationRequest) -> dict:
         "career_verification_updated",
         payload={"job": result.job, "sources": list(result.sources)},
     )
-    # 방금 기록한 상태를 전체 사건 로그와 함께 다시 읽어 리듬 여정도 같은 SSOT로 돌려준다.
-    return career_verification.latest(db.list_events()).as_dict()
+    # 방금 기록한 상태를 전체 사건 로그와 함께 다시 읽어 XP도 같은 SSOT로 돌려준다.
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
 
 
 class ManagementOverrideRequest(BaseModel):

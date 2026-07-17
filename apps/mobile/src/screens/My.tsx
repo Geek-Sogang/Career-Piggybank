@@ -151,12 +151,12 @@ export function My() {
           <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>조대흠</Text>
           <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>프리랜스 개발자 · 28세</Text>
         </View>
-        <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 10, overflow: 'hidden' }}>확정 ✓</Text>
+        <Text style={{ fontSize: 11.5, fontWeight: '800', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 6, paddingHorizontal: 11, borderRadius: 10, overflow: 'hidden' }}>{vals.stage} ✓</Text>
       </Card>
 
       <Card style={{ flexDirection: 'row' }}>
-        <MyStat value="12건" label="검증" />
-        <MyStat value="확정" label="검증 단계" color={colors.green} borderLeft />
+        <MyStat value={`${vals.verified.count}건`} label="검증" />
+        <MyStat value={vals.stage} label="검증 단계" color={vals.stageColor} borderLeft />
         <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 

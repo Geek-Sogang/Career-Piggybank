@@ -1,11 +1,12 @@
-"""커리어 검증 점수·단계와 소득리듬 여정의 결정론 단일 소유자.
+"""커리어 검증 점수와 `커리어 저금통` 성장의 결정론 단일 소유자.
 
-신뢰 층과 습관 층을 섞지 않는다.
-- 신뢰 층: 검증 이력과 외부 연결만 점수·단계를 움직인다.
-- 습관 층: 고유한 입금 사건의 배분 승인만 소득리듬 횟수를 움직인다.
+서로 다른 세 층을 섞지 않는다.
+- 검증 신뢰: `career_job_verified` 사건과 외부 연결만 점수·단계를 움직인다.
+- 성장 경험치: 검증된 일감과 1회성 미션이 커리어 저금통의 XP·레벨만 움직인다.
+- 금융 판단: 점수·XP·레벨 모두 상품 자격·금리·한도·배분 금액을 결정하지 않는다.
 
-점수는 이식 가능한 커리어 평판 신호이며 대출 한도 산식이 아니다. 확정 단계가 여는 것도
-대출 자격이나 한도가 아니라, 연결된 검증자료를 상품 심사 화면으로 가져가는 통로뿐이다.
+자동 입금 분류는 커리어 검증이 아니다. 다중 자료 확인이 끝나 명시적인 검증 사건이 기록된
+일감만 검증 건수와 XP에 반영한다.
 """
 from __future__ import annotations
 
@@ -19,49 +20,106 @@ SOURCE_SCORES: dict[str, int] = {
     "behance": 30,
     "portfolio": 20,
 }
-VERIFIED_COUNT = 12
-STREAK_MONTHS = 8
-SPAN_MONTHS = 30
-HISTORY_SCORE = VERIFIED_COUNT * 10 + STREAK_MONTHS * 10 + SPAN_MONTHS * 4
 
-JOURNEY_STEPS = 5
-JOURNEY_REWARDS = (
-    "성장 시작",
-    "하나머니 혜택 확인",
-    "우대금리 쿠폰 확인",
-    "파킹통장 우대 확인",
-    "환율·수수료 혜택 확인",
+XP_PER_VERIFIED_JOB = 30
+
+
+@dataclass(frozen=True)
+class MissionDefinition:
+    id: str
+    title: str
+    xp: int
+    source: str | None = None
+    event_type: str | None = None
+
+
+MISSIONS = (
+    MissionDefinition("connect_github", "GitHub 작업 활동 연결", 20, source="github"),
+    MissionDefinition("connect_hometax", "홈택스 신고소득 연결", 30, source="hometax"),
+    MissionDefinition("connect_kosa", "KOSA 경력자료 연결", 25, source="kosa"),
+    MissionDefinition("connect_mydata", "마이데이터 소득 흐름 연결", 20, source="mydata"),
+    MissionDefinition("connect_behance", "Behance 포트폴리오 연결", 15, source="behance"),
+    MissionDefinition("connect_portfolio", "포트폴리오 작업물 등록", 15, source="portfolio"),
+    MissionDefinition("create_goal", "첫 목표 봉투 만들기", 20, event_type="goal_created"),
+    MissionDefinition("tag_income", "애매한 입금 직접 확인", 15, event_type="txn_tagged"),
+    MissionDefinition("approve_allocation", "첫 입금 배분 승인", 25, event_type="allocation_decided"),
 )
 
 
 @dataclass(frozen=True)
-class IncomeRhythmJourney:
-    """달력 대신 검증 가능한 사건으로 전진하는 표시용 여정.
+class LevelDefinition:
+    level: int
+    title: str
+    threshold: int
+    reward: str
+    node_type: str
 
-    `step`은 보상·캐릭터 성장 UI에만 쓰인다. 커리어 점수, 상품 적합성, 한도에는
-    어떤 영향도 주지 않는다.
-    """
 
-    step: int
-    total_steps: int
-    trust_events: int
-    confirmed_income_events: int
-    completed_kinds: tuple[str, ...]
-    current_reward: str
-    next_reward: str | None
-    next_requirement: str | None
+LEVELS = (
+    LevelDefinition(1, "첫 동전", 0, "기본 저금통", "character"),
+    LevelDefinition(2, "일감 모으기", 80, "하나머니 혜택 확인", "reward"),
+    LevelDefinition(3, "정산 새싹", 180, "새싹 스킨", "character"),
+    LevelDefinition(4, "리듬 수집가", 320, "우대금리 쿠폰 확인", "reward"),
+    LevelDefinition(5, "든든 저금통", 500, "저금통 1차 성장", "character"),
+    LevelDefinition(6, "커리어 성장", 720, "파킹통장 우대 확인", "reward"),
+    LevelDefinition(7, "신뢰 수집가", 980, "직군 소품", "character"),
+    LevelDefinition(8, "자산 설계자", 1_280, "환율·수수료 혜택 확인", "reward"),
+    LevelDefinition(9, "커리어 자산가", 1_620, "반짝 스킨", "character"),
+    LevelDefinition(10, "프로 긱워커", 2_000, "커리어 마스터 배지", "character"),
+)
+
+
+@dataclass(frozen=True)
+class VerifiedHistory:
+    count: int
+    streak_months: int
+    span_months: int
+    recent: tuple[dict, ...]
+
+    @property
+    def score(self) -> int:
+        return self.count * 10 + self.streak_months * 10 + self.span_months * 4
 
     def as_dict(self) -> dict:
         return {
-            "step": self.step,
-            "total_steps": self.total_steps,
-            "trust_events": self.trust_events,
-            "confirmed_income_events": self.confirmed_income_events,
-            "completed_kinds": list(self.completed_kinds),
-            "current_reward": self.current_reward,
-            "next_reward": self.next_reward,
-            "next_requirement": self.next_requirement,
-            "calendar_streak_used": False,
+            "count": self.count,
+            "streak_months": self.streak_months,
+            "span_months": self.span_months,
+            "recent": list(self.recent),
+        }
+
+
+@dataclass(frozen=True)
+class CareerPiggybank:
+    xp: int
+    work_xp: int
+    mission_xp: int
+    level: int
+    level_title: str
+    max_level: int
+    current_threshold: int
+    next_threshold: int | None
+    xp_to_next: int
+    progress: float
+    completed_missions: int
+    missions: tuple[dict, ...]
+
+    def as_dict(self) -> dict:
+        return {
+            "xp": self.xp,
+            "work_xp": self.work_xp,
+            "mission_xp": self.mission_xp,
+            "level": self.level,
+            "level_title": self.level_title,
+            "max_level": self.max_level,
+            "current_threshold": self.current_threshold,
+            "next_threshold": self.next_threshold,
+            "xp_to_next": self.xp_to_next,
+            "progress": self.progress,
+            "completed_missions": self.completed_missions,
+            "missions": list(self.missions),
+            "levels": [level.__dict__ for level in LEVELS],
+            "reward_is_example": True,
         }
 
 
@@ -73,7 +131,8 @@ class CareerVerification:
     stage: str
     review_ready: bool
     stage_basis: str
-    journey: IncomeRhythmJourney
+    verified: VerifiedHistory
+    piggybank: CareerPiggybank
 
     def as_dict(self) -> dict:
         return {
@@ -82,7 +141,7 @@ class CareerVerification:
             "score": self.score,
             "stage": self.stage,
             "score_breakdown": {
-                "verified_history": HISTORY_SCORE,
+                "verified_history": self.verified.score,
                 "connected_sources": sum(SOURCE_SCORES[s] for s in self.sources),
             },
             "review_connection": {
@@ -90,22 +149,49 @@ class CareerVerification:
                 "label": "검증자료로 심사 연결" if self.review_ready else "검증자료 준비 중",
                 "basis": self.stage_basis,
             },
-            "verified": {
-                "count": VERIFIED_COUNT,
-                "streak_months": STREAK_MONTHS,
-                "span_months": SPAN_MONTHS,
-            },
-            "journey": self.journey.as_dict(),
+            "verified": self.verified.as_dict(),
+            "piggybank": self.piggybank.as_dict(),
         }
 
 
-def _eligible_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[str, ...]:
-    """소득리듬으로 인정할 고유 입금 사건만 사건 순서대로 돌려준다.
+def _month_index(date: str) -> int:
+    year, month = date[:7].split("-")
+    return int(year) * 12 + int(month)
 
-    승인·조정된 실제 입금 배분이면서 API가 `rhythm_eligible`로 기록한 경우만 인정한다.
-    거절, 목표 페이싱, 앱 열기, txn_id 없는 수동 제안은 제외한다. 같은 입금에 대한 재시도는
-    `income_event_id` 중복 제거로 한 번만 센다.
-    """
+
+def _history(events: list[dict] | tuple[dict, ...], txns: list[dict] | tuple[dict, ...]) -> VerifiedHistory:
+    verified_ids = {
+        event.get("ref_id") for event in events
+        if event.get("type") == "career_job_verified" and event.get("ref_id")
+    }
+    jobs = [
+        txn for txn in txns
+        if txn.get("id") in verified_ids
+        and txn.get("kind") == "income"
+        and txn.get("direction") == "in"
+        and not txn.get("needs_review")
+    ]
+    jobs.sort(key=lambda txn: (txn.get("date", ""), txn.get("seq", 0)), reverse=True)
+    months = sorted({_month_index(txn["date"]) for txn in jobs})
+    longest = 0
+    run = 0
+    previous: int | None = None
+    for month in months:
+        run = run + 1 if previous is not None and month == previous + 1 else 1
+        longest = max(longest, run)
+        previous = month
+    span = months[-1] - months[0] + 1 if months else 0
+    recent = tuple({
+        "id": txn["id"],
+        "date": txn["date"],
+        "amount": txn["amount"],
+        "counterparty": txn["counterparty"],
+        "memo": txn.get("memo") or "검증된 일감",
+    } for txn in jobs[:5])
+    return VerifiedHistory(count=len(jobs), streak_months=longest, span_months=span, recent=recent)
+
+
+def _eligible_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[str, ...]:
     seen: set[str] = set()
     result: list[str] = []
     for event in events:
@@ -122,35 +208,56 @@ def _eligible_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[s
     return tuple(result)
 
 
-def _next_requirement(active: tuple[str, ...], stage: str, rhythm_count: int, step: int) -> str | None:
-    if step >= JOURNEY_STEPS:
-        return None
-    if not active:
-        return "커리어 소스 한 곳을 연결해 첫 검증 발판을 열어요"
-    if stage != "확정":
-        return "홈택스 또는 KOSA를 연결해 신고소득·경력을 확인해요"
-    if rhythm_count == 0:
-        return "다음 입금 배분을 승인하면 소득리듬 발판이 열려요"
-    return "새 검증 소스를 연결하거나 다음 입금 배분을 승인해요"
+def _mission_done(mission: MissionDefinition, active: tuple[str, ...], events: list[dict] | tuple[dict, ...]) -> bool:
+    if mission.source:
+        return mission.source in active
+    if mission.event_type == "goal_created":
+        return any(event.get("type") == "goal_created" for event in events)
+    if mission.event_type == "txn_tagged":
+        return any(
+            event.get("type") == "txn_tagged" and (event.get("payload") or {}).get("kind") == "income"
+            for event in events
+        )
+    if mission.event_type == "allocation_decided":
+        return bool(_eligible_income_event_ids(events))
+    return False
 
 
-def _journey(active: tuple[str, ...], stage: str, events: list[dict] | tuple[dict, ...]) -> IncomeRhythmJourney:
-    income_event_ids = _eligible_income_event_ids(events)
-    # 첫 칸은 기존 검증 이력으로 시작한다. 이후 칸은 신뢰 사건과 고유 소득 사건이 채우되,
-    # 종류를 그대로 노출해 점수와 습관이 같은 신호처럼 보이지 않게 한다.
-    completed = tuple(
-        (["trust"] * len(active) + ["income_rhythm"] * len(income_event_ids))[: JOURNEY_STEPS - 1]
-    )
-    step = 1 + len(completed)
-    return IncomeRhythmJourney(
-        step=step,
-        total_steps=JOURNEY_STEPS,
-        trust_events=len(active),
-        confirmed_income_events=len(income_event_ids),
-        completed_kinds=completed,
-        current_reward=JOURNEY_REWARDS[step - 1],
-        next_reward=JOURNEY_REWARDS[step] if step < JOURNEY_STEPS else None,
-        next_requirement=_next_requirement(active, stage, len(income_event_ids), step),
+def _piggybank(active: tuple[str, ...], history: VerifiedHistory,
+               events: list[dict] | tuple[dict, ...]) -> CareerPiggybank:
+    missions = tuple({
+        "id": mission.id,
+        "title": mission.title,
+        "xp": mission.xp,
+        "completed": _mission_done(mission, active, events),
+    } for mission in MISSIONS)
+    work_xp = history.count * XP_PER_VERIFIED_JOB
+    mission_xp = sum(mission["xp"] for mission in missions if mission["completed"])
+    xp = work_xp + mission_xp
+    current = LEVELS[0]
+    for level in LEVELS:
+        if xp >= level.threshold:
+            current = level
+    next_level = LEVELS[current.level] if current.level < len(LEVELS) else None
+    if next_level:
+        span = next_level.threshold - current.threshold
+        progress = (xp - current.threshold) / span if span else 1.0
+        xp_to_next = max(0, next_level.threshold - xp)
+    else:
+        progress, xp_to_next = 1.0, 0
+    return CareerPiggybank(
+        xp=xp,
+        work_xp=work_xp,
+        mission_xp=mission_xp,
+        level=current.level,
+        level_title=current.title,
+        max_level=len(LEVELS),
+        current_threshold=current.threshold,
+        next_threshold=next_level.threshold if next_level else None,
+        xp_to_next=xp_to_next,
+        progress=round(max(0.0, min(1.0, progress)), 4),
+        completed_missions=sum(1 for mission in missions if mission["completed"]),
+        missions=missions,
     )
 
 
@@ -158,10 +265,12 @@ def compute(
     sources: list[str] | tuple[str, ...],
     job: str = "developer",
     events: list[dict] | tuple[dict, ...] = (),
+    txns: list[dict] | tuple[dict, ...] = (),
 ) -> CareerVerification:
-    """활성 외부 소스와 사건 로그 → 점수·단계·심사 연결·소득리듬 여정."""
-    active = tuple(sorted({s for s in sources if s in SOURCE_SCORES}))
-    score = HISTORY_SCORE + sum(SOURCE_SCORES[s] for s in active)
+    """검증 사건·외부 연결·원장 → 평판 점수·단계·커리어 저금통 성장."""
+    active = tuple(sorted({source for source in sources if source in SOURCE_SCORES}))
+    history = _history(events, txns)
+    score = history.score + sum(SOURCE_SCORES[source] for source in active)
     if "hometax" in active or "kosa" in active:
         stage = "확정"
         basis = "신고소득 또는 협회 경력을 확인해 검증자료를 심사 화면에 연결할 수 있어요"
@@ -178,14 +287,22 @@ def compute(
         stage=stage,
         review_ready=stage == "확정",
         stage_basis=basis,
-        journey=_journey(active, stage, events),
+        verified=history,
+        piggybank=_piggybank(active, history, events),
     )
 
 
-def latest(events: list[dict]) -> CareerVerification:
-    """최신 모바일 동기화 이벤트와 전체 사건 로그를 함께 읽는다."""
-    updates = [e for e in events if e["type"] == "career_verification_updated"]
-    if not updates:
-        return compute([], "developer", events)
-    payload = updates[-1].get("payload", {})
-    return compute(payload.get("sources") or [], payload.get("job") or "developer", events)
+def latest(events: list[dict], txns: list[dict] | tuple[dict, ...] = ()) -> CareerVerification:
+    """최신 연결 상태를 읽되, 최초 시드는 실제 source_connected 사건을 복원한다."""
+    updates = [event for event in events if event.get("type") == "career_verification_updated"]
+    if updates:
+        payload = updates[-1].get("payload", {})
+        sources = payload.get("sources") or []
+        job = payload.get("job") or "developer"
+    else:
+        sources = [
+            (event.get("payload") or {}).get("source") for event in events
+            if event.get("type") == "source_connected"
+        ]
+        job = "developer"
+    return compute(sources, job, events, txns)

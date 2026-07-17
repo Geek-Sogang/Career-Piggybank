@@ -43,7 +43,7 @@ export const DEMO_PROFILE = {
 
 // 코치에게 주입하는 컨텍스트 — 숫자는 전부 결정론 엔진 출력(코치는 인용만)
 export const DEMO_COACH_CONTEXT = {
-  user: '조대흠 · 프리랜스 개발자 · 커리어 점수 320점(세 살)',
+  user: '조대흠 · 프리랜스 개발자',
   profile: DEMO_PROFILE,
   envelopes: { tax: 320_000, expense: 400_000, spendable: 1_200_000, buffer: 99_555 },
   note: '5월 종소세 예상 1,090,000원 중 320,000원 준비됨',
@@ -96,12 +96,12 @@ export function decideAllocation(id: string, action: 'confirm' | 'adjust' | 'rej
 }
 
 // 강점 한 줄 — 후보는 백엔드 결정론, LLM은 선택만 (§6-1 개인화 3종 ③)
-export const DEMO_CAREER_FACTS = {
-  verified_count: 12, months_active: 24, repeat_client_rate: 0.8,
-  settlement_growth: 3.0, top_skill: 'React 커머스',
+export type CareerFacts = {
+  verified_count: number; months_active: number; repeat_client_rate: number;
+  settlement_growth: number; top_skill: string;
 };
 export type Strength = { line: string; chosen_by: 'llm' | 'fallback'; reason: string };
-export function fetchStrength(facts = DEMO_CAREER_FACTS) {
+export function fetchStrength(facts: CareerFacts) {
   return post<Strength>('/v1/strength', facts, 120_000);
 }
 
@@ -197,12 +197,18 @@ export type CareerVerification = {
   score: number; stage: '잠정' | '준검증' | '확정';
   score_breakdown: { verified_history: number; connected_sources: number };
   review_connection: { available: boolean; label: string; basis: string };
-  verified: { count: number; streak_months: number; span_months: number };
-  journey: {
-    step: number; total_steps: number; trust_events: number; confirmed_income_events: number;
-    completed_kinds: ('trust' | 'income_rhythm')[];
-    current_reward: string; next_reward: string | null; next_requirement: string | null;
-    calendar_streak_used: false;
+  verified: {
+    count: number; streak_months: number; span_months: number;
+    recent: { id: string; date: string; amount: number; counterparty: string; memo: string }[];
+  };
+  piggybank: {
+    xp: number; work_xp: number; mission_xp: number;
+    level: number; level_title: string; max_level: number;
+    current_threshold: number; next_threshold: number | null; xp_to_next: number;
+    progress: number; completed_missions: number;
+    missions: { id: string; title: string; xp: number; completed: boolean }[];
+    levels: { level: number; title: string; threshold: number; reward: string; node_type: 'character' | 'reward' }[];
+    reward_is_example: true;
   };
 };
 export function getCareerVerification() {

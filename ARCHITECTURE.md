@@ -224,6 +224,19 @@ API: `POST /v1/profile/estimate` — 응답 `profile`을 그대로 `/v1/allocati
 커리어 점수는 소비 성향이나 입금 폭포수 금액을 바꾸지 않는다 — 금융 신뢰도와 생활금융
 개인화를 섞지 않는 경계다. API는 `GET/POST /v1/profile/verification`.
 
+### V2 개인화 계약 (2+2) — `app/profile/personalization_v2.py`
+
+화면·발표의 2+2 모델을 제품 계약으로 노출하는 **결정론 번역층**이다 — 새 AI 판정이 아니다.
+긱 구조 2축(소득 안정성·소득원 구조)은 `gig_profile`의 검증된 라벨을 그대로 재표현하고,
+금융 대응 2축은 기존 판독을 번역한다: 안전자금 운용 방향 = `risk_tolerance`의 3버킷
+(경계 0.3/0.7 — 골든셋 채점과 동일), 권장 관리 강도 = `self_control`×`planning` 명시
+규칙표(자기관리 약할수록 개입↑). 불가침: confidence 숫자를 만들지 않고 사실만 노출
+(인용 팩트·표본·게이트·폴백·신선도, 부족하면 `insufficient_evidence`로 정직한 보류) ·
+F13/F14는 방향 불개입(데이터 충실도 표시만) · **배분·밴딧은 계속 raw 연속 축을 소비**
+(3단계 값은 화면·설명·코치 톤 전용) · '권장'이지 '선호'가 아니며 사용자 오버라이드는
+별도 보관되고 실행 승인 게이트(HITL)에 영향 없음. API는 `GET /v1/profile/v2` ·
+`POST /v1/profile/v2/management-override`.
+
 ## ③ 배분 엔진 — `app/engines/allocator.py`
 
 **역할**: 입금 1건 + 프로필 + 봉투 잔액 → 봉투별 금액 **제안**.

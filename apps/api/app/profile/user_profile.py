@@ -23,6 +23,7 @@ from app.engines.forecast import CareerSignals, IncomeGap
 from app.engines.gig_profile import GigProfile
 from app.engines.income_streams import IncomeStreams
 from app.engines.spending_profile import ProfileEstimate, Txn
+from app.profile.personalization_v2 import PersonalizationV2, build_personalization_v2
 from app.store import db
 
 DEFAULT_PERSONA = "developer"      # profile_from_store 기본 페르소나와 동기화
@@ -68,6 +69,7 @@ class UserProfile:
     persona_staleness: dict | None    # 판독 스냅샷 신선도 (판독 없으면 None — 다운스트림 경고용)
     buffer_bias: float                # 조정 성향(행동) — 버퍼를 늘려온 중앙값
     has_confirmed_incoming: bool      # 확정 예정 수입(예정 이벤트 or 미결 잔금)이 있는가
+    personalization_v2: PersonalizationV2 | None = None  # 2+2 제품 계약 — 화면·코치 톤 전용 번역층
 
     @property
     def gig_archetype(self) -> str:
@@ -134,6 +136,14 @@ def build_user_profile(persona: str | None = None) -> UserProfile:
     future_events = [e for e in expected_events if not as_of or e["date"] > as_of]
     has_incoming = bool(future_events) or bool(streams.pending_settlements)
 
+    # 2+2 번역층 — 신선도 무관하게 항상 조립한다 (보류 상태도 화면이 알아야 할 사실).
+    # 단 level 확정은 모듈 안의 신선도 게이트(effective_axes와 같은 규칙)가 지킨다.
+    v2 = build_personalization_v2(
+        factsheet=factsheet, gig=gig,
+        snapshot_axes=snapshot["axes"] if snapshot and snapshot.get("axes") else None,
+        staleness=staleness, events=events,
+    )
+
     return UserProfile(
         as_of=as_of,
         months_observed=months,
@@ -149,4 +159,5 @@ def build_user_profile(persona: str | None = None) -> UserProfile:
         persona_staleness=staleness,
         buffer_bias=_buffer_bias(allocations),
         has_confirmed_incoming=has_incoming,
+        personalization_v2=v2,
     )

@@ -15,6 +15,8 @@ from app.schemas.profile import ProfileEstimateRequest, ProfileEstimateResponse
 from app.engines import career_verification, facts as facts_svc
 from app.engines import forecast, gig_profile, income_streams, spending_profile
 from app.engines.spending_profile import Txn
+from app.profile import personalization_v2 as p13n_v2
+from app.profile.user_profile import build_user_profile
 from app.store import db
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])
@@ -95,6 +97,42 @@ def update_verification(req: CareerVerificationRequest) -> dict:
         payload={"job": result.job, "sources": list(result.sources)},
     )
     return result.as_dict()
+
+
+class ManagementOverrideRequest(BaseModel):
+    level: str | None = Field(
+        default=None,
+        description="자율 | 가이드 | 적극 관리 — null이면 오버라이드 해제(권장값으로 복귀)",
+    )
+
+
+@router.get("/v2")
+def personalization_v2() -> dict:
+    """2+2 제품 계약 — 긱 구조(측정) + 금융 대응(기존 4축의 결정론 번역).
+
+    새 AI 판정이 아니다: 검증된 판독·측정의 번역층이라 항상 조회 가능하고,
+    근거가 부족하면 confidence 흉내 없이 decision_status로 보류를 정직하게 알린다.
+    배분·밴딧은 이 값을 소비하지 않는다(raw 축 유지) — 화면·설명·코치 톤 전용.
+    """
+    _boot()
+    return build_user_profile().personalization_v2.as_dict()
+
+
+@router.post("/v2/management-override")
+def set_management_override(req: ManagementOverrideRequest) -> dict:
+    """관리 강도 사용자 선택 — 권장은 권장대로 남고, 선택이 항상 이긴다.
+
+    실행 승인 게이트(HITL)와 무관하다: 어떤 강도를 골라도 돈이 움직이는 실행은
+    기존 confirm 경로 그대로다. 이 값은 코치의 톤·제안 문구만 바꾼다.
+    """
+    _boot()
+    if req.level is not None and req.level not in p13n_v2.MANAGEMENT_LEVELS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"level must be one of {list(p13n_v2.MANAGEMENT_LEVELS)} or null",
+        )
+    db.log_event(p13n_v2.OVERRIDE_EVENT, payload={"level": req.level})
+    return build_user_profile().personalization_v2.as_dict()
 
 
 @router.get("/gig")

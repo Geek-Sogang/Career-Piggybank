@@ -87,7 +87,7 @@ export function Home() {
 
       {/* 4갈래 진입 — 미래 소득은 카드 대신 여기서 분리 진입 */}
       <Card p={6} style={{ flexDirection: 'row' }}>
-        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="커리어 연결" onPress={() => actions.pushScr('connect')} />
+        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="정산 승인" onPress={() => actions.pushScr('jobProof')} />
         <Divider />
         <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
         <Divider />
@@ -97,7 +97,7 @@ export function Home() {
       </Card>
 
       {/* 오늘의 미션 — 홈은 최우선 1개만 (전체는 미션 탭) */}
-      <Pressable onPress={nextTask.onPress}>
+      <Pressable onPress={() => actions.nav('missions')}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }} p={16}>
           <Mascot head size={44} radius={13} />
           <View style={{ flex: 1, minWidth: 0 }}>

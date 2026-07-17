@@ -75,6 +75,43 @@ def latest_persona() -> dict:
     return {**snap, "staleness": facts_svc.snapshot_staleness(snap, len(db.list_txns()))}
 
 
+class JobApproveRequest(BaseModel):
+    txn_id: str = Field(description="검증 승인할 확정 income 거래 ID")
+    memo: str | None = Field(default=None, description="일감 메모 (없으면 거래 메모 사용)")
+
+
+@router.get("/verification/pending")
+def pending_verification_jobs() -> dict:
+    """검증 대기 일감 — 확정 income인데 아직 사람이 승인하지 않은 입금 목록."""
+    _boot()
+    return {"jobs": career_verification.pending_jobs(db.list_events(), db.list_txns())}
+
+
+@router.post("/verification/jobs")
+def approve_verification_job(req: JobApproveRequest) -> dict:
+    """일감 검증 승인 — 사람의 명시 승인만 `career_job_verified` 사건을 만든다 (HITL).
+
+    이 사건이 검증 건수·일감 XP·점수 이력의 유일한 원천이다(PR #86 계약).
+    같은 거래의 중복 승인은 409 — 재조회·중복 이벤트로 반복 지급하지 않는다.
+    """
+    _boot()
+    txn = db.get_txn(req.txn_id)
+    if (txn is None or txn["kind"] != "income" or txn["direction"] != "in"
+            or txn["needs_review"]):
+        raise HTTPException(status_code=422, detail="txn must be a confirmed income deposit")
+    already = any(
+        e.get("type") == "career_job_verified" and e.get("ref_id") == req.txn_id
+        for e in db.list_events()
+    )
+    if already:
+        raise HTTPException(status_code=409, detail="already verified")
+    db.log_event(
+        "career_job_verified", ref_id=req.txn_id,
+        payload={"memo": req.memo or txn.get("memo") or "검증된 일감"},
+    )
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
+
+
 @router.get("/verification")
 def get_verification() -> dict:
     """커리어 검증 SSOT — 점수·단계·심사 연결·커리어 저금통 XP를 계산한다."""

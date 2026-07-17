@@ -186,6 +186,7 @@ function rowProps(t: Txn) {
 function pressFor(t: Txn, actions: ReturnType<typeof useApp>['actions']) {
   if (t.counterparty.includes('커머스')) return () => actions.openJob('commerce');
   if (t.counterparty.includes('스튜디오')) return () => actions.openJob('studio');
+  if (t.counterparty.includes('플랫폼') && t.direction === 'in') return () => actions.openJob('platform');
   if (t.direction === 'out') return () => actions.pushScr('txDetail');
   return undefined;
 }

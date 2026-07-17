@@ -367,6 +367,31 @@ def compute(
     )
 
 
+def pending_jobs(events: list[dict], txns: list[dict] | tuple[dict, ...]) -> list[dict]:
+    """검증 대기 일감 — 확정 income 입금인데 `career_job_verified` 사건이 없는 것.
+
+    여기는 후보 목록만 만든다(결정론 조회). 검증 사건의 기록은 언제나 사람의 명시
+    승인(POST)만 한다 — 자동 승격 없음(HITL). needs_review 거래는 분류 확정 전이라 제외.
+    """
+    verified_ids = {
+        event.get("ref_id") for event in events
+        if event.get("type") == "career_job_verified" and event.get("ref_id")
+    }
+    rows = [
+        {
+            "id": txn["id"], "date": txn["date"], "amount": txn["amount"],
+            "counterparty": txn["counterparty"], "memo": txn.get("memo") or "",
+        }
+        for txn in txns
+        if txn.get("id") not in verified_ids
+        and txn.get("kind") == "income"
+        and txn.get("direction") == "in"
+        and not txn.get("needs_review")
+    ]
+    rows.sort(key=lambda row: row["date"], reverse=True)
+    return rows
+
+
 def latest(events: list[dict], txns: list[dict] | tuple[dict, ...] = ()) -> CareerVerification:
     """최신 연결 상태를 읽되, 최초 시드는 실제 source_connected 사건을 복원한다."""
     updates = [event for event in events if event.get("type") == "career_verification_updated"]

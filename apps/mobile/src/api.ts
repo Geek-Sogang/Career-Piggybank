@@ -229,6 +229,14 @@ export type CareerVerification = {
 export function getCareerVerification() {
   return get<CareerVerification>('/v1/profile/verification');
 }
+// 일감 증명 큐 — 확정 income인데 아직 사람이 승인하지 않은 입금. 승인(HITL)만 검증 사건을 만든다.
+export type PendingJob = { id: string; date: string; amount: number; counterparty: string; memo: string };
+export function getPendingJobs() {
+  return get<{ jobs: PendingJob[] }>('/v1/profile/verification/pending');
+}
+export function approveJob(txnId: string) {
+  return post<CareerVerification>('/v1/profile/verification/jobs', { txn_id: txnId }, 15_000);
+}
 export function updateCareerVerification(sources: string[], job: CareerVerification['job'] = 'developer') {
   return post<CareerVerification>('/v1/profile/verification', { sources, job }, 15_000);
 }

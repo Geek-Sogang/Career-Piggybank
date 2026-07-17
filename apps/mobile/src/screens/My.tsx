@@ -177,7 +177,7 @@ export function My() {
         <Pressable onPress={() => setDetailOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15 }}>
           <Icon name="shield" size={20} color="#7C5CBF" />
           <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: colors.ink }}>왜 이렇게 맞췄는지 보기</Text>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.sub3 }}>{detailOpen ? '접기' : '거래·정산 기록 기반'}</Text>
+          <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub3 }}>{detailOpen ? '접기' : '거래·정산 기록 기반'}</Text>
           <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
         </Pressable>
       </Card>
@@ -223,18 +223,18 @@ function GigProfileCard({ v2 }: { v2: PersonalizationV2 }) {
       <View style={{ flexDirection: 'row', gap: 7, marginTop: 12 }}>
         {v2.gig_structure.map((axis) => (
           <View key={axis.key} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub3 }}>{STRUCTURE_UI[axis.key]?.label ?? axis.label}</Text>
+            <Text style={{ fontSize: 9.5, fontWeight: '500', color: colors.sub3 }}>{STRUCTURE_UI[axis.key]?.label ?? axis.label}</Text>
             <Text style={{ fontSize: 12.5, fontWeight: '800', color: colors.ink, marginTop: 2, lineHeight: 17 }}>
               {STRUCTURE_UI[axis.key]?.levels[axis.level] ?? axis.level}
             </Text>
-            <Text style={{ fontSize: 9.5, fontWeight: '500', color: colors.sub2, marginTop: 4, lineHeight: 13 }}>{axis.detail}</Text>
+            <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub2, marginTop: 4, lineHeight: 13 }}>{axis.detail}</Text>
           </View>
         ))}
       </View>
       {gig && gig.notes.length > 0 && (
         <View style={{ marginTop: 10, gap: 3 }}>
           {gig.notes.slice(0, 4).map((n, i) => (
-            <Text key={i} style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500', lineHeight: 15 }}>· {n}</Text>
+            <Text key={i} style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400', lineHeight: 15 }}>· {n}</Text>
           ))}
         </View>
       )}
@@ -272,7 +272,7 @@ function FinancialResponseCard({ v2, onUpdated }: {
         <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>정산 흐름에 맞춘 돈 관리</Text>
         <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>나에게 맞춤</Text>
       </View>
-      <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16, marginTop: 6 }}>
+      <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '400', lineHeight: 16, marginTop: 6 }}>
         고정 월급이 아니라 다음 정산까지 버티는 흐름을 기준으로 맞췄어요.
       </Text>
 
@@ -296,13 +296,13 @@ function FinancialResponseCard({ v2, onUpdated }: {
       </View>
       {v2.management_override && (
         <Pressable onPress={() => pick(null)} disabled={saving} style={{ marginTop: 7 }}>
-          <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '600' }}>
+          <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400' }}>
             내가 고른 방식이에요 · 피기 추천은 {DECISION_UI.management_support.levels[mgmt.level]}
           </Text>
         </Pressable>
       )}
 
-      <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15, marginTop: 10 }}>
+      <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '400', lineHeight: 15, marginTop: 10 }}>
         정산 흐름이 바뀌면 추천도 다시 맞춰져요. 어떤 방식을 골라도 돈이 움직이기 전에는 항상 확인해요.
       </Text>
     </Card>
@@ -333,7 +333,7 @@ function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').
           <Text style={{ fontSize: 10, fontWeight: '700', color: colors.sub3, backgroundColor: '#F2F4F6', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>내가 선택</Text>
         )}
       </View>
-      <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500', lineHeight: 15 }}>{reason}</Text>
+      <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400', lineHeight: 15 }}>{reason}</Text>
     </View>
   );
 }
@@ -375,7 +375,7 @@ function PersonaCard({ onChanged }: { onChanged?: () => void }) {
         </View>
       ) : (
         <View style={{ marginTop: 12, gap: 11 }}>
-          <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500', lineHeight: 15 }}>
+          <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400', lineHeight: 15 }}>
             성격 검사가 아니라 실제 입금·지출·정산 흐름에서 확인한 관리 습관이에요.
           </Text>
           {AXIS_ORDER.map((key) => {
@@ -394,7 +394,7 @@ function PersonaCard({ onChanged }: { onChanged?: () => void }) {
                 <View style={{ height: 6, borderRadius: 3, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
                   <View style={{ width: `${a.value * 100}%`, height: 6, borderRadius: 3, backgroundColor: a.fallback ? '#C9CED4' : '#7C5CBF' }} />
                 </View>
-                <Text style={{ fontSize: 10, fontWeight: '500', color: colors.sub3, lineHeight: 14 }}>
+                <Text style={{ fontSize: 10, fontWeight: '400', color: colors.sub3, lineHeight: 14 }}>
                   살펴본 기록 · {friendlyFacts(a.evidence, key) || '관련 기록을 더 모으는 중'}
                 </Text>
               </View>
@@ -402,7 +402,7 @@ function PersonaCard({ onChanged }: { onChanged?: () => void }) {
           })}
           {persona.staleness?.stale && (
             <Pressable onPress={runRead} disabled={reading} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F3E3C2', borderRadius: 11, padding: 10 }}>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: '#9A6B15', lineHeight: 16 }}>
+              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '500', color: '#9A6B15', lineHeight: 16 }}>
                 {reading ? '최근 기록으로 다시 맞추는 중 …' : `그 사이 거래 ${persona.staleness.new_txns}건이 쌓였어요. 돈 관리 방식을 다시 맞춰볼까요?`}
               </Text>
               {!reading && <Icon name="chevronRight" size={14} color="#9A6B15" sw={2.2} />}
@@ -415,7 +415,7 @@ function PersonaCard({ onChanged }: { onChanged?: () => void }) {
               </Text>
             </Pressable>
           )}
-          <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15 }}>
+          <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '400', lineHeight: 15 }}>
             각 주제와 관련된 입금·지출·정산·커리어 연결 기록만 살펴봐요. 앱을 자주 열었는지는 성향 판단에 쓰지 않아요.
           </Text>
         </View>
@@ -428,7 +428,7 @@ function MyStat({ value, label, color, borderLeft }: { value: string; label: str
   return (
     <View style={{ flex: 1, borderLeftWidth: borderLeft ? 1 : 0, borderLeftColor: colors.line, paddingLeft: borderLeft ? 16 : 0 }}>
       <Text style={{ fontSize: 20, fontWeight: '800', color: color || colors.ink }}>{value}</Text>
-      <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600', marginTop: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '400', marginTop: 2 }}>{label}</Text>
     </View>
   );
 }

@@ -87,7 +87,7 @@ function Shell() {
             <Mascot head size={38} radius={19} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
               <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
-              <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>
+              <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '400' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>
             </View>
           </View>
           <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>

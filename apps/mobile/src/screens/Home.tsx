@@ -136,7 +136,7 @@ function Quick({ icon, tint, color, title, sub, onPress }: { icon: 'download' | 
         <Icon name={icon} size={22} color={color} />
       </View>
       <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
-      <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500' }}>{sub}</Text>
+      <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400' }}>{sub}</Text>
     </Pressable>
   );
 }

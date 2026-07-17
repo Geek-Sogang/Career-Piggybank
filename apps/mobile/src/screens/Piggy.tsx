@@ -28,6 +28,16 @@ export function Piggy() {
 
   return (
     <View style={{ gap: 14 }}>
+      {/* AI 강점 — 검증 이력에서 AI가 고른 한 줄. 이 탭의 첫인상 = "AI가 요약한 나" */}
+      <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
+          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
+          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
+        </View>
+      </View>
+
       {/* 검증된 이력 — 점수·단계·통계 요약 */}
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -73,16 +83,6 @@ export function Piggy() {
       <Pressable onPress={() => actions.openJob('personal')}>
         <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
       </Pressable>
-
-      {/* AI 강점 — 검증 이력에서 AI가 고른 한 줄 */}
-      <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
-          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
-          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
-        </View>
-      </View>
 
       {/* CTA */}
       <Pressable onPress={() => actions.pushScr('connect')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>

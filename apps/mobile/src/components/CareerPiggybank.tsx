@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View, type ViewStyle } from 'react-native';
 import {
   getCareerScraps, getPersonalizationV2, saveCareerScrap,
   type CareerScrap, type CareerVerification, type PersonalizationV2,
@@ -49,24 +49,24 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
 
   if (compact) {
     return (
-      <Card p={16} style={{ backgroundColor: '#FCFEFD', borderColor: colors.greenLine }}>
+      <Card p={16} style={{ backgroundColor: skin.tint, borderColor: 'transparent' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <PiggyHero skin={skin} level={piggybank.level} size={68} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 11, fontWeight: '600', color: colors.green }}>커리어 저금통</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: '700', color: skin.ink, backgroundColor: skin.tint, paddingVertical: 3, paddingHorizontal: 6, borderRadius: 7, overflow: 'hidden' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: skin.ink }}>커리어 저금통</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: '800', color: skin.ink, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 6, borderRadius: 7, overflow: 'hidden' }}>
                 Lv.{piggybank.level}
               </Text>
             </View>
             <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.5, color: colors.ink, marginTop: 3 }}>
               {piggybank.level_title}
             </Text>
-            <View style={{ height: 9, borderRadius: 5, backgroundColor: '#E9ECEF', overflow: 'hidden', marginTop: 11 }}>
+            <View style={{ height: 9, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.75)', overflow: 'hidden', marginTop: 11 }}>
               <View style={{ width: `${piggybank.progress * 100}%`, height: 9, borderRadius: 5, backgroundColor: skin.ink }} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 5 }}>
-              <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: '600', color: skin.ink }}>
                 {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
               </Text>
             </View>
@@ -75,7 +75,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
         {trust && (
           <Pressable
             onPress={trust.onPress}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 12, backgroundColor: colors.greenTint, borderRadius: 9, paddingVertical: 6, paddingHorizontal: 10 }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#fff', borderRadius: 9, paddingVertical: 6, paddingHorizontal: 10 }}
           >
             <Text style={{ fontSize: 11, fontWeight: '700', color: colors.greenInk }}>검증 {trust.score}점 · {trust.stage}</Text>
             <Icon name="chevronRight" size={12} color={colors.greenInk} sw={2.4} />
@@ -89,26 +89,40 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
   const doneMissions = piggybank.missions.filter((mission) => mission.completed).length;
   return (
     <View style={{ gap: 14 }}>
-      {/* Zone 1 · 무대 — 캐릭터가 주인공, 숫자는 진행 하나만 */}
-      <View style={{ borderRadius: 22, backgroundColor: skin.tint, paddingVertical: 26, paddingHorizontal: 20, alignItems: 'center' }}>
+      {/* Zone 1 · 저금통 무대 — 번 것이 동전이 되어 슬롯으로 들어가고, 레벨만큼 바닥에 쌓인다 */}
+      <View style={{ borderRadius: 22, backgroundColor: skin.tint, paddingVertical: 22, paddingHorizontal: 20, alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={{ fontSize: 11.5, fontWeight: '700', color: skin.ink }}>커리어 저금통</Text>
           <Text style={{ fontSize: 10, fontWeight: '800', color: skin.ink, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>
             Lv.{piggybank.level}
           </Text>
         </View>
-        <View style={{ marginTop: 16 }}>
+        {/* 슬롯으로 들어가는 동전 — XP가 저금되는 순간의 정지 화면 */}
+        <View style={{ alignItems: 'center', marginTop: 12 }}>
+          <Coin size={24} style={{ marginBottom: -7, zIndex: 2, transform: [{ rotate: '-14deg' }] }} />
           <PiggyHero skin={skin} level={piggybank.level} size={128} />
+          {/* 받침 동전 더미 — 레벨 수만큼 (최대 5) */}
+          <View style={{ flexDirection: 'row', marginTop: -9, zIndex: 2 }}>
+            {Array.from({ length: Math.min(piggybank.level, 5) }).map((_, i) => (
+              <Coin key={i} size={17} style={i === 0 ? undefined : { marginLeft: -5 }} />
+            ))}
+          </View>
         </View>
-        <Text style={{ fontSize: 25, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, marginTop: 14 }}>
+        <Text style={{ fontSize: 25, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, marginTop: 12 }}>
           {piggybank.level_title}
         </Text>
         <View style={{ alignSelf: 'stretch', height: 9, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.75)', overflow: 'hidden', marginTop: 14 }}>
           <View style={{ width: `${piggybank.progress * 100}%`, height: 9, borderRadius: 5, backgroundColor: skin.ink }} />
         </View>
-        <Text style={{ fontSize: 12, fontWeight: '600', color: skin.ink, marginTop: 8 }}>
-          {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
-        </Text>
+        <View style={{ alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Coin size={13} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: skin.ink, ...T.num }}>모은 동전 {piggybank.xp.toLocaleString()} XP</Text>
+          </View>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: skin.ink }}>
+            {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
+          </Text>
+        </View>
       </View>
 
       {/* Zone 2 · 오늘의 미션 — 국면 적응형, 최대 3개 */}
@@ -284,13 +298,21 @@ function FoldRow({ title, meta, open, onPress, first, children }: {
   );
 }
 
+// 동전 — 저금통 시각 문법의 최소 단위 (금화 원판 + 안쪽 링)
+function Coin({ size, style }: { size: number; style?: ViewStyle }) {
+  return (
+    <View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#FFD85A', borderWidth: Math.max(1.5, size * 0.09), borderColor: '#E8B93B', alignItems: 'center', justifyContent: 'center' }, style]}>
+      <View style={{ width: size * 0.36, height: size * 0.36, borderRadius: size * 0.18, borderWidth: Math.max(1.2, size * 0.07), borderColor: '#E8B93B' }} />
+    </View>
+  );
+}
+
 function PiggyHero({ skin, level, size }: {
   skin: (typeof SKINS)[keyof typeof SKINS]; level: number; size: number;
 }) {
   const inner = Math.round(size * 0.85);
-  const onStage = size > 100;   // 무대 위에서는 흰 받침으로 스킨 틴트 배경과 분리
   return (
-    <View style={{ width: size, height: size, borderRadius: Math.round(size * 0.32), backgroundColor: onStage ? '#fff' : skin.tint, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ width: size, height: size, borderRadius: Math.round(size * 0.32), backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
       <Mascot head size={inner} radius={Math.round(inner * 0.33)} />
       <View style={{ position: 'absolute', top: Math.round(size * 0.09), width: Math.round(size * 0.34), height: Math.max(6, Math.round(size * 0.085)), borderRadius: 4, backgroundColor: skin.ink }} />
       <View style={{ position: 'absolute', top: -7, right: -6, width: 25, height: 25, borderRadius: 13, backgroundColor: '#FFD85A', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>

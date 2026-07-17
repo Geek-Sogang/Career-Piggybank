@@ -6,6 +6,7 @@ import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { AppProvider, useApp } from '@/store';
 import { Home } from '@/screens/Home';
 import { Missions } from '@/screens/Missions';
@@ -86,7 +87,7 @@ function Shell() {
       {vals.showGreeting && (
         <View style={{ height: 54, paddingHorizontal: 20, paddingTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Mascot head size={38} radius={19} style={{ borderWidth: 1, borderColor: colors.line }} />
+            <ProfileAvatar size={38} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
               <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
               <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '400' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>

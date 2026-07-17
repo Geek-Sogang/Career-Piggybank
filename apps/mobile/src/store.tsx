@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { logBehavior, type EnvelopeSplit } from '@/api';
+import { getCareerVerification, logBehavior, updateCareerVerification, type CareerVerification, type EnvelopeSplit } from '@/api';
 import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
@@ -46,6 +46,10 @@ function useAppState(startTab: Tab = 'home') {
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
+  const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'limit'>>({
+    score: HISTORY_SCORE, stage: '잠정', limit: 600_000,
+  });
+  const [verificationHydrated, setVerificationHydrated] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,6 +60,31 @@ function useAppState(startTab: Tab = 'home') {
   };
   // 앱을 여는 것도 실제 행동(비금융) — 계획성 축의 근거 F14로 계측된다
   useEffect(() => { logBehavior('app_opened'); }, []);
+  // 새로고침에서도 마지막 검증 상태를 복원한다. 복원 전 빈 로컬 상태를 POST해 서버 값을
+  // 덮지 않도록 hydration을 먼저 끝낸 뒤 아래 동기화 효과를 연다.
+  useEffect(() => {
+    getCareerVerification()
+      .then((v) => {
+        const restored = (Object.keys(conn) as ConnSrc[]).reduce<Conn>((acc, src) => {
+          acc[src] = v.sources.includes(src);
+          return acc;
+        }, { github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
+        setConn(restored);
+        setVerification({ score: v.score, stage: v.stage, limit: v.limit });
+      })
+      .catch(() => {})
+      .finally(() => setVerificationHydrated(true));
+    // 마운트 시점의 빈 conn은 서버 복원용 키 목록으로만 사용한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 연결 상태는 입력일 뿐, 점수·검증 단계·금융상품 한도는 백엔드 결정론 응답을 표시한다.
+  useEffect(() => {
+    if (!verificationHydrated) return;
+    const active = (Object.keys(conn) as ConnSrc[]).filter((src) => conn[src]);
+    updateCareerVerification(active, 'developer')
+      .then((v) => setVerification({ score: v.score, stage: v.stage, limit: v.limit }))
+      .catch(() => {});
+  }, [conn, verificationHydrated]);
   const apply = (src: ConnSrc, on: boolean) => {
     setConn((c) => ({ ...c, [src]: on }));
     if (on) {
@@ -80,9 +109,9 @@ function useAppState(startTab: Tab = 'home') {
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     noteAllocation: (n: AllocNotice) => setLastAlloc(n),
     markAllocConfirmed: () => setLastAlloc((p) => (p ? { ...p, confirmed: true } : p)),
-    // ⑤b 페이싱 확정(프론트 시뮬) — 담은 금액을 오버레이로 기록하고 가계부 → 자동봉투(봉투 모아진 화면)로 이동
-    applyPacing: (deposits: Record<string, number>) => {
-      setPacingApplied((p) => ({ ...p, ...deposits }));
+    // ⑤b는 백엔드 confirm이 잔액을 이동한다. 로컬에서는 이동 동선만 담당한다.
+    applyPacing: (_deposits: Record<string, number>) => {
+      setPacingApplied({});
       setTab('ledger'); setPush('tax'); setSheet(null);
     },
     closeSheet: () => setSheet(null),
@@ -93,16 +122,13 @@ function useAppState(startTab: Tab = 'home') {
 
   const vals = useMemo(() => {
     const c = conn;
-    const score = HISTORY_SCORE + (Object.keys(CAREER_SCORE_VALUES) as ConnSrc[]).reduce((a, k) => a + (c[k] ? CAREER_SCORE_VALUES[k] : 0), 0);
+    const score = verification.score;
     const ageIdx = Math.min(Math.floor(score / 100), AGE_KR.length - 1);
     const nextIdx = Math.min(ageIdx + 1, AGE_KR.length - 1);
     const toNext = 100 - (score % 100);
     const scr = push || tab;
-    const cnt = Object.values(c).filter(Boolean).length;
-    const stage: keyof typeof STAGE_MAP = (c.hometax || c.kosa) ? '확정' : cnt >= 2 ? '준검증' : '잠정';
-    // 검증 한도 = 점수 × ₩5,000 × 검증 단계 배수(확정 1.0 · 준검증 0.7 · 잠정 0.4), 10만원 단위 반올림
-    const stageMult = stage === '확정' ? 1 : stage === '준검증' ? 0.7 : 0.4;
-    const limit = Math.round((score * 5000 * stageMult) / 100000) * 100000;
+    const stage: keyof typeof STAGE_MAP = verification.stage;
+    const limit = verification.limit;
     const sc = SC[scenario];
     return {
       scr, conn: c, limit, stage, score, toNext, ageLabel: `${AGE_KR[ageIdx]} 살`, nextAgeLabel: `${AGE_KR[nextIdx]} 살`,
@@ -116,7 +142,7 @@ function useAppState(startTab: Tab = 'home') {
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,
     };
-  }, [conn, push, tab, scenario]);
+  }, [conn, push, tab, scenario, verification]);
 
   return { entered, tab, push, sheet, scenario, detail, product, lastAlloc, pacingApplied, flash, vals, actions };
 }

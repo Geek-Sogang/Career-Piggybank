@@ -64,6 +64,7 @@ def propose(req: ProposeRequest) -> dict:
                    "stance": g.stance, "amount": g.amount} for g in plan.goals],
         "buffer_first": plan.buffer_first,
         "persona_staleness": staleness,
+        "persona_used": axes is not None,
         "source": req.source,
     })
     return {"id": pid, "status": "proposed", "available": req.available,
@@ -72,6 +73,7 @@ def propose(req: ProposeRequest) -> dict:
             "goals": [{"id": g.goal_id, "name": g.name, "base": g.base,
                        "stance": g.stance, "amount": g.amount} for g in plan.goals],
             "source": req.source,
+            "persona_used": axes is not None,
             "persona_staleness": staleness}
 
 

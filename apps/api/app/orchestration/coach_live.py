@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from app.orchestration import bank_flow
 from app.engines import income_streams, tax_envelope
-from app.engines import facts as facts_svc
+from app.profile import build_user_profile
 from app.store import db
 
 
@@ -31,6 +31,7 @@ def build(intent: str = "qa") -> dict:
     txns = db.list_txns()
     balances = db.envelope_balances()
     est = bank_flow.profile_from_store()
+    up = build_user_profile()
 
     ctx: dict = {"balances": {k: round(v, 2) for k, v in balances.items()}}
 
@@ -67,12 +68,14 @@ def build(intent: str = "qa") -> dict:
             ]
 
     # 페르소나 — 축 + 신선도 (stale이면 코치가 재판독을 권할 수 있다)
-    snap = db.latest_snapshot()
-    if snap and snap.get("axes"):
+    if up.persona_axes:
         ctx["persona"] = {
-            "axes": {k: a.get("value") for k, a in snap["axes"].items()},
-            "staleness": facts_svc.snapshot_staleness(snap, len(txns)),
+            "axes": {k: a.get("value") for k, a in up.persona_axes.items()},
+            "staleness": up.persona_staleness,
+            "used": True,
         }
+    elif up.persona_staleness:
+        ctx["persona"] = {"axes": {}, "staleness": up.persona_staleness, "used": False}
 
     # 인텐트별 상세 — 분기한 곳만 (실행은 전부 화면의 승인 게이트로)
     if intent == "adjust_allocation":
@@ -101,7 +104,8 @@ def build(intent: str = "qa") -> dict:
         allocs = db.list_allocations()
         invest_available = float(allocs[-1]["meta"].get("invest_available", 0.0)) if allocs else 0.0
         candidates, vetoed = product_match.eligible(
-            invest_available, balances.get("tax", 0.0), bank_flow.context_from_store(),
+            invest_available, balances.get("tax", 0.0), up.allocation_context(),
+            up.has_confirmed_incoming, verified_credit_limit=up.career.limit,
         )
         ctx["product_candidates"] = [c.as_dict() for c in candidates]
         if vetoed:

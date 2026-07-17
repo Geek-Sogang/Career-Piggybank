@@ -9,17 +9,6 @@ import { useApp, VERIFIED } from '@/store';
 // 서버/LLM 미가동 시 오프라인 폴백 문구
 const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
 
-// 데모용 폴백 추천 — 온디바이스 7.8B는 느리고 접지 게이트로 자주 비므로(recommendations=[]),
-// 백엔드가 진짜 추천을 주면 즉시 대체된다. 백엔드 배선은 [[career-piggybank-frontend-sim-backend-todo]].
-const FALLBACK_IDEAS: EnvelopeIdea[] = [
-  { name: '일 없는 달 대비 예비 자금', why: '고변동 소득이라 수입이 끊기는 달이 있어요. 무수입 공백을 버틸 예비 자금이 필요해요.', evidence: [] },
-  { name: '다각화 소득 스트림 구축 자금', why: '소득원이 소수에 집중돼 있어요. 새 소득원을 여는 초기 자금을 모으면 장기 안정성이 올라가요.', evidence: [] },
-];
-const FALLBACK_PEERS: PeerIdea[] = [
-  { name: '장비 교체', suggested_amount: 2_700_000, share: 0.25, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투 — 유사 성향 가중 25%', months_to_reach: null, affordable_amount: null },
-  { name: '일 없는 달', suggested_amount: 1_750_000, share: 0.24, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투 — 유사 성향 가중 24%', months_to_reach: null, affordable_amount: null },
-];
-
 export function Piggy() {
   const { actions, sheet } = useApp();
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
@@ -106,37 +95,28 @@ function GoalSection({ goals, onCreated, onPace }: {
   const [ideas, setIdeas] = useState<EnvelopeIdea[]>([]);
   const [peers, setPeers] = useState<PeerIdea[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(true);   // 추천 로딩 중(7.8B라 몇 초) 표시용
+  const [recommendationUnavailable, setRecommendationUnavailable] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   useEffect(() => {
     // 추천 2소스 — ⑤a(내 팩트, LLM)·또래(유사 페르소나 관찰, 결정론).
-    // 데모: AI 추천(7.8B)은 느리고 접지 게이트로 자주 비므로 폴백을 먼저 띄우고,
-    // 백엔드가 진짜 추천을 주면 대체한다(빈 배열이면 폴백 유지).
+    // 실패·판단 보류를 개인화된 정적 문구로 위장하지 않는다. 빈 결과는 그대로 빈 결과다.
     let alive = true;
-    const fb = setTimeout(() => {
-      if (!alive) return;
-      setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-      setPeers((p) => (p.length ? p : FALLBACK_PEERS));
-      setLoadingRecs(false);
-    }, 900);
     recommendEnvelopes()
       .then((r) => {
         if (!alive) return;
-        if (r.recommendations?.length) setIdeas(r.recommendations);
-        else setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-        if (r.peers?.length) setPeers(r.peers);
-        else setPeers((p) => (p.length ? p : FALLBACK_PEERS));
+        setIdeas(r.recommendations ?? []);
+        setPeers(r.peers ?? []);
         setLoadingRecs(false);
       })
       .catch(() => {
         if (!alive) return;
-        setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-        setPeers((p) => (p.length ? p : FALLBACK_PEERS));
+        setRecommendationUnavailable(true);
         setLoadingRecs(false);
       });
-    return () => { alive = false; clearTimeout(fb); };
+    return () => { alive = false; };
   }, []);
 
   const submit = async () => {
@@ -174,7 +154,11 @@ function GoalSection({ goals, onCreated, onPace }: {
           <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', lineHeight: 18 }}>
             {loadingRecs && ideas.length === 0 && peers.length === 0
               ? '피기가 내 상황·또래를 보고 맞는 봉투를 찾고 있어요…'
-              : '아직 목표 봉투가 없어요 — 아래 피기 추천을 탭하거나 직접 만들어 보세요'}
+              : recommendationUnavailable
+                ? '추천을 불러오지 못했어요 — 개인화 문구를 지어내지 않고 직접 만들기만 열어둘게요'
+                : ideas.length === 0 && peers.length === 0
+                  ? '현재 근거로 추천할 봉투가 없어요 — 직접 목표를 만들어 보세요'
+                  : '아직 목표 봉투가 없어요 — 아래 피기 추천을 탭하거나 직접 만들어 보세요'}
           </Text>
         )}
         {goals.map((g) => {

@@ -10,9 +10,8 @@ from fastapi import APIRouter
 
 from app.agents import product_match as product_match_agent
 from app.api.routes.bank import _boot
-from app.orchestration import bank_flow
-from app.engines import facts as facts_svc
 from app.engines import product_match
+from app.profile import build_user_profile
 from app.store import db
 
 router = APIRouter(prefix="/v1/products", tags=["products"])
@@ -22,31 +21,31 @@ router = APIRouter(prefix="/v1/products", tags=["products"])
 def match() -> dict:
     """적합성 veto(결정론) → 후보 메뉴 → LLM 선택(게이트 3종) → 룰 폴백."""
     _boot()
+    up = build_user_profile()
+    verification = up.career.as_dict()
     allocations = db.list_allocations()
     if not allocations:
         return {
             "matches": [], "vetoed": {}, "persona_used": False, "persona_staleness": None,
+            "verification": verification,
             "note": "배분 이력이 없어 상품 매칭을 할 수 없어요 — 첫 입금 배분 후 다시 불러요",
         }
 
     latest = allocations[-1]
     invest_available = float(latest["meta"].get("invest_available", 0.0))
     tax_balance = db.envelope_balances()["tax"]
-    ctx = bank_flow.context_from_store()
     candidates, vetoed = product_match.eligible(
-        invest_available, tax_balance, ctx, bank_flow.has_confirmed_incoming())
+        invest_available, tax_balance, up.allocation_context(), up.has_confirmed_incoming,
+        verified_credit_limit=up.career.limit,
+    )
 
-    txns = db.list_txns()
-    sheet = facts_svc.build_factsheet(txns, allocations, db.list_events())
-    snap = db.latest_snapshot()
-    axes = snap["axes"] if snap else None
-
-    picks = product_match_agent.select(candidates, sheet, axes, db.list_goals())
+    picks = product_match_agent.select(candidates, list(up.factsheet), up.persona_axes, db.list_goals())
     return {
         "matches": [p.as_dict() for p in picks],
         "candidates": [c.as_dict() for c in candidates],
         "vetoed": vetoed,   # 무엇이 왜 후보에서 빠졌는지 — 적합성 원칙의 감사 가능성
-        "persona_used": axes is not None,
-        "persona_staleness": facts_svc.snapshot_staleness(snap, len(txns)),
-        "note": "매칭은 판정일 뿐 — 가입은 사람의 결정 (심사·한도 개인화 없음)",
+        "persona_used": up.persona_axes is not None,
+        "persona_staleness": up.persona_staleness,
+        "verification": verification,
+        "note": "검증 한도는 결정론, 상품 선택은 판정일 뿐 — 가입은 사람의 결정",
     }

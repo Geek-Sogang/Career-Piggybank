@@ -8,6 +8,9 @@ import { PRODUCTS } from '@/products';
 export function ProductDetail() {
   const { product, vals } = useApp();
   const p = PRODUCTS[product];
+  const highlight = product === 'emergency'
+    ? `${Math.min(2_000_000, vals.limit).toLocaleString('en-US')}원`
+    : p.highlight;
   const [applied, setApplied] = useState(false);
   return (
     <View style={{ gap: 14 }}>
@@ -21,10 +24,10 @@ export function ProductDetail() {
             <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.4, color: colors.ink, marginTop: 2 }}>{p.name}</Text>
           </View>
         </View>
-        {p.highlight ? (
+        {highlight ? (
           <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.line }}>
             <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600' }}>{p.highlightLabel}</Text>
-            <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 2, ...T.num }}>{p.highlight}</Text>
+            <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 2, ...T.num }}>{highlight}</Text>
           </View>
         ) : null}
       </Card>

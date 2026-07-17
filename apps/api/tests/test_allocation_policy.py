@@ -190,6 +190,8 @@ def test_deposit_flow_records_policy_and_decision_pays_reward():
     }).json()
     alloc = body["allocation"]
     assert alloc is not None
+    assert alloc["policy"]["arm_id"] in ARM_IDS.values()
+    assert alloc["persona_used"] is False   # 스냅샷 전에는 구조 기반이라고 정직하게 노출
     stored = db.get_allocation(alloc["id"])
     policy = stored["meta"]["policy"]
     assert policy["arm_id"] in ARM_IDS.values()

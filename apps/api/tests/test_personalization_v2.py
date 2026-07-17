@@ -1,7 +1,7 @@
-"""V2 개인화 번역층 테스트 — 2+2 계약이 '번역'이지 '새 판정'이 아님을 지킨다.
+"""V2 개인화 번역층 테스트 — 구조 2 + 금융 대응 3이 '번역'이지 '새 판정'이 아님을 지킨다.
 
 검증 4묶음:
-- 매핑이 결정론으로 맞는가 (안전자금 3버킷 · 관리 강도 규칙표 전조합)
+- 매핑이 결정론으로 맞는가 (안전자금·자금 페이스 3버킷 · 관리 강도 규칙표 전조합)
 - 불가침이 지켜지는가 (confidence 부재 · F14 방향 제외 · 보류는 정직하게)
 - 오버라이드가 권장을 덮어쓰지 않는가 (별도 보관 · 최신 이벤트 우선 · 무효 값은 해제)
 - 기존 소비 계약이 불변인가 (배분 컨텍스트가 v2에 독립 · 라우트 422 게이트)
@@ -97,6 +97,18 @@ def test_safety_insufficient_when_fallback_stale_or_missing():
         assert d.decision_status == v2.INSUFFICIENT
         assert d.level == "균형"          # 보류의 안전 기본값 — 지어내지 않음
         assert d.evidence["gate"] == gate
+
+
+def test_goal_pacing_maps_time_preference_without_touching_protected_money():
+    expect = {0.1: "현재 우선", 0.3: "현재 우선", 0.5: "균형",
+              0.7: "미래 우선", 0.9: "미래 우선"}
+    for value, level in expect.items():
+        axes = _axes()
+        axes["time_preference"] = _axis(value, evidence=("F06", "F12"))
+        d = _decision(_build(axes=axes, staleness=FRESH), v2.PACING_KEY)
+        assert d.level == level
+        assert d.source_axes == ("time_preference",)
+        assert "목표 기한과 사용 가능 금액" in d.basis
 
 
 # ── 권장 관리 강도: 규칙표 전조합 + 방향 원칙 ──
@@ -220,7 +232,7 @@ def test_route_v2_available_even_without_persona_read():
     assert res.status_code == 200
     body = res.json()
     assert {d["key"] for d in body["financial_response"]} == {
-        v2.SAFETY_KEY, v2.MANAGEMENT_KEY,
+        v2.SAFETY_KEY, v2.MANAGEMENT_KEY, v2.PACING_KEY,
     }
     assert all(d["decision_status"] == v2.INSUFFICIENT
                for d in body["financial_response"])   # 판독 전 — 보류를 정직하게

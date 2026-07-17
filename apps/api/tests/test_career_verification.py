@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.engines import career_verification, product_match
+from app.engines import career_verification, facts as facts_svc, product_match
 from app.engines.allocator import AllocationContext
 from app.main import app
 from app.profile import build_user_profile
@@ -101,7 +101,9 @@ def test_mission_xp_counts_a_completed_mission_once() -> None:
     result = career_verification.compute(["hometax"], events=events)
     assert result.score == 40
     assert result.piggybank.work_xp == 0
-    assert result.piggybank.mission_xp == 55  # 홈택스 연결 30 + 첫 배분 승인 25
+    assert result.piggybank.mission_xp == 55  # 홈택스 연결 30 + 첫 배분 처리 25
+    # 같은 입금 중복은 한 번, 거절도 '처리'이므로 결과와 무관하게 반복 XP를 받는다.
+    assert result.piggybank.loop_xp == 4
     assert result.piggybank.completed_missions == 2
 
 
@@ -135,7 +137,44 @@ def test_approved_deposit_adds_first_mission_xp_without_changing_trust_score() -
     after = client.get("/v1/profile/verification").json()
     assert (after["score"], after["stage"]) == (before["score"], before["stage"])
     assert after["piggybank"]["mission_xp"] == before["piggybank"]["mission_xp"] + 25
-    assert after["piggybank"]["xp"] == before["piggybank"]["xp"] + 25
+    assert after["piggybank"]["loop_xp"] == before["piggybank"]["loop_xp"] + 2
+    assert after["piggybank"]["xp"] == before["piggybank"]["xp"] + 27
+
+
+def test_daily_scrap_is_once_per_day_and_never_enters_persona_facts() -> None:
+    before = {fact.id: fact.value for fact in facts_svc.build_factsheet([], [], db.list_events())}
+    assert client.post("/v1/behavior/career-scraps", json={"content": "₩"}).status_code == 422
+    assert client.post("/v1/behavior/career-scraps", json={"content": "  "}).status_code == 422
+
+    first = client.post("/v1/behavior/career-scraps", json={"content": "결제 화면 빈 상태 개선"}).json()
+    second = client.post("/v1/behavior/career-scraps", json={"content": "React 렌더링 최적화 학습"}).json()
+    assert first["xp_awarded"] is True
+    assert second["xp_awarded"] is False
+    assert second["event_id"] == first["event_id"]
+    assert len(db.list_events("career_scrap_saved")) == 1
+    collection = client.get("/v1/behavior/career-scraps").json()
+    assert [scrap["content"] for scrap in collection] == [
+        "React 렌더링 최적화 학습", "결제 화면 빈 상태 개선",
+    ]
+
+    profile = client.get("/v1/profile/verification").json()
+    assert profile["piggybank"]["daily_xp"] == 1
+    scrap = next(m for m in profile["piggybank"]["daily_missions"] if m["id"] == "career_scrap")
+    assert scrap["completed"] is True
+
+    after = {fact.id: fact.value for fact in facts_svc.build_factsheet([], [], db.list_events())}
+    assert after == before  # 스크랩·미션 완료는 F10~F14와 계획성 입력을 바꾸지 않는다.
+
+
+def test_quest_phase_follows_ledger_context_without_changing_trust() -> None:
+    tax_txn = {
+        "id": "tax-season", "date": "2025-04-20", "amount": 500_000,
+        "direction": "in", "counterparty": "발주처", "memo": "정산",
+        "kind": "income", "needs_review": False,
+    }
+    result = career_verification.compute([], txns=[tax_txn])
+    assert result.score == 0
+    assert result.piggybank.phase["key"] == "tax_season"
 
 
 def test_latest_restores_seeded_source_connections_and_verified_jobs() -> None:

@@ -164,10 +164,11 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
     payload: dict = {
         "action": req.action,
         "buffer_delta": buffer_delta,
-        # 달력 출석이 아니라 고유 입금 사건의 승인만 리듬 맵을 전진시킨다.
-        # txn_id 없는 수동 제안·거절은 제외하고, 엔진에서 이 ID를 다시 중복 제거한다.
+        # 미션 XP는 결정 내용이 아니라 '입금 배분을 처리했는가'에만 붙는다.
+        # txn_id 없는 수동 제안은 제외하고, 엔진에서 고유 입금 ID를 다시 중복 제거한다.
         "income_event_id": income_event_id,
         "rhythm_eligible": req.action in {"confirm", "adjust"} and bool(income_event_id),
+        "mission_eligible": bool(income_event_id),
     }
 
     # 학습 정책 보상 — 이 제안을 만든 arm에 결정을 귀속 (온라인 학습이 닫히는 지점).

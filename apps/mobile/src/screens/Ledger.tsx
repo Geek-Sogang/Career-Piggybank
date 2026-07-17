@@ -158,8 +158,15 @@ function rowProps(t: Txn) {
   const isIn = t.direction === 'in';
   const badge = t.counterparty.replace(/[^가-힣A-Za-z]/g, '').slice(0, 1) || '?';
   if (t.kind === 'income') {
-    const tag = t.subtype === 'advance' ? '계약금 의심 · 확인 필요' : '일감 매출 · 자동분류';
-    return { badge, bg: colors.greenTint, color: colors.green, title: t.counterparty, tag, tagColor: colors.spendable, amount: `+₩${t.amount.toLocaleString('en-US')}` };
+    const tag = t.subtype === 'advance'
+      ? '계약금 의심 · 확인 필요'
+      : t.verified_career_job
+        ? '검증 일감 · 자동분류'
+        : t.signals.some((signal) => signal.includes('수기 태그'))
+          ? '직접 확인 · 다음부터 자동학습'
+          : '일감 매출 · 검증자료 미연결';
+    const verified = t.verified_career_job;
+    return { badge, bg: verified ? colors.greenTint : colors.bufferTint, color: verified ? colors.green : colors.buffer, title: t.counterparty, tag, tagColor: verified ? colors.spendable : colors.buffer, amount: `+₩${t.amount.toLocaleString('en-US')}` };
   }
   if (t.kind === 'expense') {
     return { badge, bg: colors.line, color: colors.sub, title: t.counterparty, tag: t.subtype === 'subscription' ? '경비 · 구독' : '경비 · 운영', tagColor: colors.sub2, amount: `−₩${t.amount.toLocaleString('en-US')}`, amountColor: colors.sub2, small: true };

@@ -49,9 +49,12 @@ function useAppState(startTab: Tab = 'home') {
     },
     verified: { count: 0, streak_months: 0, span_months: 0, recent: [] },
     piggybank: {
-      xp: 0, work_xp: 0, mission_xp: 0, level: 1, level_title: '첫 동전', max_level: 10,
+      xp: 0, work_xp: 0, mission_xp: 0, loop_xp: 0, daily_xp: 0,
+      level: 1, level_title: '첫 동전', max_level: 10,
       current_threshold: 0, next_threshold: 80, xp_to_next: 80, progress: 0,
-      completed_missions: 0, missions: [], levels: [], reward_is_example: true,
+      completed_missions: 0, missions: [], daily_missions: [],
+      phase: { key: 'quiet', label: '할 일 없는 날', message: '새 거래가 오면 필요한 미션만 열어요' },
+      levels: [], reward_is_example: true,
     },
   });
   const [verificationHydrated, setVerificationHydrated] = useState(false);

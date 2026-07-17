@@ -32,7 +32,11 @@ export function Piggy() {
 
   return (
     <View style={{ gap: 14 }}>
-      <CareerPiggybank piggybank={vals.piggybank} />
+      <CareerPiggybank
+        piggybank={vals.piggybank}
+        onMissionUpdated={actions.refreshCareer}
+        onOpenLedger={() => actions.nav('ledger')}
+      />
 
       {/* 검증된 이력 */}
       <Card>

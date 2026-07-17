@@ -28,6 +28,7 @@ class TxnOut(BaseModel):
     confidence: float
     needs_review: bool
     signals: list[str]
+    verified_career_job: bool = False
 
 
 class ClarifyOption(BaseModel):

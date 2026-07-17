@@ -125,6 +125,15 @@ def test_seed_runs_once() -> None:
     assert len(db.list_txns()) == 13
 
 
+def test_transaction_feed_distinguishes_verified_job_from_classified_income() -> None:
+    seed()
+    rows = {row["counterparty"]: row for row in client.get("/v1/bank/transactions").json()}
+    assert rows["○○커머스"]["verified_career_job"] is True
+    assert rows["△△스튜디오"]["verified_career_job"] is True
+    assert rows["위시켓"]["verified_career_job"] is False
+    assert rows["토스페이 정산"]["needs_review"] is True
+
+
 # ---------- 컨텍스트 인식 배분 — 행동(조정 성향) 학습 루프 ----------
 
 def _deposit_and_adjust(amount: float, counterparty: str, buffer_extra: float) -> None:

@@ -153,7 +153,7 @@ function useAppState(startTab: Tab = 'home') {
       reviewBasis: verification.review_connection.basis,
       stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
-      tabTitle: ({ missions: '미션', piggy: '커리어', ledger: '정산', my: '마이' } as Record<string, string>)[tab] || '',
+      tabTitle: ({ missions: '미션', piggy: '커리어 저금통', ledger: '정산', my: '마이' } as Record<string, string>)[tab] || '',
       headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',

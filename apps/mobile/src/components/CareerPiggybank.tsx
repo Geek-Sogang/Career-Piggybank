@@ -48,25 +48,26 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
   const toggle = (key: 'roadmap' | 'missions' | 'scraps') => setOpen((cur) => (cur === key ? null : key));
 
   if (compact) {
+    // 홈 메인 배너 — 브랜드의 하나 초록(티일). 홈의 주인공이라 크게 잡는다.
     return (
-      <Card p={16} style={{ backgroundColor: skin.tint, borderColor: 'transparent' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <PiggyHero skin={skin} level={piggybank.level} size={68} />
+      <Card p={20} style={{ backgroundColor: colors.green, borderColor: 'transparent', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 13 } }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <PiggyHero skin={skin} level={piggybank.level} size={88} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: skin.ink }}>커리어 저금통</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: '800', color: skin.ink, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 6, borderRadius: 7, overflow: 'hidden' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <Text style={{ fontSize: 12.5, fontWeight: '700', color: 'rgba(255,255,255,.88)' }}>커리어 저금통</Text>
+              <Text style={{ fontSize: 10.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>
                 Lv.{piggybank.level}
               </Text>
             </View>
-            <Text style={{ fontSize: 18, fontWeight: '800', letterSpacing: -0.5, color: colors.ink, marginTop: 3 }}>
+            <Text style={{ fontSize: 24, fontWeight: '800', letterSpacing: -0.6, color: '#fff', marginTop: 4 }}>
               {piggybank.level_title}
             </Text>
-            <View style={{ height: 9, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.75)', overflow: 'hidden', marginTop: 11 }}>
-              <View style={{ width: `${piggybank.progress * 100}%`, height: 9, borderRadius: 5, backgroundColor: skin.ink }} />
+            <View style={{ height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,.3)', overflow: 'hidden', marginTop: 13 }}>
+              <View style={{ width: `${piggybank.progress * 100}%`, height: 10, borderRadius: 5, backgroundColor: '#fff' }} />
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 5 }}>
-              <Text style={{ fontSize: 10.5, fontWeight: '600', color: skin.ink }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '600', color: 'rgba(255,255,255,.88)' }}>
                 {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
               </Text>
             </View>

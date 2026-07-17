@@ -32,22 +32,52 @@ const RENDERS: Record<CharacterSkin, Record<CharacterJob, number>> = {
   },
 };
 
-export function characterRender(skin: string, job: CharacterJob = 'developer'): number | null {
-  return (RENDERS as Record<string, Record<CharacterJob, number>>)[skin]?.[job] ?? null;
+// 배경 제거 컷아웃 — 파스텔 풀블리드 위에 캐릭터만 올리는 토스 프로모 문법용 (플러드필 처리)
+const CUTOUTS: Record<CharacterSkin, Record<CharacterJob, number>> = {
+  sturdy: {
+    developer: require('../../assets/characters/sturdy-developer-cut.png'),
+    designer: require('../../assets/characters/sturdy-designer-cut.png'),
+    creator: require('../../assets/characters/sturdy-creator-cut.png'),
+  },
+  growing: {
+    developer: require('../../assets/characters/growing-developer-cut.png'),
+    designer: require('../../assets/characters/growing-designer-cut.png'),
+    creator: require('../../assets/characters/growing-creator-cut.png'),
+  },
+  wave: {
+    developer: require('../../assets/characters/wave-developer-cut.png'),
+    designer: require('../../assets/characters/wave-designer-cut.png'),
+    creator: require('../../assets/characters/wave-creator-cut.png'),
+  },
+  sparkle: {
+    developer: require('../../assets/characters/sparkle-developer-cut.png'),
+    designer: require('../../assets/characters/sparkle-designer-cut.png'),
+    creator: require('../../assets/characters/sparkle-creator-cut.png'),
+  },
+};
+
+export function characterRender(skin: string, job: CharacterJob = 'developer', cutout = false): number | null {
+  const table = cutout ? CUTOUTS : RENDERS;
+  return (table as Record<string, Record<CharacterJob, number>>)[skin]?.[job] ?? null;
 }
 
-export function CharacterImage({ skin, job = 'developer', width, height, radius = 18, style }: {
+export function CharacterImage({ skin, job = 'developer', width, height, radius = 18, cutout = false, style }: {
   skin: string; job?: CharacterJob;
   width: number; height: number; radius?: number;
+  /** true = 배경 없는 컷아웃(contain) — 파스텔 배경 위 파일업용. false = 무대 카드(cover) */
+  cutout?: boolean;
   style?: ImageStyle | ImageStyle[];
 }) {
-  const source = characterRender(skin, job);
+  const source = characterRender(skin, job, cutout);
   if (source == null) return null;
   return (
     <Image
       source={source}
-      style={[{ width, height, borderRadius: radius, backgroundColor: RENDER_BG }, style as ImageStyle]}
-      resizeMode="cover"
+      style={[
+        cutout ? { width, height } : { width, height, borderRadius: radius, backgroundColor: RENDER_BG },
+        style as ImageStyle,
+      ]}
+      resizeMode={cutout ? 'contain' : 'cover'}
     />
   );
 }

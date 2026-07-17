@@ -31,7 +31,7 @@ export const useApp = () => {
 };
 
 function useAppState(startTab: Tab = 'home') {
-  const [entered, setEntered] = useState(true); // 기본은 앱부터(빠른 이터레이션). 인트로는 설정에서 재진입
+  const [entered, setEntered] = useState(false); // 배포 기본 = 인트로(온보딩)부터. 건너뛰기가 개발 진입 지름길
   const [tab, setTab] = useState<Tab>(startTab);
   const [push, setPush] = useState<Push>(null);
   const [sheet, setSheet] = useState<Sheet>(null);

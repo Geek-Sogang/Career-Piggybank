@@ -8,8 +8,8 @@
   깨는 유일하게 실증된 장치 (KT-3).
 - **값은 메뉴에서만** — temp 0 재현성은 '번호 선택'만 보장한다 (자유 서술은 seed를
   고정해도 흔들림). 메뉴 밖 값은 게이트가 폐기.
-- **게이트는 결정론** — 접지(인용 팩트 실존·측정됨)·극성(방향이 정의와 모순 없음)은
-  코드가 검증한다. AI 오류를 잡는 심판이 AI면 순환이다.
+- **게이트는 결정론** — 접지(인용 팩트 실존·측정됨)·극성(방향이 정의와 모순 없음)·
+  최종값과 근거 방향의 일치는 코드가 검증한다. AI 오류를 잡는 심판이 AI면 순환이다.
 - **실패는 중립 폴백** — 게이트를 못 넘은 축은 0.5 + fallback 표기. 지어내지 않는다.
 
 가드레일(문법): 판정만 한다 — 축값은 스냅샷에 기록될 뿐, 어떤 돈도 움직이지 않는다.
@@ -52,7 +52,8 @@ AXES: dict[str, dict[str, str]] = {
     "planning": {
         "label": "계획성",
         "definition": "높을수록 장기 관리 습관이 강하다 — 규칙적 태깅·안정적 지출뿐 아니라 "
-                      "실제 커리어 관리 행동(소스 연결·꾸준한 앱 참여, 비금융)까지 포함. "
+                      "긱 커리어 소스를 스스로 연결하는 실제 관리 행동까지 포함. 앱을 자주 "
+                      "연 사실(F14)은 제품 참여도라 성향 방향에는 사용하지 않는다. "
                       "0=관리 안 함, 1=철저.",
     },
 }
@@ -114,10 +115,8 @@ def _expected_polarity(
         if fact_id == "F10":   # 태깅 활동 (앱 안 금융 행동)
             return "up" if value >= 4 else None
         if fact_id == "F07":
-            return "up" if value <= 0.3 else None
+            return "up" if value <= 0.3 else ("down" if value >= 0.5 else None)
         if fact_id == "F13":   # 실제 행동(비금융): 커리어 소스 연결 — 3곳↑ 적극 관리
-            return "up" if value >= 3 else None
-        if fact_id == "F14":   # 실제 행동(비금융): 앱 참여 리듬 — 3주↑ 꾸준
             return "up" if value >= 3 else None
     return None
 
@@ -185,6 +184,17 @@ SMALL_SAMPLE_N = 2  # 표본 n이 이 이하면 프롬프트가 확신 근거로
 _BAND_OVERRIDE: dict[tuple[str, str], str] = {
     ("risk_tolerance", "F12"): "양수 = 스스로 버퍼를 키운 조정(안전 선호) · 음수 = 버퍼를 줄인 조정(위험 감내)",
 }
+
+# 축의 구성개념과 무관한 팩트는 프롬프트와 접지 허용 목록 양쪽에서 제외한다.
+# F14는 앱 사용량이라 어느 축에서든 방향 입력으로 쓰면 제품 참여도를 금융 성향으로
+# 순환 해석하게 된다. 원장 팩트에는 남겨 V2의 데이터 충실도·신선도 표시에만 사용한다.
+_DIRECTION_EXCLUDED_FACTS = frozenset({"F14"})
+_AXIS_EXCLUDED_FACTS: dict[str, frozenset[str]] = {}
+
+
+def _facts_for_axis(facts: list[Fact], axis: str) -> list[Fact]:
+    excluded = _DIRECTION_EXCLUDED_FACTS | _AXIS_EXCLUDED_FACTS.get(axis, frozenset())
+    return [f for f in facts if f.id not in excluded]
 
 
 def _sheet_lines(facts: list[Fact], axis: str | None = None) -> str:
@@ -279,6 +289,34 @@ def _validate(
                     f"값을 {direction} 증거다 — 극성표를 정의에 맞춰 다시 판단하라."
                 )
 
+    # 게이트 4 — 최종 방향: 실제 인용한 근거의 정의상 방향과 최종값이 정반대면 탈락.
+    # 극성표를 각각 맞게 적고도 최종값을 반대로 고르는 오류를 막는다. 상충 신호가 있거나
+    # 정의된 방향이 없는 경우는 홀리스틱 가중 판단의 영역이라 건드리지 않는다.
+    evidence_directions = {
+        expected
+        for fid in evidence
+        if fid in measured
+        for expected in [
+            _expected_polarity(
+                axis, fid, float(measured[fid].value), measured[fid].n,  # type: ignore[arg-type]
+                facts_by_id=measured,
+            )
+        ]
+        if expected is not None
+    }
+    direction_mismatch = (
+        value is not None
+        and ((value >= 0.7 and evidence_directions == {"down"})
+             or (value <= 0.3 and evidence_directions == {"up"}))
+    )
+    if direction_mismatch:
+        expected_value_direction = "낮은 쪽" if evidence_directions == {"down"} else "높은 쪽"
+        failures.append(f"value_direction:{value}")
+        corrections.append(
+            f"인용한 근거는 정의상 축 값을 {expected_value_direction}으로 가리키는데 "
+            f"value={value}를 골라 최종 방향이 반대다 — 극성과 최종값을 일치시켜라."
+        )
+
     return failures, corrections, value, evidence, polarity
 
 
@@ -290,8 +328,9 @@ def read_axis(axis: str, facts: list[Fact]) -> AxisReading:
     때까지 조르는 건 검증이 아니라 유도다. 감사를 위해 첫 응답의 위반은 gate_failures에,
     재시도로 통과했다는 사실은 retried에 남는다.
     """
-    measured = {f.id: f for f in facts if f.value is not None}
-    sheet = _sheet_lines(facts, axis)
+    axis_facts = _facts_for_axis(facts, axis)
+    measured = {f.id: f for f in axis_facts if f.value is not None}
+    sheet = _sheet_lines(axis_facts, axis)
     out = llm.chat_json(
         _system_prompt(axis), sheet,
         model=settings.ollama_model_coach,  # 7.8B — 2.4B는 이 태스크에서 실측 탈락

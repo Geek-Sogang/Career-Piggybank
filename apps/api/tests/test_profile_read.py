@@ -1,7 +1,7 @@
 """프로필 판독 에이전트 테스트 (PR B) — LLM은 모킹, 게이트는 실검증.
 
-게이트가 곧 신뢰다: 접지(지어낸 근거 폐기)·극성(부호 오류 탈락)·메뉴(번호만 선택)·
-LLM 다운(중립 폴백). 각각이 실측(probe4·KT-3)에서 실제로 잡았던 오류 유형이다.
+게이트가 곧 신뢰다: 접지(지어낸 근거 폐기)·극성(부호 오류 탈락)·최종값 방향·
+메뉴(번호만 선택)·LLM 다운(중립 폴백). 각각이 실측에서 실제로 잡은 오류 유형이다.
 """
 from __future__ import annotations
 
@@ -34,6 +34,19 @@ def _ledger() -> list[dict]:
 
 def _facts():
     return facts_svc.build_factsheet(_ledger(), [], [])
+
+
+def _facts_with_career_and_app_behavior():
+    events = [
+        {"type": "source_connected", "payload": {"source": source},
+         "ts": f"2025-0{i + 1}-03T00:00:00+00:00"}
+        for i, source in enumerate(("github", "hometax", "portfolio"))
+    ]
+    events.extend([
+        {"type": "app_opened", "payload": {}, "ts": f"2025-0{i + 1}-10T00:00:00+00:00"}
+        for i in range(3)
+    ])
+    return facts_svc.build_factsheet(_ledger(), [], events)
 
 
 def _llm_out(value=0.3, evidence=None, polarity=None, reason="근거 기반 판단"):
@@ -91,6 +104,24 @@ def test_polarity_neutral_is_weight_judgment_not_error(monkeypatch):
     assert not r.fallback
 
 
+def test_value_direction_gate_rejects_final_value_opposite_to_cited_evidence(monkeypatch):
+    """극성표는 맞지만 최종값을 반대로 고른 P04 유형도 결정론 게이트가 막는다."""
+    monkeypatch.setattr(profile_read.llm, "chat_json", lambda *a, **k: {
+        "value": 0.9,
+        "evidence": ["F06"],
+        "polarity": {"F06": "내림"},
+        "reason": "몰아쓰기가 크므로 자기통제가 높다",  # 최종 방향만 정반대
+    })
+    r = profile_read.read_axis("self_control", _facts())
+    assert r.fallback and r.value == 0.5
+    assert any(g.startswith("value_direction:") for g in r.gate_failures)
+
+
+def test_planning_chaotic_spending_is_downward_evidence():
+    """긱 수입의 생활비 변동이 크면 계획성을 높이는 근거로 뒤집을 수 없다."""
+    assert profile_read._expected_polarity("planning", "F07", 0.85) == "down"
+
+
 def test_f05_low_self_control_gated_on_savings_capacity():
     """유철 피드백: 가뭄에 '못 줄임'은 저축 여력(F09)이 있을 때만 자기통제↓ 증거.
 
@@ -110,6 +141,58 @@ def test_f05_low_self_control_gated_on_savings_capacity():
     assert _expected_polarity("self_control", "F05", 0.0, facts_by_id=fm(None)) is None
     # 가뭄에 크게 줄임(-0.4)은 여력 무관하게 항상 자기통제↑('up') — 최저선에서 줄이면 더 강한 증거
     assert _expected_polarity("self_control", "F05", -0.4, facts_by_id=fm(0.05)) == "up"
+
+
+def test_all_axes_exclude_f14_from_prompt(monkeypatch):
+    """앱 실행은 모든 축에서 데이터 품질일 뿐 성향 방향 입력이 아니다."""
+    seen: dict[str, str] = {}
+
+    def fake(system, user, **kwargs):
+        seen[system] = user
+        return {"value": 0.5, "evidence": [], "polarity": {}, "reason": "중립"}
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    for axis in profile_read.AXES:
+        reading = profile_read.read_axis(axis, _facts_with_career_and_app_behavior())
+        assert not reading.fallback
+
+    assert len(seen) == len(profile_read.AXES)
+    assert all("F14 · 앱 참여 리듬" not in user for user in seen.values())
+
+
+def test_planning_keeps_f13_as_gig_career_behavior(monkeypatch):
+    """커리어 소스 연결은 긱 계획성의 실제 비금융 행동 근거로 유지한다."""
+    seen: dict[str, str] = {}
+
+    def fake(system, user, **kwargs):
+        seen["user"] = user
+        return {
+            "value": 0.7,
+            "evidence": ["F13"],
+            "polarity": {"F13": "올림"},
+            "reason": "커리어 소스를 스스로 연결함",
+        }
+
+    monkeypatch.setattr(profile_read.llm, "chat_json", fake)
+    reading = profile_read.read_axis("planning", _facts_with_career_and_app_behavior())
+
+    assert not reading.fallback and reading.evidence == ("F13",)
+    assert "F13 · 커리어 소스 연결" in seen["user"]
+
+
+def test_all_axes_reject_f14_even_if_model_invents_it(monkeypatch):
+    """F14는 모든 축의 접지 허용 목록에서도 빠져 간접 경로로 다시 들어올 수 없다."""
+    monkeypatch.setattr(profile_read.llm, "chat_json", lambda *a, **k: {
+        "value": 0.7,
+        "evidence": ["F14"],
+        "polarity": {"F14": "올림"},
+        "reason": "앱을 자주 열었음",
+    })
+
+    for axis in profile_read.AXES:
+        reading = profile_read.read_axis(axis, _facts_with_career_and_app_behavior())
+        assert reading.fallback and reading.value == 0.5
+        assert any(g == "grounding:F14" for g in reading.gate_failures)
 
 
 def test_menu_gate_rejects_free_value(monkeypatch):

@@ -6,6 +6,7 @@ import {
 } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
+import { CharacterImage, characterRender, type CharacterJob } from '@/components/CharacterImage';
 import { Card, Mascot, T } from '@/components/ui';
 
 type Piggybank = CareerVerification['piggybank'];
@@ -18,14 +19,24 @@ const SKINS = {
   sparkle: { label: '반짝 저금통', tint: colors.indigoTint, ink: colors.indigo },
 } as const;
 
-function skinFor(v2: PersonalizationV2 | null) {
-  if (!v2) return SKINS.default;
+// 데모 시드(조대흠) = 프리랜스 개발자. career.job 실연동은 후속 — 렌더 선택 구조는 3직군 지원.
+const MY_JOB: CharacterJob = 'developer';
+
+function skinKeyFor(v2: PersonalizationV2 | null): keyof typeof SKINS {
+  if (!v2) return 'default';
   const safety = v2.financial_response.find((decision) => decision.key === 'safety_fund_strategy');
-  if (!safety || safety.decision_status !== 'confirmed') return SKINS.default;
-  if (safety.level === '확보 우선') return SKINS.sturdy;
-  if (safety.level === '활용 우선') return v2.effective_management === '자율' ? SKINS.sparkle : SKINS.growing;
-  return SKINS.wave;
+  if (!safety || safety.decision_status !== 'confirmed') return 'default';
+  if (safety.level === '확보 우선') return 'sturdy';
+  if (safety.level === '활용 우선') return v2.effective_management === '자율' ? 'sparkle' : 'growing';
+  return 'wave';
 }
+
+// 또래 저금통 — 합성 또래 풀(백엔드 peer 시드와 같은 세계관)의 구경 목록. 실명 아님.
+const PEER_BANKS: { skin: string; job: CharacterJob; name: string; line: string }[] = [
+  { skin: 'growing', job: 'designer', name: '일러스트레이터 · 무럭 저금통', line: 'Lv.5 · 목표 봉투 2개 진행 중' },
+  { skin: 'sturdy', job: 'developer', name: '백엔드 개발자 · 든든 저금통', line: 'Lv.7 · 방어선 3개월 달성' },
+  { skin: 'sparkle', job: 'creator', name: '유튜버 · 반짝 저금통', line: 'Lv.4 · 시즌 미션 진행 중' },
+];
 
 export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUpdated, onOpenLedger }: {
   piggybank: Piggybank;
@@ -38,21 +49,26 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
   const [v2, setV2] = useState<PersonalizationV2 | null>(null);
   const [scraps, setScraps] = useState<CareerScrap[]>([]);
   useEffect(() => {
-    if (compact) return;
-    getPersonalizationV2().then(setV2).catch(() => {});
-    getCareerScraps().then(setScraps).catch(() => {});
+    getPersonalizationV2().then(setV2).catch(() => {});   // compact(홈 배너)도 스킨 렌더에 필요
+    if (!compact) getCareerScraps().then(setScraps).catch(() => {});
   }, [compact]);
-  const skin = skinFor(v2);
+  const skinKey = skinKeyFor(v2);
+  const skin = SKINS[skinKey];
+  const myRender = characterRender(skinKey, MY_JOB);   // 기본 스킨은 null → 2D 마스코트 폴백
   const next = piggybank.levels.find((level) => level.level === piggybank.level + 1) ?? null;
-  const [open, setOpen] = useState<'roadmap' | 'missions' | 'scraps' | null>(null);
-  const toggle = (key: 'roadmap' | 'missions' | 'scraps') => setOpen((cur) => (cur === key ? null : key));
+  const [open, setOpen] = useState<'roadmap' | 'missions' | 'peers' | 'scraps' | null>(null);
+  const toggle = (key: 'roadmap' | 'missions' | 'peers' | 'scraps') => setOpen((cur) => (cur === key ? null : key));
 
   if (compact) {
     // 홈 메인 배너 — 브랜드의 하나 초록(티일). 홈의 주인공이라 크게 잡는다.
     return (
       <Card p={20} style={{ backgroundColor: colors.green, borderColor: 'transparent', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 13 } }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <PiggyHero skin={skin} level={piggybank.level} size={88} />
+          {myRender ? (
+            <CharacterImage skin={skinKey} job={MY_JOB} width={88} height={88} radius={22} />
+          ) : (
+            <PiggyHero skin={skin} level={piggybank.level} size={88} />
+          )}
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <Text style={{ fontSize: 12.5, fontWeight: '700', color: 'rgba(255,255,255,.88)' }}>커리어 저금통</Text>
@@ -98,17 +114,26 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
             Lv.{piggybank.level}
           </Text>
         </View>
-        {/* 슬롯으로 들어가는 동전 — XP가 저금되는 순간의 정지 화면 */}
-        <View style={{ alignItems: 'center', marginTop: 12 }}>
-          <Coin size={24} style={{ marginBottom: -7, zIndex: 2, transform: [{ rotate: '-14deg' }] }} />
-          <PiggyHero skin={skin} level={piggybank.level} size={128} />
-          {/* 받침 동전 더미 — 레벨 수만큼 (최대 5) */}
-          <View style={{ flexDirection: 'row', marginTop: -9, zIndex: 2 }}>
-            {Array.from({ length: Math.min(piggybank.level, 5) }).map((_, i) => (
-              <Coin key={i} size={17} style={i === 0 ? undefined : { marginLeft: -5 }} />
-            ))}
+        {myRender ? (
+          /* 3D 렌더 무대 — 토스 키워봐요의 캐릭터 카드 문법. 렌더 배경(연회색)이 곧 무대다 */
+          <View style={{ alignSelf: 'stretch', marginTop: 14, alignItems: 'center' }}>
+            <View style={{ position: 'absolute', top: -6, zIndex: 2 }}>
+              <Coin size={24} style={{ transform: [{ rotate: '-14deg' }] }} />
+            </View>
+            <CharacterImage skin={skinKey} job={MY_JOB} width={9999} height={225} radius={20} style={{ width: '100%' }} />
           </View>
-        </View>
+        ) : (
+          /* 판독 전(기본 스킨) — 2D 마스코트 + 동전 연출 폴백 */
+          <View style={{ alignItems: 'center', marginTop: 12 }}>
+            <Coin size={24} style={{ marginBottom: -7, zIndex: 2, transform: [{ rotate: '-14deg' }] }} />
+            <PiggyHero skin={skin} level={piggybank.level} size={128} />
+            <View style={{ flexDirection: 'row', marginTop: -9, zIndex: 2 }}>
+              {Array.from({ length: Math.min(piggybank.level, 5) }).map((_, i) => (
+                <Coin key={i} size={17} style={i === 0 ? undefined : { marginLeft: -5 }} />
+              ))}
+            </View>
+          </View>
+        )}
         <Text style={{ fontSize: 25, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, marginTop: 12 }}>
           {piggybank.level_title}
         </Text>
@@ -124,6 +149,9 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
             {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
           </Text>
         </View>
+        <Text style={{ fontSize: 11.5, fontWeight: '500', color: skin.ink, opacity: 0.75, marginTop: 10 }}>
+          정산을 승인할 때마다 저금통이 새로운 모습으로 자라요
+        </Text>
       </View>
 
       {/* Zone 2 · 오늘의 미션 — 국면 적응형, 최대 3개 */}
@@ -159,6 +187,20 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
         </FoldRow>
         <FoldRow title="첫 달성 미션" meta={`${doneMissions}/${piggybank.missions.length}`} open={open === 'missions'} onPress={() => toggle('missions')}>
           <MissionList missions={piggybank.missions} />
+        </FoldRow>
+        <FoldRow title="또래 저금통 구경" meta={`${PEER_BANKS.length}명`} open={open === 'peers'} onPress={() => toggle('peers')}>
+          <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub2, marginTop: -4 }}>
+            나와 직군·성향이 비슷한 또래의 저금통이에요 (또래 풀 기준)
+          </Text>
+          {PEER_BANKS.map((peer) => (
+            <View key={peer.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 12, backgroundColor: '#F7F8FA', padding: 10 }}>
+              <CharacterImage skin={peer.skin} job={peer.job} width={46} height={46} radius={13} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.ink }}>{peer.name}</Text>
+                <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{peer.line}</Text>
+              </View>
+            </View>
+          ))}
         </FoldRow>
         <FoldRow title="커리어 조각 모음" meta={`${scraps.length}개`} open={open === 'scraps'} onPress={() => toggle('scraps')}>
           {scraps.length === 0 ? (

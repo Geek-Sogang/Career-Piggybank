@@ -50,11 +50,12 @@ export function Intro() {
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           {page === 0 && (
             // 파일업 히어로 — 4종 피기(스카프·새싹·헤드폰·반다나) 단일 렌더.
-            // 이미지 배경(#BED9F6)을 페이지 배경과 맞춰 풀블리드로 이어지게 한다.
-            <View style={{ flex: 1, justifyContent: 'flex-end', marginHorizontal: -28 }}>
+            // 이미지 배경(#BED9F6)이 페이지 배경과 같아 정사각 경계가 그대로 녹아든다.
+            // 고정 크기(flex 미사용)로 두어 "텍스트 위 · 이미지 아래" 배치를 안정화.
+            <View style={{ alignItems: 'center', marginBottom: 6 }}>
               <Image
                 source={require('../../assets/intro-pile.png')}
-                style={{ width: '100%', aspectRatio: 1 }}
+                style={{ width: 340, height: 340 }}
                 resizeMode="contain"
               />
             </View>

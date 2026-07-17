@@ -109,7 +109,7 @@ export function fetchStrength(facts: CareerFacts) {
 export type Txn = {
   id: string; date: string; amount: number; direction: 'in' | 'out';
   counterparty: string; memo: string; kind: string; subtype: string | null;
-  confidence: number; needs_review: boolean; signals: string[];
+  confidence: number; needs_review: boolean; signals: string[]; verified_career_job: boolean;
 };
 export const DEMO_DEPOSIT = { date: '2025-05-27', amount: 3_000_000, counterparty: '△△플랫폼 정산', memo: '' };
 
@@ -162,10 +162,21 @@ export function getGigProfile() {
 export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio_uploaded', source?: string) {
   return post('/v1/behavior', { type, source }).catch(() => {});
 }
+export type CareerScrap = {
+  id: string; created_at: string; content: string; source: string;
+};
+export function getCareerScraps() {
+  return get<CareerScrap[]>('/v1/behavior/career-scraps');
+}
+export function saveCareerScrap(content: string) {
+  return post<{ ok: true; scrap: CareerScrap; event_id: string; xp_awarded: boolean }>(
+    '/v1/behavior/career-scraps', { content }, 15_000,
+  );
+}
 export function readPersona(trigger: 'manual' | 'onboarding' = 'manual') {
   return post<{ snapshot_id: string }>(`/v1/profile/read?trigger=${trigger}`, {}, 300_000); // 축당 7.8B — 수십 초
 }
-// V2 개인화 계약(2+2) — 확정된 4축 판독의 결정론 번역층(새 AI 판정 아님, 항상 조회 가능).
+// V2 개인화 계약 — 긱 구조 2 + 금융 대응 3의 결정론 번역층(새 AI 판정 아님).
 // 배분·밴딧은 이 값을 소비하지 않는다 — 화면·설명·코치 톤 전용.
 export type V2Structure = { key: string; label: string; level: string; detail: string; fact_ids: string[] };
 export type V2Decision = {
@@ -202,11 +213,15 @@ export type CareerVerification = {
     recent: { id: string; date: string; amount: number; counterparty: string; memo: string }[];
   };
   piggybank: {
-    xp: number; work_xp: number; mission_xp: number;
+    xp: number; work_xp: number; mission_xp: number; loop_xp: number; daily_xp: number;
     level: number; level_title: string; max_level: number;
     current_threshold: number; next_threshold: number | null; xp_to_next: number;
     progress: number; completed_missions: number;
     missions: { id: string; title: string; xp: number; completed: boolean }[];
+    daily_missions: {
+      id: string; title: string; xp: number; completed: boolean; available: boolean; description: string;
+    }[];
+    phase: { key: 'tax_season' | 'after_settlement' | 'income_gap' | 'quiet'; label: string; message: string };
     levels: { level: number; title: string; threshold: number; reward: string; node_type: 'character' | 'reward' }[];
     reward_is_example: true;
   };

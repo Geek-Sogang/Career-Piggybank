@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
-import { getPersonalizationV2, type CareerVerification, type PersonalizationV2 } from '@/api';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import {
+  getCareerScraps, getPersonalizationV2, saveCareerScrap,
+  type CareerScrap, type CareerVerification, type PersonalizationV2,
+} from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, T } from '@/components/ui';
@@ -24,7 +27,12 @@ function skinFor(v2: PersonalizationV2 | null) {
   return SKINS.wave;
 }
 
-export function CareerPiggybank({ piggybank, compact = false }: { piggybank: Piggybank; compact?: boolean }) {
+export function CareerPiggybank({ piggybank, compact = false, onMissionUpdated, onOpenLedger }: {
+  piggybank: Piggybank;
+  compact?: boolean;
+  onMissionUpdated?: () => void | Promise<unknown>;
+  onOpenLedger?: () => void;
+}) {
   const [v2, setV2] = useState<PersonalizationV2 | null>(null);
   useEffect(() => {
     if (compact) return;
@@ -64,12 +72,18 @@ export function CareerPiggybank({ piggybank, compact = false }: { piggybank: Pig
 
       <View style={{ flexDirection: 'row', marginTop: 15, borderRadius: 12, backgroundColor: colors.greenTint2, paddingVertical: 9 }}>
         <XpStat value={`+${piggybank.work_xp}`} label="검증 일감 XP" />
-        <XpStat value={`+${piggybank.mission_xp}`} label="미션 XP" borderLeft />
-        <XpStat value={`${piggybank.completed_missions}`} label="완료 미션" borderLeft />
+        <XpStat value={`+${piggybank.loop_xp + piggybank.daily_xp}`} label="반복·오늘 XP" borderLeft />
+        <XpStat value={`+${piggybank.mission_xp}`} label="첫 달성 XP" borderLeft />
       </View>
 
       {!compact && (
         <>
+          <TodayQuests
+            piggybank={piggybank}
+            management={v2?.effective_management ?? '가이드'}
+            onMissionUpdated={onMissionUpdated}
+            onOpenLedger={onOpenLedger}
+          />
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink, marginTop: 20 }}>성장 로드맵</Text>
           <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2, marginTop: 3 }}>
             발판 체크가 아니라, 쌓인 경험치가 레벨을 열어요
@@ -89,6 +103,149 @@ export function CareerPiggybank({ piggybank, compact = false }: { piggybank: Pig
       )}
     </Card>
   );
+}
+
+const MANAGEMENT_QUEST_COPY: Record<string, string> = {
+  자율: '필요한 미션만 짧게 보여드려요',
+  가이드: '오늘 처리할 순서를 함께 보여드려요',
+  '적극 관리': '놓치기 쉬운 다음 행동을 먼저 챙겨드려요',
+};
+
+function TodayQuests({ piggybank, management, onMissionUpdated, onOpenLedger }: {
+  piggybank: Piggybank;
+  management: string;
+  onMissionUpdated?: () => void | Promise<unknown>;
+  onOpenLedger?: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [cared, setCared] = useState(false);
+  const [scrapText, setScrapText] = useState('');
+  const [scraps, setScraps] = useState<CareerScrap[]>([]);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [collectionOpen, setCollectionOpen] = useState(false);
+  const missions = piggybank.daily_missions.filter((mission) => mission.available);
+  useEffect(() => {
+    getCareerScraps().then(setScraps).catch(() => {});
+  }, []);
+  const saveScrap = async () => {
+    const content = scrapText.trim();
+    if (saving || !content) return;
+    setSaving(true);
+    try {
+      const result = await saveCareerScrap(content);
+      setScraps((current) => [result.scrap, ...current]);
+      setScrapText('');
+      setComposerOpen(false);
+      await onMissionUpdated?.();
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+        <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.ink }}>오늘의 퀘스트</Text>
+        <Text style={{ fontSize: 10, fontWeight: '700', color: colors.buffer, backgroundColor: colors.bufferTint, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>
+          {piggybank.phase.label}
+        </Text>
+      </View>
+      <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2, marginTop: 4 }}>{piggybank.phase.message}</Text>
+      <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub3, marginTop: 2 }}>
+        {MANAGEMENT_QUEST_COPY[management] ?? MANAGEMENT_QUEST_COPY.가이드} · 스트릭과 벌점은 없어요
+      </Text>
+      <View style={{ marginTop: 10, gap: 8 }}>
+        {missions.map((mission) => {
+          const done = mission.completed || (mission.id === 'care_piggy' && cared);
+          const actionable = mission.id === 'career_scrap' || mission.id === 'today_transactions' || mission.id === 'care_piggy';
+          const onPress = mission.id === 'career_scrap'
+            ? () => setComposerOpen(true)
+            : mission.id === 'today_transactions'
+              ? onOpenLedger
+              : () => setCared(true);
+          return (
+            <Pressable
+              key={mission.id}
+              disabled={(done && mission.id !== 'career_scrap') || saving || !actionable}
+              onPress={onPress}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : '#F8F9FA', paddingVertical: 10, paddingHorizontal: 11 }}
+            >
+              <View style={{ width: 27, height: 27, borderRadius: 14, backgroundColor: done ? colors.green : '#E6E9EC', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={done ? 'check' : mission.id === 'career_scrap' ? 'ledgerDoc' : 'coin'} size={15} color={done ? '#fff' : colors.sub2} sw={2.1} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 11.5, fontWeight: done ? '500' : '700', color: done ? colors.sub2 : colors.ink }}>{mission.title}</Text>
+                <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub3, marginTop: 2 }}>{mission.description}</Text>
+              </View>
+              <Text style={{ fontSize: 10.5, fontWeight: '800', color: done ? colors.sub3 : mission.xp > 0 ? colors.green : colors.sub2 }}>
+                {mission.id === 'career_scrap' && done ? '또 저금' : done ? '완료' : mission.xp > 0 ? `+${mission.xp} XP` : '반응 보기'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.ink }}>커리어 조각 모음</Text>
+            <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub3, marginTop: 2 }}>오늘 만든 것과 배운 것을 개인 기록으로 모아요</Text>
+          </View>
+          <Pressable onPress={() => setCollectionOpen((open) => !open)} style={{ paddingVertical: 6, paddingHorizontal: 9, borderRadius: 9, backgroundColor: colors.greenTint2 }}>
+            <Text style={{ fontSize: 10.5, fontWeight: '700', color: colors.green }}>{scraps.length}개 {collectionOpen ? '접기' : '보기'}</Text>
+          </Pressable>
+        </View>
+
+        {!composerOpen ? (
+          <Pressable onPress={() => setComposerOpen(true)} style={{ marginTop: 9, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, paddingVertical: 10, alignItems: 'center', backgroundColor: '#fff' }}>
+            <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.green }}>+ 오늘의 커리어 조각 저금</Text>
+          </Pressable>
+        ) : (
+          <View style={{ marginTop: 9, gap: 7 }}>
+            <TextInput
+              value={scrapText}
+              onChangeText={setScrapText}
+              placeholder="예: 결제 화면의 빈 상태를 개선하고 배운 점을 기록했어요"
+              placeholderTextColor={colors.sub3}
+              multiline
+              maxLength={500}
+              autoFocus
+              style={{ minHeight: 72, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, backgroundColor: '#fff', padding: 11, fontSize: 11.5, fontWeight: '400', lineHeight: 17, color: colors.ink, textAlignVertical: 'top' }}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 7 }}>
+              <Pressable onPress={() => { setComposerOpen(false); setScrapText(''); }} style={{ paddingVertical: 8, paddingHorizontal: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.sub2 }}>취소</Text>
+              </Pressable>
+              <Pressable disabled={scrapText.trim().length < 2 || saving} onPress={saveScrap} style={{ paddingVertical: 8, paddingHorizontal: 13, borderRadius: 9, backgroundColor: scrapText.trim().length >= 2 ? colors.green : colors.line }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>{saving ? '저금 중…' : '저금하기'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {collectionOpen && (
+          <View style={{ marginTop: 10, gap: 7 }}>
+            {scraps.length === 0 ? (
+              <View style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 12 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2 }}>아직 모은 조각이 없어요. 오늘 한 일을 한 줄로 남겨보세요.</Text>
+              </View>
+            ) : scraps.map((scrap) => (
+              <View key={scrap.id} style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 11 }}>
+                <Text style={{ fontSize: 9.5, fontWeight: '600', color: colors.green }}>{formatScrapDate(scrap.created_at)}</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.ink, lineHeight: 17, marginTop: 4 }}>{scrap.content}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function formatScrapDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
 function PiggyHero({ skin, level, compact }: {
@@ -179,7 +336,7 @@ function MissionList({ missions }: { missions: Piggybank['missions'] }) {
   const ordered = [...missions].sort((a, b) => Number(a.completed) - Number(b.completed));
   return (
     <View style={{ marginTop: 20 }}>
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>XP 미션</Text>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>첫 달성 미션</Text>
       <View style={{ marginTop: 8, gap: 7 }}>
         {ordered.slice(0, 5).map((mission) => (
           <View key={mission.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, backgroundColor: mission.completed ? colors.greenTint2 : '#F7F8FA', paddingVertical: 9, paddingHorizontal: 10 }}>

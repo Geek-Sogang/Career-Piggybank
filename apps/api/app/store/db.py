@@ -5,6 +5,7 @@
 - envelopes: 봉투 잔액 (tax/expense/spendable/buffer) — 승인된 배분만 잔액을 바꾼다
 - allocations: 배분 제안·결정 이력 — 무수정 승인율 KPI의 원천
 - tag_dictionary: 수기 태그 학습 사전 — 분류 캐스케이드 0층 ("쓸수록 똑똑해짐")
+- career_scraps: 사용자가 저금한 개인 커리어 조각 원문
 """
 from __future__ import annotations
 
@@ -57,6 +58,13 @@ CREATE TABLE IF NOT EXISTS events (
   ref_id TEXT,                 -- 관련 txn_id / alloc_id
   payload TEXT NOT NULL DEFAULT '{}',
   spoken INTEGER NOT NULL DEFAULT 0,  -- 어젠다 큐: 0 = 피기가 아직 발화하지 않은 행
+  seq INTEGER
+);
+CREATE TABLE IF NOT EXISTS career_scraps (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  content TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'user',
   seq INTEGER
 );
 CREATE TABLE IF NOT EXISTS goal_envelopes (
@@ -321,6 +329,28 @@ def log_event(type_: str, ref_id: str | None = None, payload: dict | None = None
     return ev_id
 
 
+def log_daily_event_once(type_: str, day: str, ref_id: str | None = None) -> tuple[str, bool]:
+    """UTC 날짜별 이벤트를 원자적으로 한 번만 기록한다.
+
+    같은 날 동시 저장이 들어와도 BEGIN IMMEDIATE가 쓰기 잠금을 직렬화해 XP 사건 중복을 막는다.
+    """
+    with get_conn() as c:
+        c.execute("BEGIN IMMEDIATE")
+        existing = c.execute(
+            "SELECT id FROM events WHERE type=? AND substr(ts, 1, 10)=? ORDER BY seq DESC LIMIT 1",
+            (type_, day),
+        ).fetchone()
+        if existing:
+            return str(existing["id"]), False
+        ev_id = uuid.uuid4().hex[:12]
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        c.execute(
+            "INSERT INTO events VALUES (?,?,?,?,?,?,?)",
+            (ev_id, ts, type_, ref_id, "{}", 0, _next_seq(c, "events")),
+        )
+    return ev_id, True
+
+
 def list_events(type_: str | None = None) -> list[dict]:
     q = "SELECT * FROM events" + (" WHERE type=?" if type_ else "") + " ORDER BY seq"
     with get_conn() as c:
@@ -345,6 +375,30 @@ def _event_dict(r: sqlite3.Row) -> dict:
     d["payload"] = json.loads(d["payload"])
     d["spoken"] = bool(d["spoken"])
     return d
+
+
+# ── career scraps (사용자 개인 커리어 조각 모음) ──
+
+def insert_career_scrap(content: str, source: str = "user") -> dict:
+    scrap_id = uuid.uuid4().hex[:12]
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_conn() as c:
+        c.execute(
+            "INSERT INTO career_scraps VALUES (?,?,?,?,?)",
+            (scrap_id, created_at, content.strip(), source, _next_seq(c, "career_scraps")),
+        )
+    return {
+        "id": scrap_id,
+        "created_at": created_at,
+        "content": content.strip(),
+        "source": source,
+    }
+
+
+def list_career_scraps() -> list[dict]:
+    with get_conn() as c:
+        rows = c.execute("SELECT * FROM career_scraps ORDER BY seq DESC").fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── profile snapshots (판단 당시의 사실·판단을 고정 — 감사 가능한 로그) ──

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import {
   getGigProfile, getPersona, getPersonalizationV2, readPersona, setManagementOverride,
@@ -65,6 +65,19 @@ const DECISION_UI: Record<string, {
       자율: '거래 기록과 커리어 관리를 스스로 꾸준히 하고 있어요.',
       가이드: '선택할 때 근거를 같이 보면 더 편하게 관리할 수 있어요.',
       '적극 관리': '입금 뒤 해야 할 일을 하나씩 먼저 안내해드릴게요.',
+    },
+  },
+  goal_pacing: {
+    question: '남은 돈은 어느 시점의 목표에 둘까요?',
+    levels: {
+      '현재 우선': '지금 필요한 목표를 먼저 봐요',
+      균형: '지금과 미래 목표를 함께 봐요',
+      '미래 우선': '장기 목표를 먼저 챙겨요',
+    },
+    reasons: {
+      '현재 우선': '보호할 돈을 남긴 뒤 가까운 목표의 사용 시점을 먼저 봐요.',
+      균형: '목표 기한과 사용 가능한 여윳돈을 함께 비교해요.',
+      '미래 우선': '보호할 돈을 남긴 뒤 장기 목표에 더 천천히 나눠 담아요.',
     },
   },
 };
@@ -160,7 +173,7 @@ export function My() {
         <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 
-      {/* 2+2 상단 — 긱 구조(원장 측정) + 금융 대응(확정 판독의 결정론 번역) */}
+      {/* 긱 구조 2 + 금융 대응 3 — 측정·판독·서비스 매핑을 분리한다. */}
       {v2 && <GigProfileCard v2={v2} />}
       {v2 && <FinancialResponseCard v2={v2} onUpdated={setV2} />}
       {!v2 && v2Error && (
@@ -181,6 +194,7 @@ export function My() {
           <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
         </Pressable>
       </Card>
+      {detailOpen && v2 && <PersonalizationMapCard v2={v2} />}
       {detailOpen && <PersonaCard onChanged={loadV2} />}
 
       <Card p={0} style={{ paddingHorizontal: 16 }}>
@@ -242,7 +256,7 @@ function GigProfileCard({ v2 }: { v2: PersonalizationV2 }) {
   );
 }
 
-// 금융 대응 카드(V2) — 확정된 4축 판독의 결정론 번역: 안전자금 운용 방향 + 권장 관리 강도.
+// 금융 대응 카드(V2) — 성향을 안전자금·관리 강도·목표 자금 페이스로 번역한다.
 // 근거가 부족하면 '판단 보류'를 정직하게 표시하고, 관리 강도는 사용자가 언제든 직접 고른다
 // (선택은 별도 저장 — 권장값을 덮어쓰지 않고, 실행 승인 게이트와 무관하다).
 const MGMT_LEVELS = ['자율', '가이드', '적극 관리'];
@@ -257,7 +271,8 @@ function FinancialResponseCard({ v2, onUpdated }: {
   const [saving, setSaving] = useState(false);
   const safety = v2.financial_response.find((d) => d.key === 'safety_fund_strategy');
   const mgmt = v2.financial_response.find((d) => d.key === 'management_support');
-  if (!safety || !mgmt) return null;
+  const pacing = v2.financial_response.find((d) => d.key === 'goal_pacing');
+  if (!safety || !mgmt || !pacing) return null;
 
   const pick = async (level: string | null) => {
     if (saving) return;
@@ -302,11 +317,90 @@ function FinancialResponseCard({ v2, onUpdated }: {
         </Pressable>
       )}
 
+      {/* 시간선호는 보호금액 이후 여윳돈의 목표 시점에만 연결한다. */}
+      <V2DecisionRow decision={pacing} />
+
       <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '400', lineHeight: 15, marginTop: 10 }}>
         정산 흐름이 바뀌면 추천도 다시 맞춰져요. 어떤 방식을 골라도 돈이 움직이기 전에는 항상 확인해요.
       </Text>
     </Card>
   );
+}
+
+function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
+  const output = Object.fromEntries(v2.financial_response.map((decision) => [decision.key, decision]));
+  const rows = [
+    {
+      title: '안전자금 운용',
+      formula: '소득 안정성 + 현재 버퍼 + 안전 여유',
+      result: output.safety_fund_strategy?.level ?? '판단 보류',
+    },
+    {
+      title: '권장 관리 방식',
+      formula: '지출 조절 + 관리 습관 + 사용자 선택',
+      result: v2.effective_management,
+    },
+    {
+      title: '목표별 금융 제안',
+      formula: '돈의 시간 + 목표 기한 + 사용 가능 금액',
+      result: output.goal_pacing?.level ?? '판단 보류',
+    },
+  ];
+  return (
+    <Card>
+      <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>나에게 맞춰지는 과정</Text>
+      <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2, lineHeight: 15, marginTop: 4 }}>측정할 수 있는 구조와 AI가 읽은 행동을 섞지 않고 마지막 결정에서 결합해요.</Text>
+
+      <MapStage number="1" title="긱 소득 구조" badge="규칙·통계">
+        <MapLine title="소득 안정성" detail="F01 변동성 + F03 입금 간격 + F04 최장 공백" />
+        <MapLine title="소득원 구조" detail="F02 집중도 + 반복 발주처 + 플랫폼·프로젝트 리듬" />
+      </MapStage>
+      <MapArrow />
+      <MapStage number="2" title="금융 행동 성향" badge="EXAONE 판독">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {['안전 여유', '돈의 시간', '지출 조절', '관리 습관'].map((label) => (
+            <Text key={label} style={{ fontSize: 10.5, fontWeight: '700', color: '#6D4AA7', backgroundColor: '#F5F1FB', paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>{label}</Text>
+          ))}
+        </View>
+      </MapStage>
+      <MapArrow />
+      <MapStage number="3" title="서비스 개인화" badge="구조 + 성향">
+        <View style={{ gap: 8 }}>
+          {rows.map((row) => (
+            <View key={row.title} style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '800', color: colors.ink }}>{row.title}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green }}>{row.result}</Text>
+              </View>
+              <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub2, marginTop: 3 }}>{row.formula}</Text>
+            </View>
+          ))}
+        </View>
+      </MapStage>
+      <Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub3, lineHeight: 14, marginTop: 10 }}>세금·필수경비·기본생활비는 성향과 무관하게 보호하고, 어떤 제안도 실행 전에는 항상 확인해요.</Text>
+    </Card>
+  );
+}
+
+function MapStage({ number, title, badge, children }: { number: string; title: string; badge: string; children: ReactNode }) {
+  return (
+    <View style={{ marginTop: 12, borderWidth: 1, borderColor: colors.line2, borderRadius: 12, padding: 11 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+        <View style={{ width: 21, height: 21, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>{number}</Text></View>
+        <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: colors.ink }}>{title}</Text>
+        <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub2 }}>{badge}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function MapLine({ title, detail }: { title: string; detail: string }) {
+  return <View style={{ marginTop: 4 }}><Text style={{ fontSize: 11, fontWeight: '700', color: colors.ink }}>{title}</Text><Text style={{ fontSize: 9.5, fontWeight: '400', color: colors.sub2, lineHeight: 14, marginTop: 2 }}>{detail}</Text></View>;
+}
+
+function MapArrow() {
+  return <Text style={{ textAlign: 'center', color: colors.green, fontSize: 15, fontWeight: '800', marginVertical: -2 }}>↓</Text>;
 }
 
 function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').V2Decision; overrideLevel?: string | null }) {

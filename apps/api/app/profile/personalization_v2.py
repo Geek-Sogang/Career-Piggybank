@@ -1,9 +1,9 @@
 """V2 개인화 계약 — 검증된 측정·판독 위의 결정론 번역층 (새 AI 판정 없음).
 
-발표·화면의 2+2 모델을 제품 계약으로 노출한다:
+측정된 구조와 금융 대응 매핑을 제품 계약으로 노출한다:
 - 긱 구조 2 (항상 결정론): 소득 안정성 · 소득원 구조 — gig_profile 재표현
-- 금융 대응 2 (기존 4축 번역): 안전자금 운용 방향(risk_tolerance) ·
-  권장 관리 강도(self_control + planning 규칙표)
+- 금융 대응 3 (기존 4축 번역): 안전자금 운용 방향(risk_tolerance) ·
+  권장 관리 강도(self_control + planning 규칙표) · 목표별 자금 페이스(time_preference)
 
 불가침 — 이 파일이 지키는 계약:
 - 새 EXAONE 프롬프트·판정을 만들지 않는다. 기존 스냅샷 축의 결정론 번역만 한다.
@@ -39,6 +39,10 @@ MANAGEMENT_LABEL = "권장 관리 강도"
 MANAGEMENT_LEVELS = ("자율", "가이드", "적극 관리")
 MANAGEMENT_DEFAULT = "가이드"          # 근거 부족 시 안전 기본값 — 화면은 '판단 보류'를 함께 표시
 OVERRIDE_EVENT = "management_support_override"
+
+PACING_KEY = "goal_pacing"
+PACING_LABEL = "목표별 자금 페이스"
+_PACING_BY_BUCKET = {"low": "현재 우선", "neutral": "균형", "high": "미래 우선"}
 
 # 권장 관리 강도 규칙표 — (self_control 버킷, planning 버킷) 전조합 명시.
 # 방향 원칙(불가침): 관측된 자기관리가 약할수록 개입을 높인다 (자기통제↓ → 개입↑).
@@ -254,6 +258,33 @@ def _management(axes: dict | None, staleness: dict | None,
     )
 
 
+def _goal_pacing(axes: dict | None, staleness: dict | None,
+                 facts: dict[str, Fact]) -> V2Decision:
+    """목표별 자금 페이스 ← time_preference 3버킷.
+
+    실제 금액은 금액 페이싱 에이전트가 목표 기한·사용 가능 금액과 함께 판단한다.
+    이 번역값은 세금·경비·기본생활비·안전자금 이후 여윳돈의 방향만 설명한다.
+    """
+    axis = (axes or {}).get("time_preference")
+    if _axis_fresh(axis, staleness, disallowed_evidence=frozenset({"F14"})):
+        bucket = _bucket(float(axis["value"]))
+        return V2Decision(
+            key=PACING_KEY, label=PACING_LABEL,
+            level=_PACING_BY_BUCKET[bucket], decision_status=CONFIRMED,
+            source_axes=("time_preference",),
+            evidence=_evidence([axis], staleness, facts),
+            basis=(f"시간선호 {axis['value']} → {bucket} 버킷 · "
+                   "목표 기한과 사용 가능 금액은 제안 시 함께 반영"),
+        )
+    return V2Decision(
+        key=PACING_KEY, label=PACING_LABEL,
+        level=_PACING_BY_BUCKET["neutral"], decision_status=INSUFFICIENT,
+        source_axes=("time_preference",),
+        evidence=_evidence([axis], staleness, facts),
+        basis="판독이 없거나 오래됐거나 게이트 미통과 — 여윳돈은 균형 기본값 유지",
+    )
+
+
 def _structures(gig: GigProfile, facts: dict[str, Fact]) -> tuple[V2Structure, ...]:
     """긱 구조 2축 — gig_profile의 검증된 라벨을 그대로 노출한다 (재계산·재해석 없음)."""
     f04 = facts.get("F04")
@@ -301,6 +332,7 @@ def build_personalization_v2(
         financial_response=(
             _safety(snapshot_axes, staleness, facts),
             _management(snapshot_axes, staleness, facts),
+            _goal_pacing(snapshot_axes, staleness, facts),
         ),
         management_override=latest_management_override(events),
     )

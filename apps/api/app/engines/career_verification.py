@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
 
 SOURCE_SCORES: dict[str, int] = {
     "github": 30,
@@ -22,6 +23,8 @@ SOURCE_SCORES: dict[str, int] = {
 }
 
 XP_PER_VERIFIED_JOB = 30
+XP_PER_SETTLEMENT_PROCESS = 2
+XP_PER_DAILY_SCRAP = 1
 
 
 @dataclass(frozen=True)
@@ -42,7 +45,7 @@ MISSIONS = (
     MissionDefinition("connect_portfolio", "포트폴리오 작업물 등록", 15, source="portfolio"),
     MissionDefinition("create_goal", "첫 목표 봉투 만들기", 20, event_type="goal_created"),
     MissionDefinition("tag_income", "애매한 입금 직접 확인", 15, event_type="txn_tagged"),
-    MissionDefinition("approve_allocation", "첫 입금 배분 승인", 25, event_type="allocation_decided"),
+    MissionDefinition("process_allocation", "첫 입금 배분 처리", 25, event_type="allocation_decided"),
 )
 
 
@@ -94,6 +97,8 @@ class CareerPiggybank:
     xp: int
     work_xp: int
     mission_xp: int
+    loop_xp: int
+    daily_xp: int
     level: int
     level_title: str
     max_level: int
@@ -103,12 +108,16 @@ class CareerPiggybank:
     progress: float
     completed_missions: int
     missions: tuple[dict, ...]
+    daily_missions: tuple[dict, ...]
+    phase: dict
 
     def as_dict(self) -> dict:
         return {
             "xp": self.xp,
             "work_xp": self.work_xp,
             "mission_xp": self.mission_xp,
+            "loop_xp": self.loop_xp,
+            "daily_xp": self.daily_xp,
             "level": self.level,
             "level_title": self.level_title,
             "max_level": self.max_level,
@@ -118,6 +127,8 @@ class CareerPiggybank:
             "progress": self.progress,
             "completed_missions": self.completed_missions,
             "missions": list(self.missions),
+            "daily_missions": list(self.daily_missions),
+            "phase": self.phase,
             "levels": [level.__dict__ for level in LEVELS],
             "reward_is_example": True,
         }
@@ -191,7 +202,12 @@ def _history(events: list[dict] | tuple[dict, ...], txns: list[dict] | tuple[dic
     return VerifiedHistory(count=len(jobs), streak_months=longest, span_months=span, recent=recent)
 
 
-def _eligible_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[str, ...]:
+def _processed_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[str, ...]:
+    """결정 내용과 무관하게 처리된 고유 입금 사건을 한 번씩 센다.
+
+    confirm·adjust·reject 모두 '처리'다. 승인 결과에 XP를 붙이면 F11/F12와 밴딧을
+    오염시키므로 action은 점수에 쓰지 않는다. txn_id 없는 수동 제안은 제외한다.
+    """
     seen: set[str] = set()
     result: list[str] = []
     for event in events:
@@ -199,7 +215,7 @@ def _eligible_income_event_ids(events: list[dict] | tuple[dict, ...]) -> tuple[s
             continue
         payload = event.get("payload") or {}
         income_event_id = payload.get("income_event_id")
-        if payload.get("rhythm_eligible") is not True or not isinstance(income_event_id, str):
+        if not isinstance(income_event_id, str):
             continue
         if not income_event_id or income_event_id in seen:
             continue
@@ -219,12 +235,62 @@ def _mission_done(mission: MissionDefinition, active: tuple[str, ...], events: l
             for event in events
         )
     if mission.event_type == "allocation_decided":
-        return bool(_eligible_income_event_ids(events))
+        return bool(_processed_income_event_ids(events))
     return False
 
 
+def _event_dates(events: list[dict] | tuple[dict, ...], type_: str) -> set[str]:
+    return {
+        event.get("ts", "")[:10] for event in events
+        if event.get("type") == type_ and len(event.get("ts", "")) >= 10
+    }
+
+
+def _quest_phase(txns: list[dict] | tuple[dict, ...]) -> dict:
+    """원장 마지막 날짜를 기준으로 데모의 현재 소득 국면을 결정론 분류한다."""
+    dated = [txn for txn in txns if isinstance(txn.get("date"), str) and len(txn["date"]) >= 10]
+    if not dated:
+        return {"key": "quiet", "label": "할 일 없는 날", "message": "새 거래가 오면 필요한 미션만 열어요"}
+    latest = max(date.fromisoformat(txn["date"][:10]) for txn in dated)
+    incomes = [
+        date.fromisoformat(txn["date"][:10]) for txn in dated
+        if txn.get("kind") == "income" and txn.get("direction") == "in"
+    ]
+    if latest.month in {4, 5}:
+        return {"key": "tax_season", "label": "세금 시즌", "message": "세금 준비율과 놓친 경비를 먼저 확인해요"}
+    if incomes and (latest - max(incomes)).days <= 7:
+        return {"key": "after_settlement", "label": "정산 직후", "message": "들어온 돈의 분류와 배분을 먼저 정리해요"}
+    return {"key": "income_gap", "label": "보릿고개", "message": "방어선과 다음 일감 예고를 먼저 살펴봐요"}
+
+
+def _daily_missions(events: list[dict] | tuple[dict, ...],
+                    txns: list[dict] | tuple[dict, ...]) -> tuple[dict, ...]:
+    today = datetime.now(timezone.utc).date().isoformat()
+    scrap_done = today in _event_dates(events, "career_scrap_saved")
+    tag_done = today in _event_dates(events, "txn_tagged")
+    has_review = any(txn.get("needs_review") for txn in txns)
+    return (
+        {
+            "id": "today_transactions", "title": "오늘 거래 정리", "xp": 1,
+            "completed": tag_done, "available": has_review or tag_done,
+            "description": "미분류 거래가 있을 때만 열려요",
+        },
+        {
+            "id": "career_scrap", "title": "오늘의 커리어 조각 저금", "xp": XP_PER_DAILY_SCRAP,
+            "completed": scrap_done, "available": True,
+            "description": "아티클·레포·레퍼런스 중 하나를 저장해요",
+        },
+        {
+            "id": "care_piggy", "title": "돼지 저금통 돌보기", "xp": 0,
+            "completed": False, "available": True,
+            "description": "성장에는 영향 없이 반응만 즐겨요",
+        },
+    )
+
+
 def _piggybank(active: tuple[str, ...], history: VerifiedHistory,
-               events: list[dict] | tuple[dict, ...]) -> CareerPiggybank:
+               events: list[dict] | tuple[dict, ...],
+               txns: list[dict] | tuple[dict, ...]) -> CareerPiggybank:
     missions = tuple({
         "id": mission.id,
         "title": mission.title,
@@ -233,7 +299,12 @@ def _piggybank(active: tuple[str, ...], history: VerifiedHistory,
     } for mission in MISSIONS)
     work_xp = history.count * XP_PER_VERIFIED_JOB
     mission_xp = sum(mission["xp"] for mission in missions if mission["completed"])
-    xp = work_xp + mission_xp
+    loop_xp = len(_processed_income_event_ids(events)) * XP_PER_SETTLEMENT_PROCESS
+    daily_xp = (
+        len(_event_dates(events, "career_scrap_saved")) * XP_PER_DAILY_SCRAP
+        + len(_event_dates(events, "txn_tagged"))
+    )
+    xp = work_xp + mission_xp + loop_xp + daily_xp
     current = LEVELS[0]
     for level in LEVELS:
         if xp >= level.threshold:
@@ -249,6 +320,8 @@ def _piggybank(active: tuple[str, ...], history: VerifiedHistory,
         xp=xp,
         work_xp=work_xp,
         mission_xp=mission_xp,
+        loop_xp=loop_xp,
+        daily_xp=daily_xp,
         level=current.level,
         level_title=current.title,
         max_level=len(LEVELS),
@@ -258,6 +331,8 @@ def _piggybank(active: tuple[str, ...], history: VerifiedHistory,
         progress=round(max(0.0, min(1.0, progress)), 4),
         completed_missions=sum(1 for mission in missions if mission["completed"]),
         missions=missions,
+        daily_missions=_daily_missions(events, txns),
+        phase=_quest_phase(txns),
     )
 
 
@@ -288,7 +363,7 @@ def compute(
         review_ready=stage == "확정",
         stage_basis=basis,
         verified=history,
-        piggybank=_piggybank(active, history, events),
+        piggybank=_piggybank(active, history, events, txns),
     )
 
 

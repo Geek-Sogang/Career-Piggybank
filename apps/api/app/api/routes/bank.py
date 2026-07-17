@@ -62,7 +62,11 @@ def deposit(req: DepositRequest) -> DepositResponse:
 @router.get("/transactions", response_model=list[TxnOut])
 def transactions() -> list[TxnOut]:
     _boot()
-    return [TxnOut(**t) for t in db.list_txns()]
+    verified_ids = {
+        event.get("ref_id") for event in db.list_events("career_job_verified")
+        if event.get("ref_id")
+    }
+    return [TxnOut(**t, verified_career_job=t["id"] in verified_ids) for t in db.list_txns()]
 
 
 @router.post("/transactions/{txn_id}/tag", response_model=TagResponse)

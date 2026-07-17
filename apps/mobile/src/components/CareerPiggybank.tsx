@@ -27,9 +27,11 @@ function skinFor(v2: PersonalizationV2 | null) {
   return SKINS.wave;
 }
 
-export function CareerPiggybank({ piggybank, compact = false, onMissionUpdated, onOpenLedger }: {
+export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUpdated, onOpenLedger }: {
   piggybank: Piggybank;
   compact?: boolean;
+  /** 신뢰 층 요약 칩 — 홈에서 검증 점수·단계를 1줄로. 게임 층(XP)과 어휘·색을 섞지 않는다. */
+  trust?: { score: number; stage: string; onPress: () => void };
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
 }) {
@@ -55,14 +57,18 @@ export function CareerPiggybank({ piggybank, compact = false, onMissionUpdated, 
           <Text style={{ fontSize: compact ? 18 : 21, fontWeight: '800', letterSpacing: -0.5, color: colors.ink, marginTop: 3 }}>
             {piggybank.level_title}
           </Text>
-          <Text style={{ fontSize: 11, fontWeight: '400', color: colors.sub2, marginTop: 3 }}>
-            검증된 일감과 미션으로 동전을 모아요
-          </Text>
+          {!compact && (
+            <Text style={{ fontSize: 11, fontWeight: '400', color: colors.sub2, marginTop: 3 }}>
+              검증된 일감과 미션으로 동전을 모아요
+            </Text>
+          )}
           <View style={{ height: 9, borderRadius: 5, backgroundColor: '#E9ECEF', overflow: 'hidden', marginTop: 11 }}>
             <View style={{ width: `${piggybank.progress * 100}%`, height: 9, borderRadius: 5, backgroundColor: skin.ink }} />
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: skin.ink, ...T.num }}>{piggybank.xp.toLocaleString()} XP</Text>
+          <View style={{ flexDirection: 'row', justifyContent: compact ? 'flex-end' : 'space-between', marginTop: 5 }}>
+            {!compact && (
+              <Text style={{ fontSize: 11, fontWeight: '700', color: skin.ink, ...T.num }}>{piggybank.xp.toLocaleString()} XP</Text>
+            )}
             <Text style={{ fontSize: 10.5, fontWeight: '400', color: colors.sub2 }}>
               {next ? `다음 성장까지 ${piggybank.xp_to_next} XP` : '최고 레벨 달성'}
             </Text>
@@ -70,11 +76,23 @@ export function CareerPiggybank({ piggybank, compact = false, onMissionUpdated, 
         </View>
       </View>
 
-      <View style={{ flexDirection: 'row', marginTop: 15, borderRadius: 12, backgroundColor: colors.greenTint2, paddingVertical: 9 }}>
-        <XpStat value={`+${piggybank.work_xp}`} label="검증 일감 XP" />
-        <XpStat value={`+${piggybank.loop_xp + piggybank.daily_xp}`} label="반복·오늘 XP" borderLeft />
-        <XpStat value={`+${piggybank.mission_xp}`} label="첫 달성 XP" borderLeft />
-      </View>
+      {trust && (
+        <Pressable
+          onPress={trust.onPress}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 12, backgroundColor: colors.greenTint, borderRadius: 9, paddingVertical: 6, paddingHorizontal: 10 }}
+        >
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.greenInk }}>검증 {trust.score}점 · {trust.stage}</Text>
+          <Icon name="chevronRight" size={12} color={colors.greenInk} sw={2.4} />
+        </Pressable>
+      )}
+
+      {!compact && (
+        <View style={{ flexDirection: 'row', marginTop: 15, borderRadius: 12, backgroundColor: colors.greenTint2, paddingVertical: 9 }}>
+          <XpStat value={`+${piggybank.work_xp}`} label="검증 일감 XP" />
+          <XpStat value={`+${piggybank.loop_xp + piggybank.daily_xp}`} label="반복·오늘 XP" borderLeft />
+          <XpStat value={`+${piggybank.mission_xp}`} label="첫 달성 XP" borderLeft />
+        </View>
+      )}
 
       {!compact && (
         <>

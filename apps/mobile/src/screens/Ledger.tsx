@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { getClarify, getTransactions, tagTransaction, type Clarify, type Txn } from '@/api';
+import { DEMO_DEPOSIT, getClarify, getTransactions, tagTransaction, type Clarify, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, T } from '@/components/ui';
 import { useApp } from '@/store';
 
 export function Ledger() {
-  const { actions } = useApp();
+  const { actions, lastAlloc } = useApp();
   // 라이브 원장 (백엔드 SQLite) — 서버 다운이면 null → 정적 폴백 UI (데모 불사)
   const [txns, setTxns] = useState<Txn[] | null>(null);
+  const [transactionsReady, setTransactionsReady] = useState(false);
   const load = useCallback(() => {
-    getTransactions().then(setTxns).catch(() => setTxns(null));
+    getTransactions()
+      .then((next) => { setTxns(next); setTransactionsReady(true); })
+      .catch(() => { setTxns(null); setTransactionsReady(true); });
   }, []);
   useEffect(load, [load]);
 
@@ -19,11 +22,24 @@ export function Ledger() {
   const monthTxns = (txns ?? []).filter((t) => t.date.startsWith(month));
   const revenue = monthTxns.filter((t) => t.direction === 'in' && t.kind === 'income').reduce((a, t) => a + t.amount, 0);
   const spent = monthTxns.filter((t) => t.direction === 'out').reduce((a, t) => a + t.amount, 0);
+  // 데모 입금은 원장 기록을 SSOT로 삼아 새로고침 뒤에도 다시 생성하지 않는다.
+  const demoDepositRecorded = !!txns?.some((t) =>
+    t.date === DEMO_DEPOSIT.date
+    && t.amount === DEMO_DEPOSIT.amount
+    && t.counterparty === DEMO_DEPOSIT.counterparty,
+  );
+  const depositHandled = !!lastAlloc || demoDepositRecorded;
+  const depositConfirmed = lastAlloc?.confirmed ?? demoDepositRecorded;
+  const depositAmount = lastAlloc?.deposit ?? DEMO_DEPOSIT.amount;
 
   return (
     <View style={{ gap: 14 }}>
       {/* 새 입금 도착 — 배분 제안 데모 트리거 (백엔드 파이프라인 라이브) */}
-      <Pressable onPress={() => actions.openSheet('allocation')}>
+      {!transactionsReady ? (
+        <View style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 16 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub2 }}>새 입금 내역을 확인하고 있어요…</Text>
+        </View>
+      ) : !depositHandled ? <Pressable onPress={() => actions.openSheet('allocation')}>
         <View style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
           <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="coin" size={22} color="#fff" sw={2} />
@@ -34,7 +50,24 @@ export function Ledger() {
           </View>
           <Icon name="chevronRight" size={20} color="rgba(255,255,255,.8)" sw={2.2} />
         </View>
-      </Pressable>
+      </Pressable> : (
+        <Pressable onPress={() => depositConfirmed ? actions.pushScr('tax') : actions.pushScr('chat')}>
+          <View style={{ backgroundColor: depositConfirmed ? colors.greenTint2 : colors.bufferTint, borderWidth: 1, borderColor: depositConfirmed ? colors.greenLine : colors.line, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: depositConfirmed ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={depositConfirmed ? 'check' : 'coin'} size={22} color="#fff" sw={2.2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.sub2 }}>△△플랫폼 정산 · ₩{depositAmount.toLocaleString('en-US')}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 2, letterSpacing: -0.3 }}>
+                {lastAlloc
+                  ? depositConfirmed ? '4개 봉투에 나눠 담았어요' : '배분 제안이 준비됐어요 — 확인해 주세요'
+                  : '이미 처리된 입금이에요 — 자동 봉투에서 확인하세요'}
+              </Text>
+            </View>
+            <Icon name="chevronRight" size={20} color="#9AA1A9" sw={2.2} />
+          </View>
+        </Pressable>
+      )}
 
       {/* 월 요약 — 라이브 원장 합산 (폴백: 데모 수치) */}
       <Card>

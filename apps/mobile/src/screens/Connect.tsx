@@ -2,11 +2,18 @@ import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, T } from '@/components/ui';
-import { useApp, type ConnSrc } from '@/store';
+import { CAREER_SCORE_VALUES, useApp, type ConnSrc } from '@/store';
 
 export function Connect() {
   const { vals, flash, actions } = useApp();
   const c = vals.conn;
+  const verificationMessage = c.hometax && c.kosa
+    ? '홈택스 3.3% 신고·KOSA 협회 경력과 입금 내역을 함께 확인해 ‘검증 완료’ 됐어요.'
+    : c.hometax
+      ? '홈택스 3.3% 신고와 입금 내역이 교차검증되어 ‘검증 완료’ 됐어요.'
+      : c.kosa
+        ? 'KOSA 협회 경력 인증이 확인되어 ‘검증 완료’ 됐어요. 홈택스를 연결하면 신고소득과 입금 내역도 교차검증할 수 있어요.'
+        : null;
   return (
     <View style={{ gap: 14 }}>
       {/* 한도 카드 */}
@@ -25,10 +32,10 @@ export function Connect() {
 
       {/* 연결 토글 */}
       <Card p={0} style={{ paddingHorizontal: 16 }}>
-        <Row first iconBg={colors.black} icon={<Icon name="github" size={24} color="#fff" />} title="GitHub" on={c.github} onText="+30점 반영됨" sub="개발 활동 · 커밋/PR" onPress={() => actions.toggle('github')} />
-        <Row iconBg={colors.bufferTint} icon={<Icon name="card" size={22} color={colors.buffer} />} title="마이데이터" on={c.mydata} onText="+50점 반영됨" sub="입출금·소득 내역 (동의 필요)" onPress={() => actions.toggle('mydata')} />
-        <Row iconBg={colors.greenTint} icon={<Icon name="building" size={22} color={colors.green} />} title="홈택스" on={c.hometax} onText="+40점 · 교차검증 시작됨" sub="3.3% 소득신고 검증" onPress={() => actions.toggle('hometax')} />
-        <Row last iconBg={colors.indigoTint} icon={<Icon name="shieldCheck" size={22} color={colors.indigo} />} title="KOSA 경력인증" on={c.kosa} onText="+35점 · 협회 인증됨" sub="SW산업협회 경력·기술등급" onPress={() => actions.toggle('kosa')} />
+        <Row first iconBg={colors.black} icon={<Icon name="github" size={24} color="#fff" />} title="GitHub" on={c.github} onText={`+${CAREER_SCORE_VALUES.github}점 반영됨`} sub="개발 활동 · 커밋/PR" onPress={() => actions.toggle('github')} />
+        <Row iconBg={colors.bufferTint} icon={<Icon name="card" size={22} color={colors.buffer} />} title="마이데이터" on={c.mydata} onText={`+${CAREER_SCORE_VALUES.mydata}점 반영됨`} sub="입출금·소득 내역 (동의 필요)" onPress={() => actions.toggle('mydata')} />
+        <Row iconBg={colors.greenTint} icon={<Icon name="building" size={22} color={colors.green} />} title="홈택스" on={c.hometax} onText={`+${CAREER_SCORE_VALUES.hometax}점 · 교차검증 시작됨`} sub="3.3% 소득신고 검증" onPress={() => actions.toggle('hometax')} />
+        <Row last iconBg={colors.indigoTint} icon={<Icon name="shieldCheck" size={22} color={colors.indigo} />} title="KOSA 경력인증" on={c.kosa} onText={`+${CAREER_SCORE_VALUES.kosa}점 · 협회 인증됨`} sub="SW산업협회 경력·기술등급" onPress={() => actions.toggle('kosa')} />
       </Card>
 
       {/* 포트폴리오 직접 올리기 */}
@@ -49,9 +56,9 @@ export function Connect() {
         <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.sub }}>검증 상태</Text>
         <Text style={{ fontSize: 12, fontWeight: '800', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 5, paddingHorizontal: 12, borderRadius: 10, overflow: 'hidden' }}>{vals.stage}</Text>
       </Card>
-      {(c.hometax || c.kosa) ? (
+      {verificationMessage ? (
         <View style={{ backgroundColor: colors.greenTint, borderWidth: 1, borderColor: '#D2E8E8', borderRadius: 14, padding: 13 }}>
-          <Text style={{ fontSize: 12.5, color: colors.greenInk, fontWeight: '600', lineHeight: 19 }}>연결된 출처(홈택스 3.3% 신고·KOSA 협회 경력)와 입금 내역이 교차검증되어 ‘검증 완료’ 됐어요.</Text>
+          <Text style={{ fontSize: 12.5, color: colors.greenInk, fontWeight: '600', lineHeight: 19 }}>{verificationMessage}</Text>
         </View>
       ) : null}
 

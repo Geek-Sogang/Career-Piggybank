@@ -102,7 +102,7 @@ function Shell() {
       )}
 
       {/* 본문 */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
+      <ScrollView key={vals.scr} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
         <Screen />
       </ScrollView>
 

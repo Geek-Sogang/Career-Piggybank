@@ -5,16 +5,22 @@ import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, T } from '@/components/ui';
-import { useApp } from '@/store';
+import { CAREER_SCORE_VALUES, useApp } from '@/store';
 
 export function Home() {
   const { vals, actions } = useApp();
-  // 은퇴 밴드·미니 곡선 — 원장 시계열 라이브 계산 (서버 다운 시 정적 폴백)
+  // 일감 소득 밴드·미니 곡선 — 원장 시계열 라이브 계산 (서버 다운 시 정적 폴백)
   const [fc, setFc] = useState<Forecast | null>(null);
+  const [forecastUnavailable, setForecastUnavailable] = useState(false);
   useEffect(() => {
-    getForecast().then(setFc).catch(() => {});
+    let live = true;
+    getForecast()
+      .then((next) => { if (live) setFc(next); })
+      .catch(() => { if (live) setForecastUnavailable(true); });
+    return () => { live = false; };
   }, []);
-  const band = fc?.retirement.find((b) => b.scenario === 'base')?.label ?? '2041 ~ 2044';
+  const band = fc?.retirement.find((b) => b.scenario === 'base')?.label
+    ?? (forecastUnavailable ? '2041 ~ 2044' : '계산 중…');
   const mini = fc ? buildMini(fc.path) : null;
   return (
     <View style={{ gap: 14 }}>
@@ -51,22 +57,22 @@ export function Home() {
           <Mascot head size={44} radius={13} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>다음 할 일</Text>
-            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>홈택스 연결하고 +30점 받기</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>홈택스 연결하고 +{CAREER_SCORE_VALUES.hometax}점 받기</Text>
             <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>검증 완료 · 약 1분</Text>
           </View>
           <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
         </Card>
       </Pressable>
 
-      {/* 은퇴 미리보기 */}
+      {/* 미래 소득 미리보기 — 실제 은퇴자금 달성 시점과 구분 */}
       <Pressable onPress={() => actions.pushScr('retirement')}>
         <Card style={{ gap: 10 }} p={16}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>은퇴 미리보기</Text>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>미래 소득 미리보기</Text>
             <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.sub2 }}>예상 은퇴</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.sub2 }}>생활비 하회 가능 구간</Text>
             <Text style={{ fontSize: 21, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>{band}</Text>
           </View>
           <Svg viewBox="0 0 300 60" width="100%" height={56} preserveAspectRatio="none">
@@ -77,16 +83,20 @@ export function Home() {
                 <Line x1="2" y1={mini.targetY} x2="298" y2={mini.targetY} stroke="#D7DBE0" strokeWidth={1.2} strokeDasharray="3 3" />
                 {mini.crossX != null && <Circle cx={mini.crossX} cy={mini.targetY} r={4} fill={colors.green} stroke="#fff" strokeWidth={2} />}
               </>
-            ) : (
+            ) : forecastUnavailable ? (
               <>
                 <Path d="M2 52 C 70 46 150 30 298 12 L 298 30 C 150 44 70 52 2 56 Z" fill="rgba(0,132,133,.10)" />
                 <Path d="M2 54 C 70 48 150 28 298 18" fill="none" stroke={colors.green} strokeWidth={2.4} strokeLinecap="round" />
                 <Line x1="2" y1="26" x2="298" y2="26" stroke="#D7DBE0" strokeWidth={1.2} strokeDasharray="3 3" />
                 <Circle cx="196" cy="26" r="4" fill={colors.green} stroke="#fff" strokeWidth={2} />
               </>
+            ) : (
+              <Line x1="2" y1="30" x2="298" y2="30" stroke="#E3E6EA" strokeWidth={8} strokeLinecap="round" />
             )}
           </Svg>
-          <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500' }}>입금 추세 + 커리어 성장률로 예측한 신뢰구간</Text>
+          <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500' }}>
+            {fc || forecastUnavailable ? '입금 추세 + 커리어 성장률로 계산한 소득 유지 전망' : '내 입금 시계열을 불러오는 중이에요'}
+          </Text>
         </Card>
       </Pressable>
     </View>

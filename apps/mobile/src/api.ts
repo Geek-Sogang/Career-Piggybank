@@ -1,9 +1,25 @@
 // 백엔드(FastAPI) 클라이언트 — 데모: 로컬 서버(make api, :8000)
 // iOS 시뮬레이터·웹 모두 호스트의 localhost로 접근 가능. 서버가 꺼져 있으면
 // 각 호출부가 오프라인 폴백을 쓴다(데모가 죽지 않는 원칙).
-const API_BASE = 'http://localhost:8000';
+//
+// DEMO 모드(EXPO_PUBLIC_DEMO=1): 백엔드 없이 Vercel에만 올린 UI 데모용.
+// 네트워크 대신 녹화 픽스처(demoData)를 반환한다 — 라이브 백엔드에서 캡처한
+// 조대흠 시드 응답. 실서비스가 아니라 "화면 보여주기"용 정적 데모.
+import { demoGet, demoPost } from '@/lib/demoData';
+
+const DEMO = process.env.EXPO_PUBLIC_DEMO === '1';
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:8000';
+
+// DEMO에서 데모 서버 감각을 살짝 살리는 지연(ms) — 로딩 UI가 자연스럽게 보이게.
+const demoDelay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function get<T>(path: string, timeoutMs = 10_000): Promise<T> {
+  if (DEMO) {
+    const v = demoGet(path);
+    await demoDelay(120);
+    if (v !== undefined) return v as T;
+    throw new Error(`demo: no fixture for GET ${path}`);
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -16,6 +32,10 @@ async function get<T>(path: string, timeoutMs = 10_000): Promise<T> {
 }
 
 async function post<T>(path: string, body: unknown, timeoutMs = 90_000): Promise<T> {
+  if (DEMO) {
+    await demoDelay(220);
+    return demoPost(path, body) as T;
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

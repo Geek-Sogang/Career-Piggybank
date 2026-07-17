@@ -9,6 +9,7 @@ export function VerifiedDetail() {
   const { detail } = useApp();
   const job = JOBS[detail];
   const v = job.verified;
+  const matched = job.nodes.filter((n) => n.ok).length;
 
   return (
     <View style={{ gap: 14 }}>
@@ -38,7 +39,7 @@ export function VerifiedDetail() {
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>
         <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink }}>{v ? `${job.nodes.length}자 교차검증` : '데이터 출처'}</Text>
-        <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{v ? `${job.nodes.length}곳의 데이터가 일치` : '검증에 필요한 출처'}</Text>
+        <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{v ? `${matched}곳의 데이터가 일치` : '검증에 필요한 출처'}</Text>
       </View>
 
       {/* 타임라인 */}

@@ -11,6 +11,7 @@ import { Home } from '@/screens/Home';
 import { Missions } from '@/screens/Missions';
 import { Piggy } from '@/screens/Piggy';
 import { Connect } from '@/screens/Connect';
+import { JobProof } from '@/screens/JobProof';
 import { VerifiedDetail } from '@/screens/VerifiedDetail';
 import { Ledger } from '@/screens/Ledger';
 import { Tax } from '@/screens/Tax';
@@ -37,7 +38,7 @@ export default function Index() {
 
 const SCREENS: Record<string, () => JSX.Element> = {
   home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My,
-  connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
+  connect: Connect, jobProof: JobProof, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
   dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
   productDetail: ProductDetail, emptyState: EmptyState,
 };

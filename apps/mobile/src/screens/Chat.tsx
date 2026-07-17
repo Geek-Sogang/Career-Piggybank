@@ -58,7 +58,7 @@ export function Chat() {
       if (lastAlloc.id) await decideAllocation(lastAlloc.id, 'confirm');
     } catch {}
     actions.markAllocConfirmed();
-    setExtra((e) => [...e, { from: 'bot', text: '봉투에 담아뒀어요! ✓ 가계부에서 보여드릴게요.' }]);
+    setExtra((e) => [...e, { from: 'bot', text: '봉투에 담아뒀어요! ✓ 정산 내역에서 보여드릴게요.' }]);
     toEnd();
     setTimeout(() => actions.nav('ledger'), 1600);
   };

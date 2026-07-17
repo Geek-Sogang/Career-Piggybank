@@ -87,7 +87,7 @@ function Shell() {
             <Mascot head size={38} radius={19} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
               <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
-              <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자</Text>
+              <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>
             </View>
           </View>
           <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
@@ -133,8 +133,8 @@ function Shell() {
       {/* 탭바 */}
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
         <TabButton icon="tabHome" label="홈" active={tab === 'home'} onPress={() => actions.nav('home')} />
-        <TabButton icon="tabPiggy" label="저금통" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
-        <TabButton icon="tabLedger" label="가계부" active={tab === 'ledger'} onPress={() => actions.nav('ledger')} />
+        <TabButton icon="tabPiggy" label="커리어" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
+        <TabButton icon="tabLedger" label="정산" active={tab === 'ledger'} onPress={() => actions.nav('ledger')} />
         <TabButton icon="tabMy" label="마이" active={tab === 'my'} onPress={() => actions.nav('my')} />
       </View>
 

@@ -44,11 +44,11 @@ export function Home() {
 
       {/* 3단계 진입 */}
       <Card p={6} style={{ flexDirection: 'row' }}>
-        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="넣는다" sub="커리어 연결" onPress={() => actions.pushScr('connect')} />
+        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="커리어 연결" onPress={() => actions.pushScr('connect')} />
         <Divider />
-        <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="불린다" sub="가계부·세금" onPress={() => actions.nav('ledger')} />
+        <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
         <Divider />
-        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="꺼내쓴다" sub="맞춤 상품" onPress={() => actions.nav('piggy')} />
+        <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 기반 상품" onPress={() => actions.nav('piggy')} />
       </Card>
 
       {/* 다음 할 일 */}

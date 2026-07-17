@@ -8,8 +8,9 @@
 불가침 — 이 파일이 지키는 계약:
 - 새 EXAONE 프롬프트·판정을 만들지 않는다. 기존 스냅샷 축의 결정론 번역만 한다.
 - confidence 숫자를 만들지 않는다. 사실만 노출한다(인용 팩트·표본·게이트·폴백·신선도).
-- F13/F14(커리어 소스·앱 참여)는 방향을 결정하지 않는다 — 데이터 충실도 표시에만 쓴다.
-  (관여도는 관리가 필요한 성향이 아니고, planning 판독에 이미 반영돼 이중 가중 위험.)
+- F13(커리어 소스 연결)은 기존 planning 판독의 긱 커리어 행동 근거로 유지한다.
+- F14(앱 참여)는 방향을 결정하지 않고 데이터 충실도 표시에만 쓴다.
+  (제품 사용량은 관리가 필요한 성향이 아니며, 방향에 쓰면 순환 논리가 된다.)
 - 배분·밴딧은 계속 raw 연속 축을 소비한다. 여기의 3단계 값은 화면·설명·코치 톤 전용.
 - '권장'이지 '선호'가 아니다 — 관측 행동 기반 권장 개입 수준이며, 사용자 오버라이드는
   별도 보관하고 권장값을 덮어쓰지 않는다. 실행 승인 게이트(HITL)에는 어떤 영향도 없다.
@@ -57,6 +58,14 @@ STABILITY_KEY = "income_stability"
 STABILITY_LABEL = "소득 안정성"
 STRUCTURE_KEY = "income_source_structure"
 STRUCTURE_LABEL = "소득원 구조"
+
+_RHYTHM_DETAIL = {
+    "플랫폼 정기형": "플랫폼 정산이 일정한 주기로 들어와요",
+    "프로젝트 반복형": "반복 발주처에서 프로젝트 대금이 들어와요",
+    "착수금-잔금형": "착수금 뒤 잔금이 이어지는 계약형 수입이에요",
+    "다중 스트림(N잡)": "서로 다른 수입 흐름을 함께 관리하고 있어요",
+    "리듬 형성 중": "아직 반복되는 수입 패턴을 더 지켜보고 있어요",
+}
 
 
 def _bucket(value: float) -> str:
@@ -136,7 +145,11 @@ def _fact_map(factsheet: Sequence[Fact]) -> dict[str, Fact]:
     return {f.id: f for f in factsheet}
 
 
-def _axis_fresh(axis: dict | None, staleness: dict | None) -> bool:
+def _axis_fresh(
+    axis: dict | None,
+    staleness: dict | None,
+    disallowed_evidence: frozenset[str] = frozenset(),
+) -> bool:
     """이 축 판독을 번역 근거로 쓸 수 있나 — PR #80의 신선도 게이트와 같은 규칙.
 
     스냅샷이 없거나(stale=None 포함) 오래됐거나 그 축이 폴백이면 False.
@@ -144,6 +157,8 @@ def _axis_fresh(axis: dict | None, staleness: dict | None) -> bool:
     if not axis or axis.get("fallback"):
         return False
     if not staleness or staleness.get("stale") is not False:
+        return False
+    if disallowed_evidence.intersection(axis.get("evidence", [])):
         return False
     return isinstance(axis.get("value"), (int, float))
 
@@ -180,7 +195,7 @@ def _safety(axes: dict | None, staleness: dict | None,
             facts: dict[str, Fact]) -> V2Decision:
     """안전자금 운용 방향 ← risk_tolerance 3버킷 (낮은 위험감내 = 확보 우선)."""
     axis = (axes or {}).get("risk_tolerance")
-    if _axis_fresh(axis, staleness):
+    if _axis_fresh(axis, staleness, disallowed_evidence=frozenset({"F14"})):
         bucket = _bucket(float(axis["value"]))
         return V2Decision(
             key=SAFETY_KEY, label=SAFETY_LABEL,
@@ -202,7 +217,9 @@ def _management(axes: dict | None, staleness: dict | None,
                 facts: dict[str, Fact]) -> V2Decision:
     """권장 관리 강도 ← self_control + planning 규칙표.
 
-    F13/F14는 방향에 불개입 — 데이터 충실도로만 evidence에 병기한다.
+    F13은 planning의 긱 커리어 행동 근거로 허용한다. F14는 데이터 충실도로만
+    evidence에 병기하고, 어느 축이든 과거 스냅샷이 F14를 방향 근거로 썼다면
+    재판독 전까지 보류한다.
     """
     sc = (axes or {}).get("self_control")
     pl = (axes or {}).get("planning")
@@ -212,7 +229,9 @@ def _management(axes: dict | None, staleness: dict | None,
         "career_sources": f13.value if f13 else None,
         "engagement_weeks": f14.value if f14 else None,
     }
-    if _axis_fresh(sc, staleness) and _axis_fresh(pl, staleness):
+    if _axis_fresh(sc, staleness, disallowed_evidence=frozenset({"F14"})) and _axis_fresh(
+        pl, staleness, disallowed_evidence=frozenset({"F14"}),
+    ):
         buckets = (_bucket(float(sc["value"])), _bucket(float(pl["value"])))
         return V2Decision(
             key=MANAGEMENT_KEY, label=MANAGEMENT_LABEL,
@@ -221,25 +240,30 @@ def _management(axes: dict | None, staleness: dict | None,
             evidence=evidence,
             basis=f"자기통제 {buckets[0]} × 계획성 {buckets[1]} → 규칙표 (개입은 관측된 자기관리의 역방향)",
         )
+    legacy_f14 = any(a and "F14" in a.get("evidence", []) for a in (sc, pl))
     return V2Decision(
         key=MANAGEMENT_KEY, label=MANAGEMENT_LABEL,
         level=MANAGEMENT_DEFAULT, decision_status=INSUFFICIENT,
         source_axes=("self_control", "planning"),
         evidence=evidence,
-        basis="판독이 없거나 오래됐거나 게이트 미통과 — 기본 가이드 유지 (지어내지 않음)",
+        basis=(
+            "기존 성향 판독이 앱 참여(F14)를 근거로 사용 — F14 제외 재판독 전까지 기본 가이드"
+            if legacy_f14 else
+            "판독이 없거나 오래됐거나 게이트 미통과 — 기본 가이드 유지 (지어내지 않음)"
+        ),
     )
 
 
 def _structures(gig: GigProfile, facts: dict[str, Fact]) -> tuple[V2Structure, ...]:
     """긱 구조 2축 — gig_profile의 검증된 라벨을 그대로 노출한다 (재계산·재해석 없음)."""
-    f01, f04 = facts.get("F01"), facts.get("F04")
+    f04 = facts.get("F04")
     stability_detail = " · ".join(
         p for p in (
-            f"변동 {f01.display}" if f01 and f01.value is not None else "",
-            f"최장 공백 {f04.display}" if f04 and f04.value is not None else "",
+            f"가장 긴 수입 공백 {f04.display}" if f04 and f04.value is not None else "",
+            f"커리어 {gig.phase}",
         ) if p
     ) or "관측 부족"
-    structure_detail = f"{gig.rhythm}" + (" · N잡" if gig.is_multi_gig else "")
+    structure_detail = _RHYTHM_DETAIL.get(gig.rhythm, gig.rhythm)
     return (
         V2Structure(
             key=STABILITY_KEY, label=STABILITY_LABEL,

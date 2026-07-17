@@ -58,7 +58,7 @@ function useAppState(startTab: Tab = 'home') {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setFlash(null), 1900);
   };
-  // 앱을 여는 것도 실제 행동(비금융) — 계획성 축의 근거 F14로 계측된다
+  // 앱 방문은 F14 데이터 품질·관측 리듬으로만 계측한다(계획성 방향에는 쓰지 않음).
   useEffect(() => { logBehavior('app_opened'); }, []);
   // 새로고침에서도 마지막 검증 상태를 복원한다. 복원 전 빈 로컬 상태를 POST해 서버 값을
   // 덮지 않도록 hydration을 먼저 끝낸 뒤 아래 동기화 효과를 연다.
@@ -136,8 +136,8 @@ function useAppState(startTab: Tab = 'home') {
       limitWon: limit.toLocaleString('en-US'),
       limitManwon: Math.round(limit / 10_000),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
-      tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '저금통 (빈 상태)' } as Record<string, string>)[push || ''] || '',
+      tabTitle: ({ piggy: '커리어', ledger: '정산', my: '마이' } as Record<string, string>)[tab] || '',
+      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,

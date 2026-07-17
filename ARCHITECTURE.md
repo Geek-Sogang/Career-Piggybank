@@ -232,7 +232,8 @@ API: `POST /v1/profile/estimate` — 응답 `profile`을 그대로 `/v1/allocati
 (경계 0.3/0.7 — 골든셋 채점과 동일), 권장 관리 강도 = `self_control`×`planning` 명시
 규칙표(자기관리 약할수록 개입↑). 불가침: confidence 숫자를 만들지 않고 사실만 노출
 (인용 팩트·표본·게이트·폴백·신선도, 부족하면 `insufficient_evidence`로 정직한 보류) ·
-F13/F14는 방향 불개입(데이터 충실도 표시만) · **배분·밴딧은 계속 raw 연속 축을 소비**
+F13은 긱 커리어 소스 연결이라는 실제 planning 근거로 유지하고, F14 앱 참여는 성향 방향에서
+제외해 데이터 충실도에만 사용한다. **배분·밴딧은 계속 raw 연속 축을 소비**
 (3단계 값은 화면·설명·코치 톤 전용) · '권장'이지 '선호'가 아니며 사용자 오버라이드는
 별도 보관되고 실행 승인 게이트(HITL)에 영향 없음. API는 `GET /v1/profile/v2` ·
 `POST /v1/profile/v2/management-override`.

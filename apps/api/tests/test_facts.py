@@ -141,7 +141,7 @@ def test_insufficient_data_is_none_not_invented():
 
 def test_every_fact_has_band_and_definition():
     facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
-    assert len(facts) == 14   # F01~F12 + F13(소스 연결)·F14(앱 참여) 실제 행동
+    assert len(facts) == 14   # F01~F12 + F13(긱 커리어 행동) + F14(앱 관측 품질)
     for f in facts:
         assert f.band.strip(), f.id
         assert f.definition.strip(), f.id

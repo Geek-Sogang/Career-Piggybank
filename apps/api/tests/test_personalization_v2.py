@@ -2,7 +2,7 @@
 
 검증 4묶음:
 - 매핑이 결정론으로 맞는가 (안전자금 3버킷 · 관리 강도 규칙표 전조합)
-- 불가침이 지켜지는가 (confidence 부재 · F13/F14 방향 불개입 · 보류는 정직하게)
+- 불가침이 지켜지는가 (confidence 부재 · F14 방향 제외 · 보류는 정직하게)
 - 오버라이드가 권장을 덮어쓰지 않는가 (별도 보관 · 최신 이벤트 우선 · 무효 값은 해제)
 - 기존 소비 계약이 불변인가 (배분 컨텍스트가 v2에 독립 · 라우트 422 게이트)
 """
@@ -122,9 +122,9 @@ def test_management_insufficient_when_either_axis_fallback():
     assert d.level == v2.MANAGEMENT_DEFAULT
 
 
-# ── 불가침: F13/F14 방향 불개입 · confidence 부재 ──
+# ── 불가침: 번역층 재가중 없음 · F14 레거시 차단 · confidence 부재 ──
 
-def test_f13_f14_never_change_management_level():
+def test_data_quality_display_never_reweights_existing_axes():
     base = _decision(
         _build(axes=_axes(sc=0.9, pl=0.9), staleness=FRESH, sheet=_sheet()),
         v2.MANAGEMENT_KEY,
@@ -138,6 +138,31 @@ def test_f13_f14_never_change_management_level():
     assert varied.evidence["data_quality"] == {
         "career_sources": None, "engagement_weeks": 0.0,
     }
+
+
+def test_f13_is_allowed_but_legacy_f14_any_axis_forces_reread():
+    """F13은 긱 행동으로 유지하고, 어느 축이든 F14를 쓴 과거 판독은 확정 번역하지 않는다."""
+    f13_axes = _axes(sc=0.9, pl=0.9)
+    f13_axes["planning"] = _axis(0.9, evidence=("F13",))
+    f13 = _decision(_build(axes=f13_axes, staleness=FRESH), v2.MANAGEMENT_KEY)
+    assert f13.level == "자율" and f13.decision_status == v2.CONFIRMED
+
+    legacy_axes = _axes(sc=0.9, pl=0.9)
+    legacy_axes["planning"] = _axis(0.9, evidence=("F13", "F14"))
+    legacy = _decision(_build(axes=legacy_axes, staleness=FRESH), v2.MANAGEMENT_KEY)
+    assert legacy.level == v2.MANAGEMENT_DEFAULT
+    assert legacy.decision_status == v2.INSUFFICIENT
+    assert "재판독" in legacy.basis
+
+    legacy_self = _axes(sc=0.9, pl=0.9)
+    legacy_self["self_control"] = _axis(0.9, evidence=("F06", "F14"))
+    legacy_mgmt = _decision(_build(axes=legacy_self, staleness=FRESH), v2.MANAGEMENT_KEY)
+    assert legacy_mgmt.decision_status == v2.INSUFFICIENT
+
+    legacy_risk = _axes(risk=0.1)
+    legacy_risk["risk_tolerance"] = _axis(0.1, evidence=("F12", "F14"))
+    legacy_safety = _decision(_build(axes=legacy_risk, staleness=FRESH), v2.SAFETY_KEY)
+    assert legacy_safety.decision_status == v2.INSUFFICIENT
 
 
 def test_evidence_carries_facts_only_no_confidence():
@@ -155,8 +180,9 @@ def test_gig_structure_reuses_gig_profile_labels_verbatim():
     p = _build()
     by_key = {s.key: s for s in p.gig_structure}
     assert by_key[v2.STABILITY_KEY].level == "고변동"
+    assert "성장기" in by_key[v2.STABILITY_KEY].detail
     assert by_key[v2.STRUCTURE_KEY].level == "소수 집중"
-    assert "플랫폼 정기형" in by_key[v2.STRUCTURE_KEY].detail
+    assert "플랫폼 정산" in by_key[v2.STRUCTURE_KEY].detail
 
 
 # ── 오버라이드: 별도 보관 · 최신 우선 · 권장 불변 ──

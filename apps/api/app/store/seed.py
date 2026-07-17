@@ -87,7 +87,7 @@ def ensure_seed() -> bool:
         db.envelope_set(name, balance)
 
     # 실제 행동(비금융) 계측 시드 — 조대흠은 커리어 소스 3곳을 연결하고 앱을 꾸준히 여는
-    # 적극적 자기관리형(계획성 축의 비금융 근거). F13=3곳, F14=여러 주 활동.
+    # 적극적 긱 커리어 관리형. F13=3곳은 계획성 근거, F14=여러 주 활동은 데이터 품질.
     for src in ("github", "hometax", "portfolio"):
         db.log_event("source_connected", payload={"source": src})
     for d in ("2025-02-16", "2025-03-02", "2025-03-23", "2025-04-13", "2025-05-04"):

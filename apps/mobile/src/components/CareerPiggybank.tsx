@@ -20,9 +20,9 @@ const SKINS = {
 } as const;
 
 // 데모 시드(조대흠) = 프리랜스 개발자. career.job 실연동은 후속 — 렌더 선택 구조는 3직군 지원.
-const MY_JOB: CharacterJob = 'developer';
+export const MY_JOB: CharacterJob = 'developer';
 
-function skinKeyFor(v2: PersonalizationV2 | null): keyof typeof SKINS {
+export function skinKeyFor(v2: PersonalizationV2 | null): keyof typeof SKINS {
   if (!v2) return 'default';
   const safety = v2.financial_response.find((decision) => decision.key === 'safety_fund_strategy');
   if (!safety || safety.decision_status !== 'confirmed') return 'default';

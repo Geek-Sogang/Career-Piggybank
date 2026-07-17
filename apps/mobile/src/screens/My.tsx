@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { getGigProfile, getPersona, readPersona, type GigProfile, type Persona } from '@/api';
+import {
+  getGigProfile, getPersona, getPersonalizationV2, readPersona, setManagementOverride,
+  type GigProfile, type Persona, type PersonalizationV2,
+} from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, Mascot } from '@/components/ui';
@@ -14,6 +17,8 @@ const MENU: { icon: IconName; color: string; label: string; push: Exclude<Push, 
 
 export function My() {
   const { vals, actions } = useApp();
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [v2Version, setV2Version] = useState(0); // 판독이 갱신되면 금융 대응 카드도 다시 읽는다
   return (
     <View style={{ gap: 14 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -31,11 +36,20 @@ export function My() {
         <MyStat value={`${vals.score}점`} label="커리어 점수" borderLeft />
       </Card>
 
-      {/* 긱워커 소득 프로필 — 결정론 구조 층(항상 있음). 심리 축보다 앞에 세워 '긱 특화'를 도드라지게 */}
+      {/* 2+2 상단 — 긱 구조(원장 측정) + 금융 대응(확정 판독의 결정론 번역) */}
       <GigProfileCard />
+      <FinancialResponseCard refreshKey={v2Version} />
 
-      {/* 페르소나 — ④ 프로필 판독의 SSOT. 판독은 명시 트리거만(핫패스 보호), 폴백 축은 정직 표기 */}
-      <PersonaCard />
+      {/* 판단 근거 자세히 보기 — 4축 원본 판독(게이지·근거·신선도)은 접힘 안으로 */}
+      <Card p={0} style={{ paddingHorizontal: 16 }}>
+        <Pressable onPress={() => setDetailOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15 }}>
+          <Icon name="shield" size={20} color="#7C5CBF" />
+          <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: colors.ink }}>판단 근거 자세히 보기</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.sub3 }}>{detailOpen ? '접기' : '4축 판독 원본'}</Text>
+          <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+        </Pressable>
+      </Card>
+      {detailOpen && <PersonaCard onChanged={() => setV2Version((v) => v + 1)} />}
 
       <Card p={0} style={{ paddingHorizontal: 16 }}>
         {MENU.map((m, i) => (
@@ -89,10 +103,95 @@ function GigProfileCard() {
   );
 }
 
+// 금융 대응 카드(V2) — 확정된 4축 판독의 결정론 번역: 안전자금 운용 방향 + 권장 관리 강도.
+// 근거가 부족하면 '판단 보류'를 정직하게 표시하고, 관리 강도는 사용자가 언제든 직접 고른다
+// (선택은 별도 저장 — 권장값을 덮어쓰지 않고, 실행 승인 게이트와 무관하다).
+const MGMT_LEVELS = ['자율', '가이드', '적극 관리'];
+
+function FinancialResponseCard({ refreshKey }: { refreshKey: number }) {
+  const [v2, setV2] = useState<PersonalizationV2 | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { getPersonalizationV2().then(setV2).catch(() => {}); }, [refreshKey]);
+  if (!v2) return null;
+  const safety = v2.financial_response.find((d) => d.key === 'safety_fund_strategy');
+  const mgmt = v2.financial_response.find((d) => d.key === 'management_support');
+  if (!safety || !mgmt) return null;
+
+  const pick = async (level: string | null) => {
+    if (saving) return;
+    setSaving(true);
+    try { setV2(await setManagementOverride(level)); } catch {}
+    setSaving(false);
+  };
+
+  return (
+    <Card>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>내 금융 대응</Text>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판독 번역</Text>
+      </View>
+
+      {/* 안전자금 운용 방향 — 버퍼 안전 수준(P60/P75/P90)의 화면 번역 */}
+      <V2DecisionRow decision={safety} />
+
+      {/* 권장 관리 강도 + 사용자 선택 — 권장은 관측 행동 기반, 선택이 항상 이긴다 */}
+      <V2DecisionRow decision={mgmt} overrideLevel={v2.management_override} />
+      <View style={{ flexDirection: 'row', gap: 7, marginTop: 9 }}>
+        {MGMT_LEVELS.map((level) => {
+          const active = v2.effective_management === level;
+          return (
+            <Pressable key={level} disabled={saving} onPress={() => pick(level === v2.management_override ? null : level)}
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1.4, borderColor: active ? '#7C5CBF' : colors.line2, backgroundColor: active ? '#F5F1FB' : '#fff' }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: active ? '#7C5CBF' : colors.sub2 }}>{level}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {v2.management_override && (
+        <Pressable onPress={() => pick(null)} disabled={saving} style={{ marginTop: 7 }}>
+          <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '600' }}>
+            직접 고른 값이에요 (권장: {mgmt.level}) — 다시 누르면 권장으로 돌아가요
+          </Text>
+        </Pressable>
+      )}
+
+      <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15, marginTop: 10 }}>
+        확정된 성향 판독을 3단계로 번역한 값이에요 — 근거가 부족하면 보류하고 기본값을 써요.
+        어떤 강도를 골라도 돈이 움직이는 실행은 항상 확인을 거쳐요.
+      </Text>
+    </Card>
+  );
+}
+
+function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').V2Decision; overrideLevel?: string | null }) {
+  const onHold = decision.decision_status === 'insufficient_evidence';
+  return (
+    <View style={{ marginTop: 12, gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.ink }}>
+          {decision.label}{' '}
+          {onHold && <Text style={{ fontSize: 10, color: colors.sub3, fontWeight: '600' }}>판단 보류(기본값)</Text>}
+        </Text>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: colors.sub2 }}>
+          {decision.evidence.fact_ids.length > 0 ? `근거 ${decision.evidence.fact_ids.join('·')}` : '—'}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+        <Text style={{ fontSize: 14.5, fontWeight: '800', color: onHold ? colors.sub2 : '#7C5CBF' }}>
+          {overrideLevel ?? decision.level}
+        </Text>
+        {overrideLevel && (
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.sub3, backgroundColor: '#F2F4F6', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>내가 선택</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // 성향 4축 카드 — 값(0~1 게이지)·근거 팩트·신선도. AI가 판단한 영역이라 보라 배지.
 const AXIS_ORDER = ['risk_tolerance', 'time_preference', 'self_control', 'planning'];
 
-function PersonaCard() {
+function PersonaCard({ onChanged }: { onChanged?: () => void }) {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [missing, setMissing] = useState(false);
   const [reading, setReading] = useState(false);
@@ -101,7 +200,7 @@ function PersonaCard() {
 
   const runRead = async () => {
     setReading(true);
-    try { await readPersona(); await load(); } catch {}
+    try { await readPersona(); await load(); onChanged?.(); } catch {}
     setReading(false);
   };
 

@@ -91,6 +91,31 @@ def test_live_context_intent_details():
     assert {c["product_id"] for c in ctx["product_candidates"]} >= {"parking"}
 
 
+def test_live_context_management_support_is_tone_only():
+    """V2 관리 강도 — 코치 톤 힌트로만 실린다. 판독 전엔 안전 기본값 + 정직한 보류."""
+    ctx = coach_live.build("qa")
+    ms = ctx["management_support"]
+    assert ms["effective"] == "가이드"                    # 판독 전 — 안전 기본값
+    assert ms["status"] == "insufficient_evidence"        # 보류를 숨기지 않는다
+    assert ms["override"] is None
+    assert "제안" in ms["tone_hint"]
+
+
+def test_management_override_changes_tone_not_money():
+    """오버라이드는 톤만 바꾼다 — 권장 보존 · 배분 컨텍스트(돈 경로) 불변 (HITL 무관)."""
+    from app.profile import build_user_profile
+    from app.profile.personalization_v2 import OVERRIDE_EVENT
+
+    before = build_user_profile().allocation_context()
+    db.log_event(OVERRIDE_EVENT, payload={"level": "적극 관리"})
+
+    ms = coach_live.build("qa")["management_support"]
+    assert ms["effective"] == "적극 관리" and ms["override"] == "적극 관리"
+    assert ms["recommended"] == "가이드"                  # 권장은 덮어쓰지 않는다
+    assert "승인" in ms["tone_hint"]                      # 어떤 강도든 실행은 승인 뒤
+    assert build_user_profile().allocation_context() == before
+
+
 # ── 어젠다 큐 (트리아지 → 벨 인박스 → consume) ──
 
 def test_agenda_adjust_becomes_follow_up_question():

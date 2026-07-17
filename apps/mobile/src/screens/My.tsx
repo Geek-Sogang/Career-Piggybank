@@ -1,13 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import {
-  getGigProfile, getPersona, getPersonalizationV2, readPersona, setManagementOverride,
+  getGigProfile, getPersona, readPersona, setManagementOverride,
   type GigProfile, type Persona, type PersonalizationV2,
 } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, Mascot } from '@/components/ui';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { loadPersonalizationV2, updatePersonalizationV2, usePersonalizationV2 } from '@/lib/personalization';
 import { useApp, type Push } from '@/store';
 
 const MENU: { icon: IconName; color: string; label: string; push: Exclude<Push, null> }[] = [
@@ -151,12 +152,16 @@ function friendlyAxisResult(key: string, value: number): string {
 export function My() {
   const { vals, actions } = useApp();
   const [detailOpen, setDetailOpen] = useState(false);
-  const [v2, setV2] = useState<PersonalizationV2 | null>(null);
+  const v2 = usePersonalizationV2();   // 아바타·홈 배너와 같은 세션 공유 캐시
   const [v2Error, setV2Error] = useState(false);
-  const loadV2 = () => getPersonalizationV2()
-    .then((profile) => { setV2(profile); setV2Error(false); })
-    .catch(() => setV2Error(true));
-  useEffect(() => { loadV2(); }, []);
+  const reloadV2 = () => {
+    setV2Error(false);
+    return loadPersonalizationV2(true).then((r) => setV2Error(r == null));
+  };
+  useEffect(() => {
+    if (v2) { setV2Error(false); return; }
+    void loadPersonalizationV2().then((r) => setV2Error(r == null));
+  }, [v2]);
   return (
     <View style={{ gap: 14 }}>
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -176,11 +181,11 @@ export function My() {
 
       {/* 긱 구조 2 + 금융 대응 3 — 측정·판독·서비스 매핑을 분리한다. */}
       {v2 && <GigProfileCard v2={v2} />}
-      {v2 && <FinancialResponseCard v2={v2} onUpdated={setV2} />}
+      {v2 && <FinancialResponseCard v2={v2} onUpdated={updatePersonalizationV2} />}
       {!v2 && v2Error && (
         <Card>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>개인화 프로필을 불러오지 못했어요</Text>
-          <Pressable onPress={loadV2} style={{ marginTop: 8 }}>
+          <Pressable onPress={reloadV2} style={{ marginTop: 8 }}>
             <Text style={{ fontSize: 12, fontWeight: '800', color: colors.green }}>다시 불러오기</Text>
           </Pressable>
         </Card>
@@ -196,7 +201,7 @@ export function My() {
         </Pressable>
       </Card>
       {detailOpen && v2 && <PersonalizationMapCard v2={v2} />}
-      {detailOpen && <PersonaCard onChanged={loadV2} />}
+      {detailOpen && <PersonaCard onChanged={reloadV2} />}
 
       <Card p={0} style={{ paddingHorizontal: 16 }}>
         {MENU.map((m, i) => (

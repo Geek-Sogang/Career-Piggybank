@@ -3,9 +3,9 @@ import { View, Text, Pressable, TextInput } from 'react-native';
 import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeIdea, type Goal, type PeerIdea } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
-import { CareerRhythmMap } from '@/components/CareerRhythmMap';
+import { CareerPiggybank } from '@/components/CareerPiggybank';
 import { Card, Mascot, Stat, T } from '@/components/ui';
-import { useApp, VERIFIED } from '@/store';
+import { useApp } from '@/store';
 
 // 서버/LLM 미가동 시 오프라인 폴백 문구
 const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
@@ -15,10 +15,16 @@ export function Piggy() {
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
   const [goals, setGoals] = useState<Goal[]>([]);
   useEffect(() => {
-    fetchStrength()
+    fetchStrength({
+      verified_count: vals.verified.count,
+      months_active: vals.verified.streak_months,
+      repeat_client_rate: 0,
+      settlement_growth: 0,
+      top_skill: vals.verified.recent[0]?.memo || '개발',
+    })
       .then((s) => setStrength(`"${s.line}"`)) // 결정론 후보 원문 — AI는 선택만 했음
       .catch(() => {});
-  }, []);
+  }, [vals.verified.count, vals.verified.streak_months, vals.verified.recent]);
   // 목표 봉투 — 페이싱 시트가 닫힐 때 재조회(confirm이 잔액을 움직인 직후)
   useEffect(() => {
     if (!sheet) getGoals().then(setGoals).catch(() => {});
@@ -26,7 +32,7 @@ export function Piggy() {
 
   return (
     <View style={{ gap: 14 }}>
-      <CareerRhythmMap journey={vals.journey} />
+      <CareerPiggybank piggybank={vals.piggybank} />
 
       {/* 검증된 이력 */}
       <Card>
@@ -35,9 +41,9 @@ export function Piggy() {
           <Text style={{ fontSize: 11.5, fontWeight: '600', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{vals.stage}</Text>
         </View>
         <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <Stat value={`${VERIFIED.count}`} unit="건" label="검증 완료" />
-          <Stat value={`${VERIFIED.streakMonths}`} unit="개월" label="활동 확인 기간" borderLeft />
-          <Stat value={`${VERIFIED.spanMonths}`} unit="개월" label="거래 기간" flex={1.2} borderLeft />
+          <Stat value={`${vals.verified.count}`} unit="건" label="검증 완료" />
+          <Stat value={`${vals.verified.streak_months}`} unit="개월" label="연속 확인" borderLeft />
+          <Stat value={`${vals.verified.span_months}`} unit="개월" label="활동 범위" flex={1.2} borderLeft />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 }}>
           {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: i <= ['잠정', '준검증', '확정'].indexOf(vals.stage) ? colors.green : colors.line }} />)}
@@ -60,7 +66,7 @@ export function Piggy() {
       </View>
 
       {/* 목표 봉투 — 개설은 사람, 추천(⑤a)·페이싱(⑤b)은 AI 판정까지만 */}
-      <GoalSection goals={goals} onCreated={(g) => setGoals((prev) => [...prev, g])} onPace={() => actions.openSheet('pacing')} />
+      <GoalSection goals={goals} onCreated={(g) => { setGoals((prev) => [...prev, g]); actions.refreshCareer(); }} onPace={() => actions.openSheet('pacing')} />
 
       {/* CTA */}
       <Pressable onPress={() => actions.pushScr('connect')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
@@ -73,14 +79,23 @@ export function Piggy() {
         </View>
       </Pressable>
 
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>검증된 일감</Text>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>
+        최근 검증 일감 {vals.verified.recent.length}건 · 전체 {vals.verified.count}건
+      </Text>
 
-      <Pressable onPress={() => actions.openJob('commerce')}>
-        <JobRow badge="커" badgeBg={colors.indigoTint} badgeColor={colors.indigo} title="○○커머스 · 웹 프론트엔드" sub="2025.05 정산 · 3자 교차검증" amount="₩500,000" verified />
-      </Pressable>
-      <Pressable onPress={() => actions.openJob('studio')}>
-        <JobRow badge="스" badgeBg={colors.orangeTint} badgeColor={colors.orange} title="△△스튜디오 · 랜딩 개발" sub="2025.03 정산" amount="₩1,200,000" verified />
-      </Pressable>
+      {vals.verified.recent.map((job, index) => {
+        const key = job.counterparty.includes('커머스') ? 'commerce' : job.counterparty.includes('스튜디오') ? 'studio' : null;
+        const row = <JobRow
+          badge={job.counterparty.replace(/[△○㈜]/g, '').slice(0, 1) || '일'}
+          badgeBg={index % 2 ? colors.orangeTint : colors.indigoTint}
+          badgeColor={index % 2 ? colors.orange : colors.indigo}
+          title={`${job.counterparty} · ${job.memo}`}
+          sub={`${job.date.slice(0, 7).replace('-', '.')} 정산 · 연결 자료 확인`}
+          amount={`₩${Math.round(job.amount).toLocaleString('en-US')}`}
+          verified
+        />;
+        return key ? <Pressable key={job.id} onPress={() => actions.openJob(key)}>{row}</Pressable> : <View key={job.id}>{row}</View>;
+      })}
       <Pressable onPress={() => actions.openJob('personal')}>
         <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
       </Pressable>

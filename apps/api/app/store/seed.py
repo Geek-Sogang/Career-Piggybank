@@ -31,6 +31,26 @@ _TXNS = [
 
 _ENVELOPES = {"tax": 320_000, "expense": 0, "spendable": 0, "buffer": 99_555}
 
+_VERIFIED_JOBS = {
+    "○○커머스": {"role": "웹 프론트엔드 개발", "sources": ["입금", "GitHub", "홈택스"]},
+    "△△스튜디오": {"role": "랜딩 페이지 개발", "sources": ["입금", "GitHub", "홈택스"]},
+}
+
+
+def _ensure_verified_job_events() -> None:
+    """데모의 검증 일감 2건을 명시적 사건으로 고정한다.
+
+    자동 분류된 다른 입금은 커리어 검증으로 승격하지 않는다. 기존 DB에도 안전하게 보강되며,
+    ref_id 중복 방지로 재시작해도 XP가 늘지 않는다.
+    """
+    existing = {
+        event["ref_id"] for event in db.list_events("career_job_verified") if event.get("ref_id")
+    }
+    for txn in db.list_txns():
+        detail = _VERIFIED_JOBS.get(txn["counterparty"])
+        if detail and txn["id"] not in existing:
+            db.log_event("career_job_verified", ref_id=txn["id"], payload=detail)
+
 
 def _ax(risk: float, time: float, ctrl: float, plan: float) -> dict:
     """또래 페르소나 축 — 프로필 판독 스냅샷과 같은 형태 (값은 메뉴 {0.1..0.9})."""
@@ -75,6 +95,7 @@ def ensure_seed() -> bool:
         for job, name, amount, axes in _PEERS:
             db.insert_peer_envelope(job, name, amount, axes, origin="seed")
     if db.list_txns():
+        _ensure_verified_job_events()
         return False
     for date, amount, direction, cp, memo, kind, subtype, review in _TXNS:
         signals = ["데모 시드"] if not review else ["결정론 신호 없음: '토스페이 정산'"]
@@ -85,6 +106,8 @@ def ensure_seed() -> bool:
         )
     for name, balance in _ENVELOPES.items():
         db.envelope_set(name, balance)
+
+    _ensure_verified_job_events()
 
     # 실제 행동(비금융) 계측 시드 — 조대흠은 커리어 소스 3곳을 연결하고 앱을 꾸준히 여는
     # 적극적 긱 커리어 관리형. F13=3곳은 계획성 근거, F14=여러 주 활동은 데이터 품질.

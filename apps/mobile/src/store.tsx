@@ -13,12 +13,8 @@ export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'kosa' | 'behance' | 'portfolio';
 type Conn = Record<ConnSrc, boolean>;
 
-// 검증된 이력(원장 실적) — 저금통 '검증된 이력' 카드와 점수 산정이 같은 수치를 쓴다(SSOT)
-export const VERIFIED = { count: 12, streakMonths: 8, spanMonths: 30 };
 export const CAREER_SCORE_VALUES: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
 // 커리어 검증 점수 = 검증 실적 + 외부 연결 소스. 금융상품 한도와는 분리된 평판 신호다.
-// 실적 점수: 검증건수×10 + 연속활동(개월)×10 + 거래기간(개월)×4 = 320
-const HISTORY_SCORE = VERIFIED.count * 10 + VERIFIED.streakMonths * 10 + VERIFIED.spanMonths * 4;
 const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
 const SC = {
   cons: ['2039 ~ 2041', 0.56, 0.08, '소득 하방 가정'],
@@ -45,16 +41,17 @@ function useAppState(startTab: Tab = 'home') {
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
-  const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'review_connection' | 'journey'>>({
-    score: HISTORY_SCORE,
+  const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'review_connection' | 'verified' | 'piggybank'>>({
+    score: 0,
     stage: '잠정',
     review_connection: {
       available: false, label: '검증자료 준비 중', basis: '연결된 자료가 아직 적어 검증 이력만 보여드려요',
     },
-    journey: {
-      step: 1, total_steps: 5, trust_events: 0, confirmed_income_events: 0,
-      completed_kinds: [], current_reward: '성장 시작', next_reward: '하나머니 혜택 확인',
-      next_requirement: '커리어 소스 한 곳을 연결해 첫 검증 발판을 열어요', calendar_streak_used: false,
+    verified: { count: 0, streak_months: 0, span_months: 0, recent: [] },
+    piggybank: {
+      xp: 0, work_xp: 0, mission_xp: 0, level: 1, level_title: '첫 동전', max_level: 10,
+      current_threshold: 0, next_threshold: 80, xp_to_next: 80, progress: 0,
+      completed_missions: 0, missions: [], levels: [], reward_is_example: true,
     },
   });
   const [verificationHydrated, setVerificationHydrated] = useState(false);
@@ -62,7 +59,8 @@ function useAppState(startTab: Tab = 'home') {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshCareer = () => getCareerVerification()
     .then((v) => setVerification({
-      score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey,
+      score: v.score, stage: v.stage, review_connection: v.review_connection,
+      verified: v.verified, piggybank: v.piggybank,
     }))
     .catch(() => {});
 
@@ -83,19 +81,19 @@ function useAppState(startTab: Tab = 'home') {
           return acc;
         }, { github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
         setConn(restored);
-        setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey });
+        setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, verified: v.verified, piggybank: v.piggybank });
       })
       .catch(() => {})
       .finally(() => setVerificationHydrated(true));
     // 마운트 시점의 빈 conn은 서버 복원용 키 목록으로만 사용한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // 연결 상태는 입력일 뿐, 점수·검증 단계·소득리듬 여정은 백엔드 결정론 응답을 표시한다.
+  // 연결 상태는 입력일 뿐, 점수·검증 단계·커리어 저금통 XP는 백엔드 결정론 응답을 표시한다.
   useEffect(() => {
     if (!verificationHydrated) return;
     const active = (Object.keys(conn) as ConnSrc[]).filter((src) => conn[src]);
     updateCareerVerification(active, 'developer')
-      .then((v) => setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey }))
+      .then((v) => setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, verified: v.verified, piggybank: v.piggybank }))
       .catch(() => {});
   }, [conn, verificationHydrated]);
   const apply = (src: ConnSrc, on: boolean) => {
@@ -145,7 +143,8 @@ function useAppState(startTab: Tab = 'home') {
     const sc = SC[scenario];
     return {
       scr, conn: c, stage, score,
-      journey: verification.journey,
+      verified: verification.verified,
+      piggybank: verification.piggybank,
       reviewReady: verification.review_connection.available,
       reviewLabel: verification.review_connection.label,
       reviewBasis: verification.review_connection.basis,

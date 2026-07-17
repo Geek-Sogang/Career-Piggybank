@@ -22,7 +22,7 @@ JSON만 출력: {"choice": 번호(0부터), "reason": "선택 이유 한 문장(
 
 @dataclass(frozen=True)
 class CareerFacts:
-    """검증 이력 통계 — 실서비스는 검증 파이프라인이 산출, 데모는 상수."""
+    """검증 이력 통계 — 검증 SSOT에서 받은 실측값만 사용한다."""
 
     verified_count: int = 0            # 확정검증 건수
     months_active: int = 0             # 연속 활동 개월
@@ -49,10 +49,10 @@ def build_candidates(f: CareerFacts) -> list[str]:
         out.append(f"정산액이 1년새 {f.settlement_growth:g}배 — 빠르게 성장하는 커리어")
     if f.months_active >= 12:
         out.append(f"{f.months_active}개월 연속 활동 — 공백 없이 꾸준한 실행력")
-    if f.top_skill and f.verified_count >= 5:
-        out.append(f"{f.top_skill} 분야 검증 일감 {f.verified_count}건 — 3자 교차검증 완료")
-    elif f.verified_count >= 5:
-        out.append(f"검증 이력 {f.verified_count}건 — 전부 정산·세금으로 교차검증")
+    if f.top_skill and f.verified_count >= 1:
+        out.append(f"{f.top_skill} 분야 검증 일감 {f.verified_count}건 — 정산 입금과 연결자료로 확인")
+    elif f.verified_count >= 1:
+        out.append(f"검증 이력 {f.verified_count}건 — 정산 입금과 연결자료로 확인")
     return out
 
 

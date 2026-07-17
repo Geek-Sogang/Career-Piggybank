@@ -209,6 +209,8 @@ def test_tag_and_decision_log_events():
     assert len(decided) == 1
     assert decided[0]["payload"]["action"] == "adjust"
     assert decided[0]["payload"]["buffer_delta"] == 50_000
+    assert decided[0]["payload"]["income_event_id"] == res["transaction"]["id"]
+    assert decided[0]["payload"]["rhythm_eligible"] is True
 
     txn_id = res["transaction"]["id"]
     client.post(f"/v1/bank/transactions/{txn_id}/tag", json={"kind": "income"})

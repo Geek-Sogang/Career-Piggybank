@@ -347,7 +347,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
 
   const confirm = async () => {
     if (!alloc) return;
-    if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); } catch {} }
+    if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); actions.refreshCareer(); } catch {} }
     note(alloc, alloc.proposed, true);
     setDone('confirmed');
   };
@@ -355,7 +355,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
   const applyAdjust = async () => {
     if (!alloc || !split) return;
     if (delta === 0) return confirm(); // 조정 0 = 그대로 승인
-    if (!offline) { try { await decideAllocation(alloc.id, 'adjust', split); } catch {} }
+    if (!offline) { try { await decideAllocation(alloc.id, 'adjust', split); actions.refreshCareer(); } catch {} }
     note(alloc, split, true);
     setDone('adjusted');
   };

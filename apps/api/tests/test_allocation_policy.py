@@ -205,6 +205,8 @@ def test_deposit_flow_records_policy_and_decision_pays_reward():
     ev = [e for e in db.list_events(type_="allocation_decided")][-1]
     assert ev["payload"]["policy_arm"] == policy["arm_id"]
     assert ev["payload"]["policy_credits"] == [[policy["arm_id"], 1.0]]   # confirm = 고른 arm 성공
+    assert ev["payload"]["income_event_id"] == body["transaction"]["id"]
+    assert ev["payload"]["rhythm_eligible"] is True
 
 
 def test_reject_pays_zero_and_next_proposal_sees_it():

@@ -194,8 +194,16 @@ export function setManagementOverride(level: string | null) {
 
 export type CareerVerification = {
   job: 'developer' | 'designer' | 'creator'; sources: string[];
-  score: number; stage: '잠정' | '준검증' | '확정'; limit: number;
+  score: number; stage: '잠정' | '준검증' | '확정';
+  score_breakdown: { verified_history: number; connected_sources: number };
+  review_connection: { available: boolean; label: string; basis: string };
   verified: { count: number; streak_months: number; span_months: number };
+  journey: {
+    step: number; total_steps: number; trust_events: number; confirmed_income_events: number;
+    completed_kinds: ('trust' | 'income_rhythm')[];
+    current_reward: string; next_reward: string | null; next_requirement: string | null;
+    calendar_streak_used: false;
+  };
 };
 export function getCareerVerification() {
   return get<CareerVerification>('/v1/profile/verification');

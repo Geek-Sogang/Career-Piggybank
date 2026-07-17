@@ -29,13 +29,15 @@ def _income(i: int) -> None:
     )
 
 
-def test_verification_score_stage_and_limit_are_deterministic() -> None:
+def test_verification_score_stage_and_review_gate_are_deterministic() -> None:
     cold = career_verification.compute([])
-    assert (cold.score, cold.stage, cold.limit) == (320, "잠정", 600_000)
+    assert (cold.score, cold.stage, cold.review_ready) == (320, "잠정", False)
+    assert "limit" not in cold.as_dict()
 
     verified = career_verification.compute(["github", "hometax", "github"])
     assert verified.sources == ("github", "hometax")
-    assert (verified.score, verified.stage, verified.limit) == (390, "확정", 2_000_000)
+    assert (verified.score, verified.stage, verified.review_ready) == (390, "확정", True)
+    assert verified.as_dict()["review_connection"]["label"] == "검증자료로 심사 연결"
 
 
 def test_verification_endpoint_persists_latest_job_and_sources() -> None:
@@ -47,14 +49,52 @@ def test_verification_endpoint_persists_latest_job_and_sources() -> None:
     assert build_user_profile().career.job == "designer"
 
 
-def test_verified_limit_reaches_credit_product_basis() -> None:
+def test_confirmed_stage_only_adds_review_material_to_credit_basis() -> None:
     candidates, _ = product_match.eligible(
         invest_available=0, tax_balance=0,
         ctx=AllocationContext(expected_gap_days=45), has_confirmed_income=True,
-        verified_credit_limit=1_900_000,
+        career_review_ready=True,
     )
     emergency = next(c for c in candidates if c.product_id == "emergency")
-    assert "커리어 검증 한도 1,900,000원" in emergency.basis
+    assert "커리어 검증자료를 심사 화면에서 함께 확인" in emergency.basis
+    assert "한도" not in emergency.basis
+
+
+def test_income_rhythm_counts_unique_confirmed_income_events_only() -> None:
+    events = [
+        {"type": "app_opened", "payload": {}},
+        {"type": "allocation_decided", "payload": {
+            "action": "confirm", "rhythm_eligible": True, "income_event_id": "txn-1",
+        }},
+        {"type": "allocation_decided", "payload": {
+            "action": "confirm", "rhythm_eligible": True, "income_event_id": "txn-1",
+        }},
+        {"type": "allocation_decided", "payload": {
+            "action": "reject", "rhythm_eligible": False, "income_event_id": "txn-2",
+        }},
+        {"type": "pacing_decided", "payload": {"action": "confirm"}},
+    ]
+    result = career_verification.compute(["hometax"], events=events)
+    assert result.score == 360
+    assert result.journey.trust_events == 1
+    assert result.journey.confirmed_income_events == 1
+    assert result.journey.completed_kinds == ("trust", "income_rhythm")
+    assert result.as_dict()["journey"]["calendar_streak_used"] is False
+
+
+def test_approved_deposit_advances_rhythm_without_changing_trust_score() -> None:
+    before = client.get("/v1/profile/verification").json()
+    body = client.post("/v1/bank/deposit", json={
+        "date": "2025-06-10", "amount": 900_000, "counterparty": "크몽", "memo": "정산",
+    }).json()
+    allocation = body["allocation"]
+    assert allocation is not None
+    client.post(f"/v1/allocations/{allocation['id']}/decision", json={"action": "confirm"})
+
+    after = client.get("/v1/profile/verification").json()
+    assert (after["score"], after["stage"]) == (before["score"], before["stage"])
+    assert after["journey"]["confirmed_income_events"] == 1
+    assert after["journey"]["step"] == before["journey"]["step"] + 1
 
 
 def test_stale_persona_remains_visible_but_is_not_used_for_money() -> None:

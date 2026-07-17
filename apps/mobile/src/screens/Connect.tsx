@@ -8,23 +8,31 @@ export function Connect() {
   const { vals, flash, actions } = useApp();
   const c = vals.conn;
   const verificationMessage = c.hometax && c.kosa
-    ? '홈택스 3.3% 신고·KOSA 협회 경력과 입금 내역을 함께 확인해 ‘검증 완료’ 됐어요.'
+    ? '홈택스 3.3% 신고소득과 KOSA 협회 경력을 입금 이력과 함께 확인해 ‘확정’ 단계가 됐어요.'
     : c.hometax
-      ? '홈택스 3.3% 신고와 입금 내역이 교차검증되어 ‘검증 완료’ 됐어요.'
+      ? '홈택스 3.3% 신고소득을 입금 이력과 함께 확인해 ‘확정’ 단계가 됐어요.'
       : c.kosa
-        ? 'KOSA 협회 경력 인증이 확인되어 ‘검증 완료’ 됐어요. 홈택스를 연결하면 신고소득과 입금 내역도 교차검증할 수 있어요.'
+        ? 'KOSA 협회 경력을 확인해 ‘확정’ 단계가 됐어요. 홈택스를 연결하면 신고소득도 함께 확인할 수 있어요.'
         : null;
+  const recommendation: { src: 'hometax' | 'github' | 'kosa' | 'mydata'; title: string; sub: string } = !c.hometax
+    ? { src: 'hometax', title: '홈택스로 신고소득 확인하기', sub: '+40점 · 확정 단계와 검증 발판' }
+    : !c.github
+      ? { src: 'github', title: 'GitHub로 작업 활동 연결하기', sub: '+30점 · 커밋과 PR 활동' }
+      : !c.kosa
+        ? { src: 'kosa', title: 'KOSA 경력자료 더하기', sub: '+35점 · 협회 경력 확인' }
+        : { src: 'mydata', title: '마이데이터로 소득 흐름 연결하기', sub: '+50점 · 별도 동의 후 연결' };
   return (
     <View style={{ gap: 14 }}>
-      {/* 한도 카드 */}
+      {/* 이식 가능한 커리어 평판 카드 — 금융 한도와 분리 */}
       <View style={{ borderRadius: 22, padding: 20, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 14 } }}>
-        <Text style={{ fontSize: 12.5, fontWeight: '600', color: 'rgba(255,255,255,.82)' }}>연결할수록 올라가는 커리어 점수</Text>
+        <Text style={{ fontSize: 12.5, fontWeight: '500', color: 'rgba(255,255,255,.82)' }}>검증된 일을 쌓는 커리어 평판</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
           <Text style={{ fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.2, ...T.num }}>{vals.score}</Text>
           <Text style={{ fontSize: 20, fontWeight: '700', color: '#fff', opacity: 0.9 }}>점</Text>
         </View>
-        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.78)', marginTop: 3 }}>데이터를 연결(give)하면 점수가 오르고 한도(get)가 커져요</Text>
-        <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#fff', marginTop: 9 }}>검증 한도 ₩{vals.limitWon} <Text style={{ fontWeight: '600', color: 'rgba(255,255,255,.78)' }}>= 점수 × 검증 단계({vals.stage})</Text></Text>
+        <Text style={{ fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,.78)', marginTop: 3 }}>검증 이력과 연결 자료를 다른 서비스에도 설명할 수 있게 모아요</Text>
+        <Text style={{ fontSize: 12.5, fontWeight: '600', color: '#fff', marginTop: 9 }}>검증 {vals.stage} · {vals.reviewLabel}</Text>
+        <Text style={{ fontSize: 10.5, fontWeight: '400', color: 'rgba(255,255,255,.7)', marginTop: 5 }}>이 점수는 상품 자격·금리·한도를 계산하지 않아요</Text>
         {flash ? (
           <Text style={{ position: 'absolute', top: 18, right: 18, backgroundColor: colors.pink, color: '#fff', fontSize: 12.5, fontWeight: '800', paddingVertical: 7, paddingHorizontal: 11, borderRadius: 11, overflow: 'hidden' }}>{flash}</Text>
         ) : null}
@@ -66,12 +74,12 @@ export function Connect() {
       <View style={{ backgroundColor: colors.pinkTint, borderWidth: 1, borderColor: colors.pinkLine, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Mascot head size={40} radius={12} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.pinkInk, letterSpacing: 0.2 }}>다음 추천 연결</Text>
-          <Text style={{ fontSize: 13.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>Behance 연결하면 점수가 더 올라요</Text>
-          <Text style={{ fontSize: 11.5, color: '#B07089', marginTop: 2, fontWeight: '600' }}>+30점 · 디자인 포트폴리오</Text>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.pinkInk, letterSpacing: 0.2 }}>다음 추천 연결</Text>
+          <Text style={{ fontSize: 13.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>{recommendation.title}</Text>
+          <Text style={{ fontSize: 11.5, color: '#B07089', marginTop: 2, fontWeight: '400' }}>{recommendation.sub}</Text>
         </View>
-        <Pressable onPress={() => actions.toggle('behance')} style={{ backgroundColor: colors.black, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 11 }}>
-          <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '700' }}>{c.behance ? '연결됨' : '연결'}</Text>
+        <Pressable onPress={() => actions.toggle(recommendation.src)} style={{ backgroundColor: colors.black, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 11 }}>
+          <Text style={{ color: '#fff', fontSize: 12.5, fontWeight: '700' }}>연결</Text>
         </Pressable>
       </View>
     </View>

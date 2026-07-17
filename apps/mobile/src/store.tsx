@@ -16,10 +16,9 @@ type Conn = Record<ConnSrc, boolean>;
 // 검증된 이력(원장 실적) — 저금통 '검증된 이력' 카드와 점수 산정이 같은 수치를 쓴다(SSOT)
 export const VERIFIED = { count: 12, streakMonths: 8, spanMonths: 30 };
 export const CAREER_SCORE_VALUES: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
-// 커리어 점수 = 검증 실적 + 연결 소스. 장식 숫자가 아니라 검증 한도 산정의 입력.
+// 커리어 검증 점수 = 검증 실적 + 외부 연결 소스. 금융상품 한도와는 분리된 평판 신호다.
 // 실적 점수: 검증건수×10 + 연속활동(개월)×10 + 거래기간(개월)×4 = 320
 const HISTORY_SCORE = VERIFIED.count * 10 + VERIFIED.streakMonths * 10 + VERIFIED.spanMonths * 4;
-const AGE_KR = ['영', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'] as const;
 const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
 const SC = {
   cons: ['2039 ~ 2041', 0.56, 0.08, '소득 하방 가정'],
@@ -46,12 +45,26 @@ function useAppState(startTab: Tab = 'home') {
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
-  const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'limit'>>({
-    score: HISTORY_SCORE, stage: '잠정', limit: 600_000,
+  const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'review_connection' | 'journey'>>({
+    score: HISTORY_SCORE,
+    stage: '잠정',
+    review_connection: {
+      available: false, label: '검증자료 준비 중', basis: '연결된 자료가 아직 적어 검증 이력만 보여드려요',
+    },
+    journey: {
+      step: 1, total_steps: 5, trust_events: 0, confirmed_income_events: 0,
+      completed_kinds: [], current_reward: '성장 시작', next_reward: '하나머니 혜택 확인',
+      next_requirement: '커리어 소스 한 곳을 연결해 첫 검증 발판을 열어요', calendar_streak_used: false,
+    },
   });
   const [verificationHydrated, setVerificationHydrated] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshCareer = () => getCareerVerification()
+    .then((v) => setVerification({
+      score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey,
+    }))
+    .catch(() => {});
 
   const fl = (t: string) => {
     setFlash(t);
@@ -70,19 +83,19 @@ function useAppState(startTab: Tab = 'home') {
           return acc;
         }, { github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
         setConn(restored);
-        setVerification({ score: v.score, stage: v.stage, limit: v.limit });
+        setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey });
       })
       .catch(() => {})
       .finally(() => setVerificationHydrated(true));
     // 마운트 시점의 빈 conn은 서버 복원용 키 목록으로만 사용한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // 연결 상태는 입력일 뿐, 점수·검증 단계·금융상품 한도는 백엔드 결정론 응답을 표시한다.
+  // 연결 상태는 입력일 뿐, 점수·검증 단계·소득리듬 여정은 백엔드 결정론 응답을 표시한다.
   useEffect(() => {
     if (!verificationHydrated) return;
     const active = (Object.keys(conn) as ConnSrc[]).filter((src) => conn[src]);
     updateCareerVerification(active, 'developer')
-      .then((v) => setVerification({ score: v.score, stage: v.stage, limit: v.limit }))
+      .then((v) => setVerification({ score: v.score, stage: v.stage, review_connection: v.review_connection, journey: v.journey }))
       .catch(() => {});
   }, [conn, verificationHydrated]);
   const apply = (src: ConnSrc, on: boolean) => {
@@ -108,7 +121,11 @@ function useAppState(startTab: Tab = 'home') {
     back: () => setPush(null),
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     noteAllocation: (n: AllocNotice) => setLastAlloc(n),
-    markAllocConfirmed: () => setLastAlloc((p) => (p ? { ...p, confirmed: true } : p)),
+    markAllocConfirmed: () => {
+      setLastAlloc((p) => (p ? { ...p, confirmed: true } : p));
+      refreshCareer();
+    },
+    refreshCareer,
     // ⑤b는 백엔드 confirm이 잔액을 이동한다. 로컬에서는 이동 동선만 담당한다.
     applyPacing: (_deposits: Record<string, number>) => {
       setPacingApplied({});
@@ -123,18 +140,16 @@ function useAppState(startTab: Tab = 'home') {
   const vals = useMemo(() => {
     const c = conn;
     const score = verification.score;
-    const ageIdx = Math.min(Math.floor(score / 100), AGE_KR.length - 1);
-    const nextIdx = Math.min(ageIdx + 1, AGE_KR.length - 1);
-    const toNext = 100 - (score % 100);
     const scr = push || tab;
     const stage: keyof typeof STAGE_MAP = verification.stage;
-    const limit = verification.limit;
     const sc = SC[scenario];
     return {
-      scr, conn: c, limit, stage, score, toNext, ageLabel: `${AGE_KR[ageIdx]} 살`, nextAgeLabel: `${AGE_KR[nextIdx]} 살`,
+      scr, conn: c, stage, score,
+      journey: verification.journey,
+      reviewReady: verification.review_connection.available,
+      reviewLabel: verification.review_connection.label,
+      reviewBasis: verification.review_connection.basis,
       stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
-      limitWon: limit.toLocaleString('en-US'),
-      limitManwon: Math.round(limit / 10_000),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ piggy: '커리어', ledger: '정산', my: '마이' } as Record<string, string>)[tab] || '',
       headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)' } as Record<string, string>)[push || ''] || '',

@@ -126,7 +126,7 @@ def build(intent: str = "qa") -> dict:
         invest_available = float(allocs[-1]["meta"].get("invest_available", 0.0)) if allocs else 0.0
         candidates, vetoed = product_match.eligible(
             invest_available, balances.get("tax", 0.0), up.allocation_context(),
-            up.has_confirmed_incoming, verified_credit_limit=up.career.limit,
+            up.has_confirmed_incoming, career_review_ready=up.career.review_ready,
         )
         ctx["product_candidates"] = [c.as_dict() for c in candidates]
         if vetoed:

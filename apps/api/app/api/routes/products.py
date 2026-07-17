@@ -36,7 +36,7 @@ def match() -> dict:
     tax_balance = db.envelope_balances()["tax"]
     candidates, vetoed = product_match.eligible(
         invest_available, tax_balance, up.allocation_context(), up.has_confirmed_incoming,
-        verified_credit_limit=up.career.limit,
+        career_review_ready=up.career.review_ready,
     )
 
     picks = product_match_agent.select(candidates, list(up.factsheet), up.persona_axes, db.list_goals())
@@ -47,5 +47,5 @@ def match() -> dict:
         "persona_used": up.persona_axes is not None,
         "persona_staleness": up.persona_staleness,
         "verification": verification,
-        "note": "검증 한도는 결정론, 상품 선택은 판정일 뿐 — 가입은 사람의 결정",
+        "note": "커리어 점수는 한도를 계산하지 않아요. 상품 선택은 판정일 뿐, 심사·가입은 사람의 결정이에요",
     }

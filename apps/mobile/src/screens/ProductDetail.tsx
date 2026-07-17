@@ -6,11 +6,10 @@ import { useApp } from '@/store';
 import { PRODUCTS } from '@/products';
 
 export function ProductDetail() {
-  const { product, vals } = useApp();
+  const { product, vals, actions } = useApp();
   const p = PRODUCTS[product];
-  const highlight = product === 'emergency'
-    ? `${Math.min(2_000_000, vals.limit).toLocaleString('en-US')}원`
-    : p.highlight;
+  const highlight = p.highlight;
+  const needsVerification = product === 'emergency' && !vals.reviewReady;
   const [applied, setApplied] = useState(false);
   return (
     <View style={{ gap: 14 }}>
@@ -45,17 +44,18 @@ export function ProductDetail() {
       <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>검증 연동</Text>{'\n'}
-          내 커리어 점수 {vals.score}점(검증 {vals.stage})이 보조지표로 들어가요 — 지금 검증 한도 ₩{vals.limitWon}. 데이터를 더 연결하면 같은 조건에서 더 나은 한도·우대를 받아요.
+          커리어 검증 점수 {vals.score}점 · {vals.stage} 단계예요. {vals.reviewReady ? '연결된 자료를 심사 화면에 함께 가져갈 수 있어요.' : '홈택스 또는 KOSA 확인 후 검증자료 연결이 열려요.'}{'\n'}
+          <Text style={{ fontWeight: '400', color: colors.sub2 }}>점수만으로 상품 자격·금리·한도를 계산하지 않아요.</Text>
         </Text>
       </View>
 
       <Pressable
-        onPress={() => setApplied(true)}
+        onPress={() => needsVerification ? actions.pushScr('connect') : setApplied(true)}
         style={{ backgroundColor: applied ? colors.greenTint : colors.green, borderRadius: 15, paddingVertical: 16, alignItems: 'center', marginTop: 2, shadowColor: colors.green, shadowOpacity: applied ? 0 : 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}
       >
-        <Text style={{ color: applied ? colors.green : '#fff', fontSize: 15.5, fontWeight: '800' }}>{applied ? '신청 접수됨 ✓ (데모)' : p.cta}</Text>
+        <Text style={{ color: applied ? colors.green : '#fff', fontSize: 15.5, fontWeight: '800' }}>{applied ? '심사 연결됨 (데모)' : needsVerification ? '검증자료 준비하기' : p.cta}</Text>
       </Pressable>
-      {applied ? <Text style={{ fontSize: 12, color: colors.sub2, textAlign: 'center', fontWeight: '500', marginTop: -4 }}>실제 신청은 하나원큐 인증 후 진행돼요.</Text> : null}
+      {applied ? <Text style={{ fontSize: 12, color: colors.sub2, textAlign: 'center', fontWeight: '400', marginTop: -4 }}>실제 자격·한도·금리는 하나원큐 심사에서 확인해요.</Text> : null}
     </View>
   );
 }

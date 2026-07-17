@@ -2,9 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
-import { Icon } from '@/components/Icon';
 import { CharacterImage } from '@/components/CharacterImage';
-import { Mascot } from '@/components/ui';
 import { useApp } from '@/store';
 
 // 온보딩 3페이지 — 토스 프로모 문법: 파스텔 풀블리드 + 큰 3D 캐릭터 + 굵은 카피.
@@ -28,49 +26,7 @@ const INTRO_PAGES: { bg: string; kicker: string; title: string; sub: string }[] 
 
 export function Intro() {
   const { actions } = useApp();
-  const [step, setStep] = useState<'splash' | 'login' | 'onboarding'>('splash');
   const [page, setPage] = useState(0);
-
-  if (step === 'splash') {
-    return (
-      <Pressable onPress={() => setStep('login')} style={{ flex: 1, backgroundColor: colors.green }}>
-        <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 60 }} edges={['top', 'bottom']}>
-          <Mascot size={230} />
-          <Text style={{ fontSize: 27, fontWeight: '800', color: '#fff', letterSpacing: -0.8, marginTop: 14 }}>커리어 저금통</Text>
-          <Text style={{ fontSize: 14, fontWeight: '500', color: 'rgba(255,255,255,.85)', textAlign: 'center', lineHeight: 22, marginTop: 8 }}>당신이 ‘한 일’이,{'\n'}당신의 자산이 됩니다.</Text>
-          <Text style={{ position: 'absolute', bottom: 34, fontSize: 11.5, fontWeight: '600', color: 'rgba(255,255,255,.6)' }}>하나금융그룹</Text>
-        </SafeAreaView>
-      </Pressable>
-    );
-  }
-
-  if (step === 'login') {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }} edges={['top', 'bottom']}>
-        <View style={{ flex: 1, paddingHorizontal: 26, paddingBottom: 30 }}>
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-            <Mascot head size={84} radius={26} style={{ borderWidth: 1, borderColor: colors.line }} />
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 24, fontWeight: '800', letterSpacing: -0.7, color: colors.ink }}>커리어 저금통</Text>
-              <Text style={{ fontSize: 13.5, color: colors.sub2, fontWeight: '500', marginTop: 6 }}>긱워커를 위한 생활금융</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}>
-              <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.green, borderWidth: 1.5, borderColor: '#B7DDDD', paddingVertical: 7, paddingHorizontal: 13, borderRadius: 11, overflow: 'hidden' }}>하나원큐</Text>
-              <Icon name="arrowRight" size={20} color="#C2C7CE" sw={2.2} />
-              <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#fff', backgroundColor: colors.green, paddingVertical: 7, paddingHorizontal: 13, borderRadius: 11, overflow: 'hidden' }}>빅워커 코너</Text>
-            </View>
-          </View>
-          <View style={{ gap: 12 }}>
-            <Pressable onPress={() => setStep('onboarding')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 17, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.55, shadowRadius: 24, shadowOffset: { width: 0, height: 12 } }}>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>하나원큐로 시작하기</Text>
-            </Pressable>
-            <Text style={{ fontSize: 12, color: colors.sub2, textAlign: 'center', fontWeight: '500', lineHeight: 18 }}>하나원큐 인증 후 ‘빅워커 코너’로 자동 연결돼요</Text>
-            <Pressable onPress={() => setStep('onboarding')}><Text style={{ fontSize: 13.5, color: colors.sub, textAlign: 'center', fontWeight: '600', marginTop: 2 }}>다른 방법으로 로그인</Text></Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   // 온보딩 — 토스 프로모 문법 3페이지
   const current = INTRO_PAGES[page];

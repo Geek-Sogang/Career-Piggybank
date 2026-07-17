@@ -20,9 +20,6 @@ from app.store import db
 
 router = APIRouter(prefix="/v1/envelopes", tags=["envelopes"])
 
-MY_JOB = "developer"   # 데모 = 조대흠 (spending_profile 프리셋과 동일 키 — 실서비스는 프로필)
-
-
 class GoalCreate(BaseModel):
     name: str = Field(min_length=1, max_length=20)
     target_amount: float = Field(gt=0)
@@ -47,9 +44,9 @@ def create_goal(req: GoalCreate) -> dict:
                  payload={"name": req.name, "source": req.source})
     # 개설이 또래 풀에 기여 — 내 페르소나 축과 함께 저장돼 다음 사람의 유사도 매칭 재료가
     # 된다. 내게는 기존 이름 제외 규칙으로 되돌아오지 않는다.
-    snap = db.latest_snapshot()
-    db.insert_peer_envelope(MY_JOB, req.name, req.target_amount,
-                            snap["axes"] if snap else None, origin="user")
+    up = build_user_profile()
+    db.insert_peer_envelope(up.career.job, req.name, req.target_amount,
+                            up.persona_axes, origin="user")
     return db.get_goal(goal_id)  # type: ignore[return-value]
 
 
@@ -73,7 +70,7 @@ def recommend() -> dict:
     ai_names = {i.name for i in ideas}
     peers = [
         p for p in peer_envelopes.recommend(
-            MY_JOB, axes, {g["name"] for g in goals_now}, db.list_peer_envelopes(),
+            up.career.job, axes, {g["name"] for g in goals_now}, db.list_peer_envelopes(),
             monthly_surplus=monthly_surplus,
         ) if p.name not in ai_names
     ]

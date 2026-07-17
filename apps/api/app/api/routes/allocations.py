@@ -43,6 +43,9 @@ def to_response(a: dict) -> AllocationResponse:
         assumptions=meta.get("assumptions", {}),
         product_hooks=[ProductHook(**h) for h in meta.get("product_hooks", [])],
         gig_archetype=meta.get("gig_archetype", ""),
+        policy=meta.get("policy"),
+        persona_used=meta.get("persona_used", False),
+        persona_staleness=meta.get("persona_staleness"),
     )
 
 
@@ -62,6 +65,7 @@ def propose(req: ProposeRequest) -> AllocationResponse:
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "product_hooks": product_match.hooks_for(p),
+            "persona_used": False,
         },
     )
     return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]

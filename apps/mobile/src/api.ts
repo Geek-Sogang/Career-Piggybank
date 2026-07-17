@@ -66,7 +66,7 @@ export type ProductHook = { product_id: string; envelope: string; name: string; 
 // 후보는 적합성 veto(결정론)를 통과한 것만 — AI는 그 메뉴 안에서 고르고 근거 팩트를 인용.
 export type ProductMatchPick = ProductHook & { evidence: string[]; source: 'llm' | 'rule' };
 export function fetchProductMatch() {
-  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string }>(
+  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string; verification: CareerVerification }>(
     '/v1/products/match', {}, 60_000, // 로컬 7.8B 생성 대기
   );
 }
@@ -80,6 +80,11 @@ export type Allocation = {
   reasons: string[];
   product_hooks?: ProductHook[];
   gig_archetype?: string;   // 이 배분을 만든 긱워커 소득 유형 한 줄
+  buffer_target: number;
+  invest_available: number;
+  policy?: { arm_id: string; months: number; reason: string; prior_source: string } | null;
+  persona_used: boolean;
+  persona_staleness?: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
 };
 
 export function proposeAllocation(deposit: number, profile = DEMO_PROFILE) {
@@ -157,8 +162,20 @@ export function getGigProfile() {
 export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio_uploaded', source?: string) {
   return post('/v1/behavior', { type, source }).catch(() => {});
 }
-export function readPersona() {
-  return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
+export function readPersona(trigger: 'manual' | 'onboarding' = 'manual') {
+  return post<{ snapshot_id: string }>(`/v1/profile/read?trigger=${trigger}`, {}, 300_000); // 축당 7.8B — 수십 초
+}
+
+export type CareerVerification = {
+  job: 'developer' | 'designer' | 'creator'; sources: string[];
+  score: number; stage: '잠정' | '준검증' | '확정'; limit: number;
+  verified: { count: number; streak_months: number; span_months: number };
+};
+export function getCareerVerification() {
+  return get<CareerVerification>('/v1/profile/verification');
+}
+export function updateCareerVerification(sources: string[], job: CareerVerification['job'] = 'developer') {
+  return post<CareerVerification>('/v1/profile/verification', { sources, job }, 15_000);
 }
 
 // ── 목표 봉투 + 금액 페이싱 — 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만 ──
@@ -193,6 +210,8 @@ export type PacingProposal = {
   judgment: { reason: string; fallback: boolean; evidence: string[]; stances: Record<string, string> };
   goals: { id: string; name: string; base: number; stance: string; amount: number }[];
   source: string;
+  persona_used: boolean;
+  persona_staleness: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
 };
 export function proposePacing(available: number, today: string, source: 'deposit' | 'buffer') {
   return post<PacingProposal>('/v1/pacing/propose',
@@ -275,4 +294,9 @@ export const OFFLINE_ALLOCATION: Allocation = {
     },
   ],
   gig_archetype: '고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄',
+  buffer_target: 3_600_000,
+  invest_available: 0,
+  policy: null,
+  persona_used: false,
+  persona_staleness: null,
 };

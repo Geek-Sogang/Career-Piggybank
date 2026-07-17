@@ -10,20 +10,25 @@ export function Retirement() {
   const { vals, scenario, actions } = useApp();
   // 원장 시계열 라이브 예측 — 서버 다운 시 정적 시나리오 폴백 (데모 불사)
   const [fc, setFc] = useState<Forecast | null>(null);
+  const [forecastUnavailable, setForecastUnavailable] = useState(false);
   useEffect(() => {
-    getForecast().then(setFc).catch(() => {});
+    let live = true;
+    getForecast()
+      .then((next) => { if (live) setFc(next); })
+      .catch(() => { if (live) setForecastUnavailable(true); });
+    return () => { live = false; };
   }, []);
   const liveBand = fc?.retirement.find((b) => b.scenario === scenario)?.label;
   const chart = fc ? buildChart(fc.path, fc.retirement, scenario) : null;
   return (
     <View style={{ gap: 16 }}>
       <View>
-        <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>예상 은퇴 시점 — 일감 흐름 기준</Text>
-        <Text style={{ fontSize: 32, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{liveBand ?? vals.scLabel}</Text>
+        <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>일감 소득 유지 전망 — 생활비 기준</Text>
+        <Text style={{ fontSize: 32, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{liveBand ?? (forecastUnavailable ? vals.scLabel : '계산 중…')}</Text>
         <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '600', marginTop: 3 }}>
           {fc
-            ? `미래 ${fc.mc.runs.toLocaleString('en-US')}개 시뮬레이션 — 90%가 ${fc.mc.band_end_year}년 이전 은퇴선 도달 · 내 입금 시계열 기반`
-            : `${vals.scSub} · 신뢰구간 밴드`}
+            ? `미래 ${fc.mc.runs.toLocaleString('en-US')}개 시뮬레이션 — 90%가 ${fc.mc.band_end_year}년 이전 생활비 기준선 하회 · 내 입금 시계열 기반`
+            : forecastUnavailable ? `${vals.scSub} · 오프라인 신뢰구간` : '내 입금 시계열을 불러오는 중이에요'}
         </Text>
       </View>
 
@@ -71,28 +76,32 @@ export function Retirement() {
                 <Path d={chart.curve} fill="none" stroke={colors.green} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
                 {chart.crossX != null && <Circle cx={chart.crossX} cy={chart.targetY} r={4.5} fill={colors.green} stroke="#fff" strokeWidth={2} />}
               </>
-            ) : (
+            ) : forecastUnavailable ? (
               <>
                 <Path d="M10 170 C 110 150 205 86 310 50 L 310 104 C 205 134 110 168 10 176 Z" fill="rgba(0,132,133,.10)" />
                 <Line x1="10" y1="74" x2="310" y2="74" stroke="#D7DBE0" strokeWidth={1.4} strokeDasharray="4 4" />
                 <Path d="M10 173 C 110 158 205 92 310 62" fill="none" stroke={colors.green} strokeWidth={2.6} strokeLinecap="round" />
                 <Circle cx="206" cy="74" r="4.5" fill={colors.green} stroke="#fff" strokeWidth={2} />
               </>
+            ) : (
+              <Line x1="10" y1="100" x2="310" y2="100" stroke="#E3E6EA" strokeWidth={10} strokeLinecap="round" />
             )}
           </Svg>
           {/* 시나리오 신뢰구간 밴드 — 라이브면 밴드 연도 → x좌표 */}
-          <View style={{ position: 'absolute', top: 4, bottom: 18, left: `${(chart ? chart.bandLeft : vals.scLeft) * 100}%`, width: `${(chart ? chart.bandWidth : vals.scWidth) * 100}%`, backgroundColor: 'rgba(0,132,133,.13)', borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: colors.green, borderStyle: 'dashed', borderRadius: 2 }}>
-            <Text style={{ position: 'absolute', top: -8, alignSelf: 'center', fontSize: 10, fontWeight: '800', color: colors.greenDark, backgroundColor: colors.greenTint, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>{liveBand ?? vals.scLabel}</Text>
-          </View>
-          <Text style={{ position: 'absolute', left: 10, top: chart ? `${(chart.targetY / 200) * 100 - 6}%` : '44%', fontSize: 10, fontWeight: '700', color: colors.faint, backgroundColor: '#fff', paddingHorizontal: 4 }}>{chart ? '생활비 목표' : '목표 자산'}</Text>
+          {(chart || forecastUnavailable) && (
+            <View style={{ position: 'absolute', top: 4, bottom: 18, left: `${(chart ? chart.bandLeft : vals.scLeft) * 100}%`, width: `${(chart ? chart.bandWidth : vals.scWidth) * 100}%`, backgroundColor: 'rgba(0,132,133,.13)', borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: colors.green, borderStyle: 'dashed', borderRadius: 2 }}>
+              <Text style={{ position: 'absolute', top: -8, alignSelf: 'center', fontSize: 10, fontWeight: '800', color: colors.greenDark, backgroundColor: colors.greenTint, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>{liveBand ?? vals.scLabel}</Text>
+            </View>
+          )}
+          <Text style={{ position: 'absolute', left: 10, top: chart ? `${(chart.targetY / 200) * 100 - 6}%` : '44%', fontSize: 10, fontWeight: '700', color: colors.faint, backgroundColor: '#fff', paddingHorizontal: 4 }}>생활비 목표</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
           {(chart ? chart.xLabels : ['2025', '2035', '2045']).map((y) => <Text key={y} style={{ fontSize: 10.5, fontWeight: '600', color: colors.faint }}>{y}</Text>)}
         </View>
         <View style={{ flexDirection: 'row', gap: 14, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.line2 }}>
-          <Legend color={colors.green} text={chart ? '일감 흐름(월 소득)' : '자산 추세'} />
+          <Legend color={colors.green} text="일감 흐름(월 소득)" />
           <Legend band text="신뢰구간" />
-          <Legend dash text={chart ? '생활비 목표' : '목표'} />
+          <Legend dash text="생활비 목표" />
         </View>
       </View>
 
@@ -100,9 +109,9 @@ export function Retirement() {
           병행: A는 저축을 안 보고, B는 저축이 예측을 움직인다 — 서로 다른 질문에 답한다 */}
       {fc?.funded && <FundedCard funded={fc.funded} />}
 
-      {/* 시나리오 토글 */}
+      {/* 소득 경로 토글 — 은퇴 선호가 아니라 현재 소득 수준의 하방/상방 가정 */}
       <View style={{ flexDirection: 'row', gap: 6, backgroundColor: '#EDEFF2', borderRadius: 13, padding: 4 }}>
-        {([['cons', '보수'], ['base', '기본'], ['opt', '낙관']] as [Scenario, string][]).map(([s, label]) => {
+        {([['cons', '소득 하방'], ['base', '기준'], ['opt', '소득 상방']] as [Scenario, string][]).map(([s, label]) => {
           const active = scenario === s;
           return (
             <Pressable key={s} onPress={() => actions.scen(s)} style={{ flex: 1, paddingVertical: 9, borderRadius: 10, backgroundColor: active ? '#fff' : 'transparent', alignItems: 'center' }}>
@@ -114,6 +123,8 @@ export function Retirement() {
 
       <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
+          <Text style={{ fontWeight: '800', color: colors.ink2 }}>시나리오 해석</Text>{'\n'}
+          · 하방·상방은 소득 수준 가정이에요. 소득이 오래 유지될수록 생활비 기준선 아래로 내려가는 시점도 늦어집니다.{'\n\n'}
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>예측 기준 — 긱워커 전용 커리어 신호</Text>{'\n'}
           {fc
             ? fc.career_signals.reasons.map((r) => `· ${r}`).join('\n')

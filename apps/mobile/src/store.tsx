@@ -15,16 +15,16 @@ type Conn = Record<ConnSrc, boolean>;
 
 // 검증된 이력(원장 실적) — 저금통 '검증된 이력' 카드와 점수 산정이 같은 수치를 쓴다(SSOT)
 export const VERIFIED = { count: 12, streakMonths: 8, spanMonths: 30 };
-const SCORE_VAL: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
+export const CAREER_SCORE_VALUES: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
 // 커리어 점수 = 검증 실적 + 연결 소스. 장식 숫자가 아니라 검증 한도 산정의 입력.
 // 실적 점수: 검증건수×10 + 연속활동(개월)×10 + 거래기간(개월)×4 = 320
 const HISTORY_SCORE = VERIFIED.count * 10 + VERIFIED.streakMonths * 10 + VERIFIED.spanMonths * 4;
 const AGE_KR = ['영', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉', '열'] as const;
 const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
 const SC = {
-  cons: ['2044 ~ 2047', 0.74, 0.12, '보수적 가정'],
-  base: ['2041 ~ 2044', 0.63, 0.11, '기본 가정'],
-  opt: ['2039 ~ 2041', 0.56, 0.08, '낙관 가정'],
+  cons: ['2039 ~ 2041', 0.56, 0.08, '소득 하방 가정'],
+  base: ['2041 ~ 2044', 0.63, 0.11, '기준 소득 가정'],
+  opt: ['2044 ~ 2047', 0.74, 0.12, '소득 상방 가정'],
 } as const;
 
 export type AppCtx = ReturnType<typeof useAppState>;
@@ -59,7 +59,7 @@ function useAppState(startTab: Tab = 'home') {
   const apply = (src: ConnSrc, on: boolean) => {
     setConn((c) => ({ ...c, [src]: on }));
     if (on) {
-      fl(`+${SCORE_VAL[src]}점`);
+      fl(`+${CAREER_SCORE_VALUES[src]}점`);
       logBehavior('source_connected', src);   // 스스로 소스를 연결 = 적극적 커리어 관리(F13)
     }
   };
@@ -93,7 +93,7 @@ function useAppState(startTab: Tab = 'home') {
 
   const vals = useMemo(() => {
     const c = conn;
-    const score = HISTORY_SCORE + (Object.keys(SCORE_VAL) as ConnSrc[]).reduce((a, k) => a + (c[k] ? SCORE_VAL[k] : 0), 0);
+    const score = HISTORY_SCORE + (Object.keys(CAREER_SCORE_VALUES) as ConnSrc[]).reduce((a, k) => a + (c[k] ? CAREER_SCORE_VALUES[k] : 0), 0);
     const ageIdx = Math.min(Math.floor(score / 100), AGE_KR.length - 1);
     const nextIdx = Math.min(ageIdx + 1, AGE_KR.length - 1);
     const toNext = 100 - (score % 100);
@@ -111,7 +111,7 @@ function useAppState(startTab: Tab = 'home') {
       limitManwon: Math.round(limit / 10_000),
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ piggy: '저금통', ledger: '가계부', my: '마이' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '은퇴 곡선', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '저금통 (빈 상태)' } as Record<string, string>)[push || ''] || '',
+      headerTitle: ({ connect: '커리어 연결하기', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '저금통 (빈 상태)' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,

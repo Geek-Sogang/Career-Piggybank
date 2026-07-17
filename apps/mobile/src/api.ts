@@ -165,6 +165,32 @@ export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio
 export function readPersona(trigger: 'manual' | 'onboarding' = 'manual') {
   return post<{ snapshot_id: string }>(`/v1/profile/read?trigger=${trigger}`, {}, 300_000); // 축당 7.8B — 수십 초
 }
+// V2 개인화 계약(2+2) — 확정된 4축 판독의 결정론 번역층(새 AI 판정 아님, 항상 조회 가능).
+// 배분·밴딧은 이 값을 소비하지 않는다 — 화면·설명·코치 톤 전용.
+export type V2Structure = { key: string; label: string; level: string; detail: string; fact_ids: string[] };
+export type V2Decision = {
+  key: string; label: string; level: string;
+  decision_status: 'confirmed' | 'insufficient_evidence';
+  source_axes: string[];
+  evidence: {
+    fact_ids: string[]; sample_size: number | null; gate: string;
+    fallback_used: boolean; stale: boolean | null;
+    data_quality?: { career_sources: number | null; engagement_weeks: number | null };
+  };
+  basis: string;
+};
+export type PersonalizationV2 = {
+  gig_structure: V2Structure[];
+  financial_response: V2Decision[];
+  management_override: string | null;   // 사용자 선택 — 권장과 별도 보관, 선택이 항상 이긴다
+  effective_management: string;
+};
+export function getPersonalizationV2() {
+  return get<PersonalizationV2>('/v1/profile/v2');
+}
+export function setManagementOverride(level: string | null) {
+  return post<PersonalizationV2>('/v1/profile/v2/management-override', { level }, 15_000);
+}
 
 export type CareerVerification = {
   job: 'developer' | 'designer' | 'creator'; sources: string[];

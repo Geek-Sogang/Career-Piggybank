@@ -1,13 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, Text, TextInput, View, type ViewStyle } from 'react-native';
 import {
-  getCareerScraps, getPersonalizationV2, saveCareerScrap,
+  getCareerScraps, saveCareerScrap,
   type CareerScrap, type CareerVerification, type PersonalizationV2,
 } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { CharacterImage, characterRender, type CharacterJob } from '@/components/CharacterImage';
 import { Card, Mascot, T } from '@/components/ui';
+import { usePersonalizationV2 } from '@/lib/personalization';
 
 type Piggybank = CareerVerification['piggybank'];
 
@@ -46,10 +47,9 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
 }) {
-  const [v2, setV2] = useState<PersonalizationV2 | null>(null);
+  const v2 = usePersonalizationV2();   // 세션 공유 캐시 — compact(홈 배너) 스킨 렌더도 여기서
   const [scraps, setScraps] = useState<CareerScrap[]>([]);
   useEffect(() => {
-    getPersonalizationV2().then(setV2).catch(() => {});   // compact(홈 배너)도 스킨 렌더에 필요
     if (!compact) getCareerScraps().then(setScraps).catch(() => {});
   }, [compact]);
   const skinKey = skinKeyFor(v2);

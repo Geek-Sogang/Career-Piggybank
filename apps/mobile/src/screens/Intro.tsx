@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '@/theme/colors';
 import { CharacterImage } from '@/components/CharacterImage';
@@ -8,7 +8,7 @@ import { useApp } from '@/store';
 // 온보딩 3페이지 — 토스 프로모 문법: 파스텔 풀블리드 + 큰 3D 캐릭터 + 굵은 카피.
 const INTRO_PAGES: { bg: string; kicker: string; title: string; sub: string }[] = [
   {
-    bg: '#EAF2FB', kicker: '하나은행 커리어 저금통',
+    bg: '#BED9F6', kicker: '하나은행 커리어 저금통',
     title: '귀여운데 강력하다,\n긱워커의 저금통',
     sub: "당신이 '한 일'이, 당신의 자산이 됩니다",
   },
@@ -49,12 +49,15 @@ export function Intro() {
         {/* 캐릭터 파일업 — 배경 없는 컷아웃이 파스텔 위에 바로 (토스: 큰 3D가 화면의 주인공) */}
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           {page === 0 && (
-            <View style={{ height: 300, marginHorizontal: -28 }}>
-              <CharacterImage cutout skin="sparkle" job="creator" width={196} height={196} style={{ position: 'absolute', left: -10, bottom: 66, transform: [{ rotate: '-10deg' }] }} />
-              <CharacterImage cutout skin="growing" job="designer" width={196} height={196} style={{ position: 'absolute', right: -10, bottom: 58, transform: [{ rotate: '10deg' }] }} />
-              <View style={{ position: 'absolute', left: 0, right: 0, bottom: -6, alignItems: 'center', zIndex: 2 }}>
-                <CharacterImage cutout skin="wave" job="developer" width={258} height={258} />
-              </View>
+            // 파일업 히어로 — 4종 피기(스카프·새싹·헤드폰·반다나) 단일 렌더.
+            // 이미지 배경(#BED9F6)이 페이지 배경과 같아 정사각 경계가 그대로 녹아든다.
+            // 고정 크기(flex 미사용)로 두어 "텍스트 위 · 이미지 아래" 배치를 안정화.
+            <View style={{ alignItems: 'center', marginBottom: 6 }}>
+              <Image
+                source={require('../../assets/intro-pile.png')}
+                style={{ width: 340, height: 340 }}
+                resizeMode="contain"
+              />
             </View>
           )}
           {page === 1 && (

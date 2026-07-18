@@ -19,14 +19,14 @@ export function Home() {
 
   const nextTask = !vals.conn.hometax
     ? {
-      title: `홈택스 연결하고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
-      sub: '확정 단계 · 미션 경험치 +30 XP',
-      onPress: () => actions.pushScr('connect' as const),
+      title: `흩어진 이력 모으고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
+      sub: '입금·세금·인증서 연동 · 미션 경험치 +30 XP',
+      onPress: () => actions.pushScr('careerSync' as const),
     }
     : {
-      title: '다음 입금 배분을 확인하고 XP 받기',
-      sub: '첫 정산 승인 미션 · +25 XP',
-      onPress: () => actions.nav('ledger' as const),
+      title: '이번 달 입금 봉투에 나눠 담기',
+      sub: '페르소나 맞춤 배분 · +25 XP',
+      onPress: () => actions.pushScr('personaLedger' as const),
     };
 
   const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;
@@ -40,11 +40,11 @@ export function Home() {
   return (
     <View style={{ gap: 14 }}>
       {/* 저금통 히어로 — 하나 초록(브랜드 첫 카드의 색), 상세는 미션 탭 */}
-      <Pressable onPress={() => actions.nav('missions')}>
+      <Pressable onPress={() => actions.pushScr('missions')}>
         <CareerPiggybank
           piggybank={vals.piggybank}
           compact
-          trust={{ score: vals.score, stage: vals.stage, onPress: () => actions.pushScr('connect') }}
+          trust={{ score: vals.score, stage: vals.stage, onPress: () => actions.pushScr('careerSync') }}
         />
       </Pressable>
 
@@ -87,17 +87,17 @@ export function Home() {
 
       {/* 4갈래 진입 — 미래 소득은 카드 대신 여기서 분리 진입 */}
       <Card p={6} style={{ flexDirection: 'row' }}>
-        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="일감 증명" sub="정산 승인" onPress={() => actions.pushScr('jobProof')} />
+        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="이력 연동" sub="입금·세금·인증" onPress={() => actions.pushScr('careerSync')} />
         <Divider />
         <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
         <Divider />
         <Quick icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="금융 연결" sub="검증 상품" onPress={() => actions.pushScr('products')} />
         <Divider />
-        <Quick icon="houseSmall" tint={colors.indigoTint} color={colors.indigo} title="미래 소득" sub="은퇴 예측" onPress={() => actions.pushScr('retirement')} />
+        <Quick icon="houseSmall" tint={colors.indigoTint} color={colors.indigo} title="미래 소득" sub="은퇴 예측" onPress={() => actions.nav('future')} />
       </Card>
 
       {/* 오늘의 미션 — 홈은 최우선 1개만 (전체는 미션 탭) */}
-      <Pressable onPress={() => actions.nav('missions')}>
+      <Pressable onPress={nextTask.onPress}>
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }} p={16}>
           <Mascot head size={44} radius={13} />
           <View style={{ flex: 1, minWidth: 0 }}>

@@ -1,45 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, Text, Pressable, TextInput } from 'react-native';
-import { createGoal, recommendEnvelopes, type EnvelopeIdea, type Goal, type PeerIdea } from '@/api';
+import { createGoal, type Goal } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, T } from '@/components/ui';
 import { useApp } from '@/store';
 
-// 목표 봉투 섹션 — 목록·AI 추천 칩·개설 폼·페이싱 진입. 돈 층이라 정산 탭이 담당한다.
-// 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만.
+// 목표 봉투 섹션 — 내 목표 진행 + 개설 폼 + 페이싱 진입만 담당한다(돈 층).
+// AI 추천·또래 픽은 별도 '봉투 추천' 화면(EnvelopeSuggest)이 담당한다 — 여기선 중복 제거.
 const wonFmt = (n: number) => '₩' + Math.round(n).toLocaleString('en-US');
 
 export function GoalSection({ goals, onCreated, onPace }: {
   goals: Goal[]; onCreated: (g: Goal) => void; onPace: () => void;
 }) {
-  const { pacingApplied } = useApp();   // ⑤b 페이싱으로 방금 담은 금액 오버레이
-  const [ideas, setIdeas] = useState<EnvelopeIdea[]>([]);
-  const [peers, setPeers] = useState<PeerIdea[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(true);   // 추천 로딩 중(7.8B라 몇 초) 표시용
-  const [recommendationUnavailable, setRecommendationUnavailable] = useState(false);
+  const { pacingApplied, actions } = useApp();   // ⑤b 페이싱으로 방금 담은 금액 오버레이
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
-  useEffect(() => {
-    // 추천 2소스 — ⑤a(내 팩트, LLM)·또래(유사 페르소나 관찰, 결정론).
-    // 실패·판단 보류를 개인화된 정적 문구로 위장하지 않는다. 빈 결과는 그대로 빈 결과다.
-    let alive = true;
-    recommendEnvelopes()
-      .then((r) => {
-        if (!alive) return;
-        setIdeas(r.recommendations ?? []);
-        setPeers(r.peers ?? []);
-        setLoadingRecs(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setRecommendationUnavailable(true);
-        setLoadingRecs(false);
-      });
-    return () => { alive = false; };
-  }, []);
 
   const submit = async () => {
     const amt = Number(amount.replace(/[,\s만]/g, '')) * (amount.includes('만') ? 10_000 : 1);
@@ -50,13 +28,6 @@ export function GoalSection({ goals, onCreated, onPace }: {
       onCreated(g);
       setCreating(false); setName(''); setAmount(''); setDate('');
     } catch {}
-  };
-
-  // AI 추천(⑤a)은 이름·근거만 주고 금액이 없어, 개설 폼 금액을 또래 제안액 중앙값으로 프리필한다(사람이 조정).
-  const defaultManwon = (): string => {
-    const vals = peers.map((p) => p.suggested_amount).filter((v) => v > 0).sort((a, b) => a - b);
-    const m = vals.length ? vals[Math.floor(vals.length / 2)] : 1_000_000;
-    return String(Math.round(m / 10_000)) + '만';
   };
 
   return (
@@ -73,15 +44,12 @@ export function GoalSection({ goals, onCreated, onPace }: {
       {/* 내 목표들 — 잔액/목표 게이지 */}
       <View style={{ marginTop: 12, gap: 10 }}>
         {goals.length === 0 && !creating && (
-          <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', lineHeight: 18 }}>
-            {loadingRecs && ideas.length === 0 && peers.length === 0
-              ? '피기가 내 상황·또래를 보고 맞는 봉투를 찾고 있어요…'
-              : recommendationUnavailable
-                ? '추천을 불러오지 못했어요 — 개인화 문구를 지어내지 않고 직접 만들기만 열어둘게요'
-                : ideas.length === 0 && peers.length === 0
-                  ? '현재 근거로 추천할 봉투가 없어요 — 직접 목표를 만들어 보세요'
-                  : '아직 목표 봉투가 없어요 — 아래 피기 추천을 탭하거나 직접 만들어 보세요'}
-          </Text>
+          <Pressable onPress={() => actions.pushScr('envelopeSuggest')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ flex: 1, fontSize: 12.5, color: colors.sub2, fontWeight: '500', lineHeight: 18 }}>
+              아직 목표 봉투가 없어요 — <Text style={{ color: colors.green, fontWeight: '700' }}>봉투 추천</Text>에서 맞는 봉투를 찾아보세요
+            </Text>
+            <Icon name="chevronRight" size={16} color={colors.green} sw={2.2} />
+          </Pressable>
         )}
         {goals.map((g) => {
           const added = pacingApplied[g.id] ?? 0;      // 방금 페이싱으로 담은 금액(오버레이)
@@ -107,41 +75,6 @@ export function GoalSection({ goals, onCreated, onPace }: {
           );
         })}
       </View>
-
-      {/* 추천 칩 2소스 — 탭 = 개설 폼 프리필 (개설은 사람의 결정).
-          AI(⑤a, 내 팩트 근거) = 보라 / 또래(유사 페르소나 관찰, 결정론 통계) = 파랑 */}
-      {(ideas.length > 0 || peers.length > 0) && (
-        <View style={{ marginTop: 12, gap: 6 }}>
-          {ideas.filter((i) => !goals.some((g) => g.name === i.name)).slice(0, 2).map((i) => (
-            <Pressable
-              key={i.name}
-              onPress={() => { setCreating(true); setName(i.name); setAmount(defaultManwon()); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F5F1FB', borderWidth: 1, borderColor: '#E2D8F3', borderRadius: 11, padding: 10 }}
-            >
-              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 추천</Text>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
-                <Text style={{ fontWeight: '800' }}>{i.name}</Text> — {i.why}
-              </Text>
-            </Pressable>
-          ))}
-          {peers.filter((p) => !goals.some((g) => g.name === p.name)).slice(0, 2).map((p) => (
-            <Pressable
-              key={p.name}
-              onPress={() => {
-                setCreating(true); setName(p.name);
-                // 도달이 너무 길면 형편 기준 낮춘 금액으로, 아니면 또래 중앙값으로 프리필
-                setAmount(String(Math.round((p.affordable_amount ?? p.suggested_amount) / 10_000)) + '만');
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.bufferTint, borderWidth: 1, borderColor: '#CBE7F5', borderRadius: 11, padding: 10 }}
-            >
-              <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.buffer, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>또래 픽</Text>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
-                <Text style={{ fontWeight: '800' }}>{p.name}</Text> — {p.basis}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
 
       {/* 개설 폼 — 개설은 언제나 사람 */}
       {creating && (

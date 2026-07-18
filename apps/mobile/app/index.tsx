@@ -15,8 +15,11 @@ import { Connect } from '@/screens/Connect';
 import { JobProof } from '@/screens/JobProof';
 import { VerifiedDetail } from '@/screens/VerifiedDetail';
 import { Ledger } from '@/screens/Ledger';
+import { Transactions } from '@/screens/Transactions';
+import { Goals } from '@/screens/Goals';
 import { Tax } from '@/screens/Tax';
 import { Retirement } from '@/screens/Retirement';
+import { RetirementDetail } from '@/screens/RetirementDetail';
 import { My } from '@/screens/My';
 import { DataSovereignty } from '@/screens/DataSovereignty';
 import { Products } from '@/screens/Products';
@@ -24,6 +27,9 @@ import { Settings } from '@/screens/Settings';
 import { NestEgg } from '@/screens/NestEgg';
 import { Intro } from '@/screens/Intro';
 import { Chat } from '@/screens/Chat';
+import { CareerSync } from '@/screens/CareerSync';
+import { PersonaLedger } from '@/screens/PersonaLedger';
+import { EnvelopeSuggest } from '@/screens/EnvelopeSuggest';
 import { LockScreen } from '@/screens/LockScreen';
 import { TxDetail } from '@/screens/TxDetail';
 import { ProductDetail } from '@/screens/ProductDetail';
@@ -38,10 +44,10 @@ export default function Index() {
 }
 
 const SCREENS: Record<string, () => JSX.Element> = {
-  home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My,
+  home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My, future: Retirement,
   connect: Connect, jobProof: JobProof, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
   dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
-  productDetail: ProductDetail, emptyState: EmptyState,
+  productDetail: ProductDetail, emptyState: EmptyState, transactions: Transactions, goals: Goals, retirementDetail: RetirementDetail,
 };
 
 function Shell() {
@@ -79,6 +85,9 @@ function Shell() {
   // 인트로 플로우 / 풀스크린(자체 chrome) 화면들
   if (!entered) return <Intro />;
   if (push === 'chat') return <Chat />;
+  if (push === 'careerSync') return <CareerSync />;
+  if (push === 'personaLedger') return <PersonaLedger />;
+  if (push === 'envelopeSuggest') return <EnvelopeSuggest />;
   if (push === 'lockscreen') return <LockScreen />;
 
   return (
@@ -86,13 +95,13 @@ function Shell() {
       {/* 헤더 */}
       {vals.showGreeting && (
         <View style={{ height: 54, paddingHorizontal: 20, paddingTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Pressable onPress={() => actions.pushScr('my')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <ProfileAvatar size={38} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
               <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
               <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '400' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>
             </View>
-          </View>
+          </Pressable>
           <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="bell" size={22} color="#3A4047" sw={1.8} />
             {agenda.length > 0 && (
@@ -135,11 +144,10 @@ function Shell() {
 
       {/* 탭바 */}
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
-        <TabButton icon="tabHome" label="홈" active={tab === 'home'} onPress={() => actions.nav('home')} />
-        <TabButton icon="tabPiggy" label="미션" active={tab === 'missions'} onPress={() => actions.nav('missions')} />
-        <TabButton icon="shield" label="커리어" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
-        <TabButton icon="tabLedger" label="정산" active={tab === 'ledger'} onPress={() => actions.nav('ledger')} />
-        <TabButton icon="tabMy" label="마이" active={tab === 'my'} onPress={() => actions.nav('my')} />
+        <TabButton icon="tabHome" label="홈" active={tab === 'home' && !push} onPress={() => actions.nav('home')} />
+        <TabButton icon="tabLedger" label="가계부" active={tab === 'ledger' && !push} onPress={() => actions.nav('ledger')} />
+        <TabButton icon="shield" label="커리어" active={tab === 'piggy' && !push} onPress={() => actions.nav('piggy')} />
+        <TabButton icon="houseSmall" label="미래" active={tab === 'future' && !push} onPress={() => actions.nav('future')} />
       </View>
 
       {/* 시트 */}

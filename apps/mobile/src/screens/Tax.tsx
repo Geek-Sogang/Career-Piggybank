@@ -125,20 +125,33 @@ export function Tax() {
           <KV k="산출세액 (지방세 포함)" v={won(a.totalTax)} />
           <KV k="기납부 (3.3% 원천징수)" v={`−${won(a.alreadyWithheld)}`} vColor={colors.buffer} border />
         </View>
-        {/* 준비 현황 — 부족이 아니라 '넉넉히 준비됨'의 긍정 프레임 (가계부 요약과 동일) */}
-        <View style={{ marginTop: 14, backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 11 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-            <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="check" size={13} color="#fff" sw={2.6} />
+        {/* 준비 현황 — 긍정 프레임은 유지하되 수치는 실값(세금봉투 잔액 vs 산출 추가납부) */}
+        {(() => {
+          const prepared = balances?.tax ?? null;
+          if (prepared == null) return null;
+          const taxReady = prepared >= a.additionalDue;
+          return (
+            <View style={{ marginTop: 14, backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 11 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: taxReady ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={taxReady ? 'check' : 'coin'} size={13} color="#fff" sw={2.6} />
+                </View>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.greenInk }}>
+                  {taxReady ? '5월 종소세, 넉넉히 준비됐어요' : '5월 종소세, 모아가는 중이에요'}
+                </Text>
+              </View>
+              <View style={{ gap: 7 }}>
+                <TaxLine label="5월 추가납부 예상" value={won(a.additionalDue)} />
+                <TaxLine label="세금봉투에 모음" value={won(prepared)} strong />
+                {taxReady ? (
+                  <TaxLine label="여유분" value={`+${won(prepared - a.additionalDue)}`} accent />
+                ) : (
+                  <TaxLine label="앞으로 모을 금액" value={won(a.additionalDue - prepared)} />
+                )}
+              </View>
             </View>
-            <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.greenInk }}>5월 종소세, 넉넉히 준비됐어요</Text>
-          </View>
-          <View style={{ gap: 7 }}>
-            <TaxLine label="5월 추가납부 예상" value={won(a.additionalDue)} />
-            <TaxLine label="세금봉투에 모음" value="₩1,240,000" strong />
-            <TaxLine label="우대금리 이자" value="+₩38,000" accent />
-          </View>
-        </View>
+          );
+        })()}
       </Card>
 
       {/* 계산 가정 */}

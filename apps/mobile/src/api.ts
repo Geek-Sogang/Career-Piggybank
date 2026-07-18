@@ -304,7 +304,11 @@ export function decidePacing(id: string, action: 'confirm' | 'reject') {
   return post<{ id: string; status: string }>(`/v1/pacing/${id}/decision`, { action });
 }
 export function getEnvelopeBalances() {
-  return get<{ balances: Record<string, number> }>('/v1/bank/envelopes');
+  return get<{
+    balances: Record<string, number>;
+    // 세금 준비 현황 — 백엔드 결정론 계산(연 예상세액 · 세금봉투 잔액 · 부족분)
+    annual_tax_expected?: number; tax_prepared?: number; tax_shortfall?: number;
+  }>('/v1/bank/envelopes');
 }
 
 // ── 벨 인박스 (어젠다 큐) — 피기가 아직 말하지 않은 사건의 트리아지. 발화문은 결정론 템플릿 ──
@@ -376,7 +380,7 @@ export const OFFLINE_ALLOCATION: Allocation = {
       line: '세금봉투 108,900원은 하나 긱워커 파킹통장(연 3.0%)에 두면 5월 종소세 때까지 이자가 붙어요',
     },
   ],
-  gig_archetype: '고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄',
+  gig_archetype: '고변동 긱워커 — 큰 대금이 가끔, 세금·가뭄 대비가 핵심',   // 라이브 시드 실측과 동일 표현
   buffer_target: 3_600_000,
   invest_available: 0,
   policy: null,

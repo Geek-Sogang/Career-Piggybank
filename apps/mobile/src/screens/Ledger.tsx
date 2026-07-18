@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { DEMO_DEPOSIT, getTransactions, type Txn } from '@/api';
+import { DEMO_DEPOSIT, getEnvelopeBalances, getTransactions, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, T } from '@/components/ui';
@@ -12,11 +12,20 @@ export function Ledger() {
   const { actions, lastAlloc } = useApp();
   const [txns, setTxns] = useState<Txn[] | null>(null);
   const [ready, setReady] = useState(false);
+  const [env, setEnv] = useState<Awaited<ReturnType<typeof getEnvelopeBalances>> | null>(null);
   useEffect(() => {
     getTransactions()
       .then((next) => { setTxns(next); setReady(true); })
       .catch(() => { setTxns(null); setReady(true); });
   }, []);
+  // 봉투 잔액·세금 준비 현황 — 배분(lastAlloc) 뒤 재조회해 방금 담은 몫을 반영
+  useEffect(() => {
+    getEnvelopeBalances().then(setEnv).catch(() => {});
+  }, [lastAlloc]);
+
+  const taxExpected = env?.annual_tax_expected ?? null;
+  const taxPrepared = env?.tax_prepared ?? null;
+  const taxReady = taxExpected != null && taxPrepared != null && taxPrepared >= taxExpected;
 
   const month = txns?.[0]?.date.slice(0, 7) ?? '2025-05';
   const monthTxns = (txns ?? []).filter((t) => t.date.startsWith(month));
@@ -81,25 +90,35 @@ export function Ledger() {
             </View>
             <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
           </View>
+          {/* 봉투 비중 바 — 실 잔액 비율(조회 전엔 대표 비율) */}
           <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
-            <View style={{ width: '4%', backgroundColor: colors.tax }} />
-            <View style={{ width: '30%', backgroundColor: colors.expense }} />
-            <View style={{ width: '20%', backgroundColor: colors.buffer }} />
-            <View style={{ flex: 1, backgroundColor: colors.spendable }} />
+            {([['tax', 4], ['expense', 30], ['buffer', 20], ['spendable', 46]] as const).map(([k, fallback]) => {
+              const v = env?.balances?.[k] ?? fallback;
+              return v > 0 ? <View key={k} style={{ flex: v, backgroundColor: colors[k] }} /> : null;
+            })}
           </View>
-          <View style={{ backgroundColor: colors.greenTint, borderRadius: 12, padding: 14, gap: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="check" size={13} color="#fff" sw={2.6} />
+          {/* 세금 준비 현황 — 백엔드 결정론 계산. 긍정 프레임은 유지하되 상태는 정직하게 */}
+          {taxExpected != null && taxPrepared != null && (
+            <View style={{ backgroundColor: colors.greenTint, borderRadius: 12, padding: 14, gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: taxReady ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={taxReady ? 'check' : 'coin'} size={13} color="#fff" sw={2.6} />
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: colors.greenInk }}>
+                  {taxReady ? '5월 종소세, 넉넉히 준비됐어요' : '5월 종소세, 모아가는 중이에요'}
+                </Text>
               </View>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.greenInk }}>5월 종소세, 넉넉히 준비됐어요</Text>
+              <View style={{ gap: 6 }}>
+                <TaxLine label="예상 세금" value={`₩${taxExpected.toLocaleString('en-US')}`} />
+                <TaxLine label="모은 금액" value={`₩${taxPrepared.toLocaleString('en-US')}`} strong />
+                {taxReady ? (
+                  <TaxLine label="여유분" value={`+₩${(taxPrepared - taxExpected).toLocaleString('en-US')}`} accent />
+                ) : (
+                  <TaxLine label="앞으로 모을 금액" value={`₩${(taxExpected - taxPrepared).toLocaleString('en-US')}`} />
+                )}
+              </View>
             </View>
-            <View style={{ gap: 6 }}>
-              <TaxLine label="예상 세금" value="₩1,089,000" />
-              <TaxLine label="모은 금액" value="₩1,240,000" strong />
-              <TaxLine label="우대금리 이자" value="+₩38,000" accent />
-            </View>
-          </View>
+          )}
         </Card>
       </Pressable>
 

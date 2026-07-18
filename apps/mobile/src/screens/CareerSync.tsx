@@ -35,11 +35,12 @@ const UNVERIFIED: { name: string; memo: string; need: string }[] = [
   { name: 'KOSA 경력 인증', memo: 'SW기술자 경력 3년차', need: 'KOSA 협회 경력 인증 필요' },
 ];
 
-// 커리어로 누릴 수 있는 금융상품
+// 커리어로 누릴 수 있는 하나은행 금융상품
 const PRODUCTS: { name: string; sub: string; badge: string; tint: string; color: string }[] = [
-  { name: '긱워커 비상금 대출', sub: '검증 이력 기반 · 최대 2,000만원', badge: '검증 연동', tint: colors.greenTint, color: colors.green },
-  { name: '세금봉투 우대 파킹통장', sub: '5월 종소세 대비 · 우대금리 3.1%', badge: '세금 대비', tint: colors.bufferTint, color: colors.buffer },
-  { name: '프리랜서 실손 케어', sub: '불규칙 소득 맞춤 · 월 1.2만원', badge: '맞춤', tint: colors.pinkTint, color: colors.pinkStrong },
+  { name: '하나 긱워커 비상금대출', sub: '검증 이력 기반 · 최대 300만원', badge: '검증 연동', tint: colors.greenTint, color: colors.green },
+  { name: '하나 세금봉투 우대 파킹통장', sub: '5월 종소세 대비 · 우대금리 3.1%', badge: '세금 대비', tint: colors.bufferTint, color: colors.buffer },
+  { name: '하나 긱워커 통장', sub: '매출 자동분류 · 이체수수료 면제', badge: '주거래', tint: colors.indigoTint, color: colors.indigo },
+  { name: '하나원큐 프리랜서 실손케어', sub: '불규칙 소득 맞춤 · 월 1.2만원', badge: '맞춤', tint: colors.pinkTint, color: colors.pinkStrong },
 ];
 
 const NAME = '조대흠';
@@ -58,7 +59,7 @@ export function CareerSync() {
       {step === 'scan' && <Scan onDone={() => go('summary')} />}
       {step === 'summary' && <Summary name={NAME} onNext={() => go('unverified')} />}
       {step === 'unverified' && <Unverified onNow={() => go('products')} onLater={() => go('products')} />}
-      {step === 'products' && <Products name={NAME} onDone={() => { actions.back(); actions.nav('home'); }} />}
+      {step === 'products' && <Products name={NAME} onStart={() => actions.pushScr('products')} onLater={() => { actions.back(); actions.nav('home'); }} />}
     </SafeAreaView>
   );
 }
@@ -215,13 +216,13 @@ function Unverified({ onNow, onLater }: { onNow: () => void; onLater: () => void
 }
 
 // ── 5) 맞춤 금융상품 ───────────────────────────────────────────────
-function Products({ name, onDone }: { name: string; onDone: () => void }) {
+function Products({ name, onStart, onLater }: { name: string; onStart: () => void; onLater: () => void }) {
   return (
-    <Frame cta="시작하기" onCta={onDone}>
+    <Frame cta="시작하기" secondary="다음에" onCta={onStart} onSecondary={onLater}>
       <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }}>
         <Mascot head size={88} radius={26} />
       </View>
-      <Title kicker="검증된 커리어로 열린 혜택" title={`${name}님의 커리어로\n누릴 수 있는 상품이에요`} />
+      <Title kicker="검증된 커리어로 열린 혜택" title={`${name}님의 커리어로\n누릴 수 있는 하나은행 상품이에요`} />
       <View style={{ gap: 12 }}>
         {PRODUCTS.map((p) => (
           <View key={p.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15 }}>

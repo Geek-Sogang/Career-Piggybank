@@ -197,7 +197,7 @@ function GigTeaser({ onNext, onLater }: { onNext: () => void; onLater: () => voi
 
   const [headline, tail] = (gig?.archetype ?? '흐름을 읽는 중이에요').split(' — ');
   return (
-    <Frame cta="이 흐름에 맞는 가계부 만들기" ctaSub="다음 단계 — AI가 내 성향을 읽고 봉투를 설계해요" secondary="나중에 할게요" onCta={onNext} onSecondary={onLater}>
+    <Frame cta="이 흐름에 맞는 봉투 설계 받기" ctaSub="다음 단계 — AI가 내 성향을 읽고, 들어올 돈을 담을 봉투를 설계해요" secondary="나중에 할게요" onCta={onNext} onSecondary={onLater}>
       <Title kicker="입금 기록으로 확인" title={'모아 보니,\n이런 흐름이에요'} />
       {/* 아키타입 — 결정론 측정(원장 통계) */}
       <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 20, padding: 20, alignItems: 'center', marginBottom: 12 }}>

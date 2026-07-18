@@ -49,7 +49,7 @@ export function CareerSync() {
       {step === 'intro' && <Intro name={NAME} onStart={() => go('scan')} onLater={csMode === 'onboard' ? goHome : actions.back} />}
       {step === 'scan' && <Scan onDone={() => go('summary')} />}
       {step === 'summary' && <Summary name={NAME} onNext={() => go(csMode === 'onboard' ? 'gig' : 'unverified')} />}
-      {step === 'gig' && <GigTeaser onNext={() => actions.openAllocFlow('persona')} onLater={goHome} />}
+      {step === 'gig' && <GigTeaser onNext={() => actions.openAllocFlow('onboard')} onLater={goHome} />}
       {step === 'unverified' && <Unverified onNext={() => go('products')} />}
       {step === 'products' && <Products name={NAME} onStart={() => actions.pushScr('products')} onLater={goHome} />}
     </SafeAreaView>

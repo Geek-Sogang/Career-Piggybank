@@ -48,8 +48,8 @@ const FALLBACK_GIG: Pick<GigProfile, 'archetype' | 'volatility' | 'rhythm' | 'ph
 
 export function PersonaLedger() {
   const { actions, plStart } = useApp();
-  // 시작 단계 — 홈 미션=connect(풀플로우) / 온보딩=personaLoading(이력 연동에서 연결 완료) / 가계부=deposit(배분만)
-  const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : plStart === 'persona' ? 'personaLoading' : 'connect');
+  // 시작 단계 — 홈 미션·온보딩=connect(페르소나 장 도입: 뭘 보고 만드는지 먼저 보여준다) / 가계부=deposit(배분만)
+  const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : 'connect');
   const [gig, setGig] = useState<GigProfile | null>(null);
   const [txn, setTxn] = useState<Txn | null>(null);
   const go = (s: Step) => setStep(s);
@@ -76,8 +76,8 @@ export function PersonaLedger() {
         // 온보딩 진입이면 공개까지가 목적 — 홈에 착지시키고, 배분은 홈 미션·가계부가 이어받는다
         <Persona
           gig={gig}
-          cta={plStart === 'persona' ? '저금통 시작하기' : '맞춤 가계부 만들기'}
-          onNext={plStart === 'persona' ? () => { actions.back(); actions.nav('home'); } : () => go('ledgerLoading')}
+          cta={plStart === 'onboard' ? '저금통 시작하기' : '맞춤 가계부 만들기'}
+          onNext={plStart === 'onboard' ? () => { actions.back(); actions.nav('home'); } : () => go('ledgerLoading')}
         />
       )}
       {step === 'ledgerLoading' && (
@@ -95,12 +95,14 @@ function Connect({ onNext, onBack }: { onNext: () => void; onBack: () => void })
   const { vals, actions } = useApp();
   // 행별 실 연결 상태 — 마이데이터/홈택스는 ConnSrc, 앱 활동은 계측이라 항상 켜져 있다
   const checked = [vals.conn.mydata, vals.conn.hometax, true];
+  // 이력 연동을 거쳐 왔으면 이미 연결됨 — 재동의를 요구하지 않고 문구만 바꾼다
+  const already = vals.conn.mydata && vals.conn.hometax;
   return (
     <Frame
-      cta="연결하고 페르소나 만들기"
-      ctaSub="연결하면 마이데이터·홈택스 제공에 동의하게 돼요"
+      cta={already ? '페르소나 만들기' : '연결하고 페르소나 만들기'}
+      ctaSub={already ? '세 가지가 이미 연결돼 있어요 — 바로 읽을 수 있어요' : '연결하면 마이데이터·홈택스 제공에 동의하게 돼요'}
       secondary="다음에 할게요"
-      onCta={() => { actions.connectSources(['mydata', 'hometax']); onNext(); }}
+      onCta={() => { if (!already) actions.connectSources(['mydata', 'hometax']); onNext(); }}
       onSecondary={onBack}
     >
       <Title title={'나를 이해하려면\n세 가지가 필요해요'} sub="세 가지를 연결하면 페르소나를 읽고, 나만을 위한 가계부를 만들어요." />

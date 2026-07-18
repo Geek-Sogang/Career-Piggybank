@@ -125,9 +125,19 @@ export function Tax() {
           <KV k="산출세액 (지방세 포함)" v={won(a.totalTax)} />
           <KV k="기납부 (3.3% 원천징수)" v={`−${won(a.alreadyWithheld)}`} vColor={colors.buffer} border />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, padding: 15, backgroundColor: colors.taxBg, borderRadius: 14 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.taxInk }}>5월 추가납부 예상</Text>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: colors.tax, letterSpacing: -0.8, ...T.num }}>{won(a.additionalDue)}</Text>
+        {/* 준비 현황 — 부족이 아니라 '넉넉히 준비됨'의 긍정 프레임 (가계부 요약과 동일) */}
+        <View style={{ marginTop: 14, backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 11 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+            <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={13} color="#fff" sw={2.6} />
+            </View>
+            <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.greenInk }}>5월 종소세, 넉넉히 준비됐어요</Text>
+          </View>
+          <View style={{ gap: 7 }}>
+            <TaxLine label="5월 추가납부 예상" value={won(a.additionalDue)} />
+            <TaxLine label="세금봉투에 모음" value="₩1,240,000" strong />
+            <TaxLine label="우대금리 이자" value="+₩38,000" accent />
+          </View>
         </View>
       </Card>
 
@@ -159,6 +169,14 @@ function MiniCard({ label, value }: { label: string; value: string }) {
     <View style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 14 }}>
       <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{label}</Text>
       <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, marginTop: 3, color: colors.ink, ...T.num }}>{value}</Text>
+    </View>
+  );
+}
+function TaxLine({ label, value, strong, accent }: { label: string; value: string; strong?: boolean; accent?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.greenInk }}>{label}</Text>
+      <Text style={{ fontSize: strong ? 14.5 : 13, fontWeight: strong ? '800' : '700', color: accent ? colors.green : colors.greenInk, ...T.num }}>{value}</Text>
     </View>
   );
 }

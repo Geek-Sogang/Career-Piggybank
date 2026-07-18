@@ -21,7 +21,7 @@ export function Home() {
     ? {
       title: `흩어진 이력 모으고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
       sub: '입금·세금·인증서 연동 · 미션 경험치 +30 XP',
-      onPress: () => actions.pushScr('careerSync' as const),
+      onPress: () => actions.openCareerSync(),
     }
     : {
       title: '이번 달 입금 봉투에 나눠 담기',
@@ -44,7 +44,7 @@ export function Home() {
         <CareerPiggybank
           piggybank={vals.piggybank}
           compact
-          trust={{ score: vals.score, stage: vals.stage, onPress: () => actions.pushScr('careerSync') }}
+          trust={{ score: vals.score, stage: vals.stage, onPress: () => actions.openCareerSync() }}
         />
       </Pressable>
 
@@ -87,7 +87,7 @@ export function Home() {
 
       {/* 4갈래 진입 — 미래 소득은 카드 대신 여기서 분리 진입 */}
       <Card p={6} style={{ flexDirection: 'row' }}>
-        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="이력 연동" sub="입금·세금·인증" onPress={() => actions.pushScr('careerSync')} />
+        <Quick icon="download" tint={colors.greenTint} color={colors.green} title="이력 연동" sub="입금·세금·인증" onPress={() => actions.openCareerSync()} />
         <Divider />
         <Quick icon="trending" tint={colors.bufferTint} color={colors.buffer} title="정산 관리" sub="세금·경비" onPress={() => actions.nav('ledger')} />
         <Divider />

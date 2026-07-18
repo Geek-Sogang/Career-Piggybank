@@ -441,7 +441,8 @@ function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').
 // 내부 4축은 유지하되 사용자는 생활 질문·관측 결과·읽은 기록으로 이해한다.
 const AXIS_ORDER = ['risk_tolerance', 'time_preference', 'self_control', 'planning'];
 
-function PersonaCard({ onChanged }: { onChanged?: () => void }) {
+// 온보딩 페르소나 플로우(habits 스텝)에서도 같은 카드를 쓴다 — 마이 탭과 단일 소스.
+export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
   const [persona, setPersona] = useState<Persona | null>(null);
   const [missing, setMissing] = useState(false);
   const [reading, setReading] = useState(false);

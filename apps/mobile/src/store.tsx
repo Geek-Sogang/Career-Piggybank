@@ -38,7 +38,8 @@ function useAppState(startTab: Tab = 'home') {
   const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
-  const [plStart, setPlStart] = useState<'connect' | 'deposit'>('connect');   // 페르소나 플로우 시작 단계(홈=풀, 가계부=배분만)
+  const [plStart, setPlStart] = useState<'connect' | 'onboard' | 'deposit'>('connect');   // 페르소나 플로우 진입(홈=풀, 온보딩=연결 화면부터·공개 후 홈 착지, 가계부=배분만)
+  const [csMode, setCsMode] = useState<'onboard' | 'browse'>('browse');       // 이력 연동 모드(첫 실행 온보딩=구조 티저→페르소나, 평시=승인·상품)
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
@@ -115,12 +116,16 @@ function useAppState(startTab: Tab = 'home') {
 
   const actions = {
     enter: () => setEntered(true),
+    // 첫 실행 온보딩 — 인트로 '시작하기'에서 흩어진 이력 모으기로 바로 이어진다
+    enterOnboarding: () => { setEntered(true); setCsMode('onboard'); setPush('careerSync'); setSheet(null); },
     leave: () => { setEntered(false); setPush(null); setTab('home'); },
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
     openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
-    // 페르소나→배분 플로우 — 홈 미션은 연결부터(온보딩 서사), 가계부 입금 카드는 배분만(반복 동선)
-    openAllocFlow: (start: 'connect' | 'deposit') => { setPlStart(start); setPush('personaLedger'); setSheet(null); },
+    // 페르소나→배분 플로우 — 홈 미션·온보딩은 연결 화면부터(온보딩은 공개 후 홈 착지), 가계부 입금 카드는 배분만
+    openAllocFlow: (start: 'connect' | 'onboard' | 'deposit') => { setPlStart(start); setPush('personaLedger'); setSheet(null); },
+    // 이력 연동 — 평시 진입(browse: 승인·상품 포함). 온보딩 진입은 enterOnboarding이 담당.
+    openCareerSync: () => { setCsMode('browse'); setPush('careerSync'); setSheet(null); },
     // 온보딩 플로우의 일괄 연결 — 개별 연결과 같은 경로(점수 반영 + F13 계측)
     connectSources: (srcs: ConnSrc[]) => srcs.forEach((s) => apply(s, true)),
     openProduct: (key: ProductKey) => { setProduct(key); setPush('productDetail'); setSheet(null); },
@@ -166,7 +171,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario, verification]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, plStart, lastAlloc, pacingApplied, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

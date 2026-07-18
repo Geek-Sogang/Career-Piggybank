@@ -10,6 +10,7 @@ import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { Frame, Title, FlowHeader } from '@/components/flow';
+import { PersonaCard } from '@/screens/My';
 import { useApp } from '@/store';
 
 // 영상 [10] 완숙기 · 페르소나 → 맞춤 가계부 → 봉투 배분. 토스식 진행형 UX(한 화면 = 한 목적).
@@ -17,8 +18,8 @@ import { useApp } from '@/store';
 // 배분 = proposeAllocation(근거 포함) → 사람이 조정·확정(decideAllocation) → 소득리듬 층 갱신.
 // 진입 2종: 홈 오늘의 미션 = 풀플로우(connect부터), 가계부 입금 카드 = 배분만(deposit부터).
 
-type Step = 'connect' | 'personaLoading' | 'persona' | 'ledgerLoading' | 'deposit' | 'ack' | 'allocation';
-const DOT: Record<Step, number> = { connect: 0, personaLoading: 1, persona: 1, ledgerLoading: 2, deposit: 2, ack: 2, allocation: 3 };
+type Step = 'connect' | 'personaLoading' | 'persona' | 'habits' | 'ledgerLoading' | 'deposit' | 'ack' | 'allocation';
+const DOT: Record<Step, number> = { connect: 0, personaLoading: 1, persona: 1, habits: 1, ledgerLoading: 2, deposit: 2, ack: 2, allocation: 3 };
 const DOT_TOTAL = 4;
 
 const NAME = '조대흠';           // 앱 전역 시연 사용자 (홈 헤더와 동일)
@@ -48,6 +49,7 @@ const FALLBACK_GIG: Pick<GigProfile, 'archetype' | 'volatility' | 'rhythm' | 'ph
 
 export function PersonaLedger() {
   const { actions, plStart } = useApp();
+  // 시작 단계 — 홈 미션·온보딩=connect(페르소나 장 도입: 뭘 보고 만드는지 먼저 보여준다) / 가계부=deposit(배분만)
   const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : 'connect');
   const [gig, setGig] = useState<GigProfile | null>(null);
   const [txn, setTxn] = useState<Txn | null>(null);
@@ -71,9 +73,17 @@ export function PersonaLedger() {
       {step === 'personaLoading' && (
         <PersonaLoading onDone={(g) => { setGig(g); go('persona'); }} />
       )}
-      {step === 'persona' && <Persona gig={gig} onNext={() => go('ledgerLoading')} />}
+      {step === 'persona' && <Persona gig={gig} cta="내 돈 관리 습관 보기" onNext={() => go('habits')} />}
+      {step === 'habits' && (
+        // 온보딩은 여기까지 — 착지는 가계부(설계된 봉투 현황 + 입금 대기 카드가 다음 행동을 안내).
+        // 기록은 입력(과거), 봉투는 출력(미래): 페르소나의 산출물을 '가계부'가 아니라 '봉투 설계'로 부른다.
+        <Habits
+          cta={plStart === 'onboard' ? '가계부에서 시작하기' : '이 습관에 맞춰 봉투 설계 받기'}
+          onNext={plStart === 'onboard' ? () => { actions.back(); actions.nav('ledger'); } : () => go('ledgerLoading')}
+        />
+      )}
       {step === 'ledgerLoading' && (
-        <Loading title={`${NAME}님만을 위한\n가계부를 준비하고 있어요`} sub="소득 리듬에 맞춘 봉투를 설계하고 있어요" onDone={() => go('deposit')} />
+        <Loading title={`${NAME}님만을 위한\n봉투를 설계하고 있어요`} sub="입금이 오면 나눠 담을 4개 봉투를 준비하고 있어요" onDone={() => go('deposit')} />
       )}
       {step === 'deposit' && <Deposit txn={txn} onYes={() => go('ack')} onOther={() => { actions.back(); actions.pushScr('transactions'); }} />}
       {step === 'ack' && <Ack onNext={() => go('allocation')} />}
@@ -87,15 +97,17 @@ function Connect({ onNext, onBack }: { onNext: () => void; onBack: () => void })
   const { vals, actions } = useApp();
   // 행별 실 연결 상태 — 마이데이터/홈택스는 ConnSrc, 앱 활동은 계측이라 항상 켜져 있다
   const checked = [vals.conn.mydata, vals.conn.hometax, true];
+  // 이력 연동을 거쳐 왔으면 이미 연결됨 — 재동의를 요구하지 않고 문구만 바꾼다
+  const already = vals.conn.mydata && vals.conn.hometax;
   return (
     <Frame
-      cta="연결하고 페르소나 만들기"
-      ctaSub="연결하면 마이데이터·홈택스 제공에 동의하게 돼요"
+      cta={already ? '페르소나 만들기' : '연결하고 페르소나 만들기'}
+      ctaSub={already ? '세 가지가 이미 연결돼 있어요 — 바로 읽을 수 있어요' : '연결하면 마이데이터·홈택스 제공에 동의하게 돼요'}
       secondary="다음에 할게요"
-      onCta={() => { actions.connectSources(['mydata', 'hometax']); onNext(); }}
+      onCta={() => { if (!already) actions.connectSources(['mydata', 'hometax']); onNext(); }}
       onSecondary={onBack}
     >
-      <Title title={'나를 이해하려면\n세 가지가 필요해요'} sub="세 가지를 연결하면 페르소나를 읽고, 나만을 위한 가계부를 만들어요." />
+      <Title title={'나를 이해하려면\n세 가지가 필요해요'} sub="세 가지 기록을 읽어 페르소나를 만들고, 앞으로 들어올 돈을 담을 봉투를 설계해요." />
       <View style={{ gap: 10 }}>
         {SOURCES.map((s, i) => (
           <View key={s.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
@@ -120,15 +132,25 @@ function Connect({ onNext, onBack }: { onNext: () => void; onBack: () => void })
   );
 }
 
-// ── 페르소나 로딩 — 실 판독 결과를 기다린다(캐시 있으면 즉시, 없으면 실판독) ──
+// ── 페르소나 로딩 — 실 판독을 기다리는 동안 '나에게 맞춰지는 과정' 3단계를 보여준다.
+// 대기가 곧 설명: 구조(규칙·통계) → 성향(EXAONE 판독) → 개인화(구조+성향). 마이 탭 카드와 같은 서사.
+const READ_STAGES: { n: string; title: string; badge: string; sub: string }[] = [
+  { n: '1', title: '긱 소득 구조', badge: '규칙·통계', sub: '변동성 · 입금 간격 · 소득원을 재고 있어요' },
+  { n: '2', title: '금융 행동 성향', badge: 'EXAONE 판독', sub: '안전 여유 · 돈의 시간 · 지출 조절 · 관리 습관' },
+  { n: '3', title: '서비스 개인화', badge: '구조 + 성향', sub: '봉투 설계 · 관리 방식 · 목표 페이스에 반영해요' },
+];
+
 function PersonaLoading({ onDone }: { onDone: (gig: GigProfile | null) => void }) {
+  const [stage, setStage] = useState(0);   // 완료된 단계 수 — stage번째가 진행 중
   useEffect(() => {
     let live = true;
     const started = Date.now();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    READ_STAGES.forEach((_, i) => timers.push(setTimeout(() => setStage(i + 1), 800 * (i + 1))));
     const finish = (g: GigProfile | null) => {
-      // 최소 2.1초는 보여준다 — 판독이 캐시라 즉답이어도 화면이 튀지 않게
-      const wait = Math.max(0, 2100 - (Date.now() - started));
-      setTimeout(() => { if (live) onDone(g); }, wait);
+      // 3단계 연출(2.4초)이 끝난 뒤에 넘어간다 — 판독이 캐시라 즉답이어도 화면이 튀지 않게
+      const wait = Math.max(0, 800 * READ_STAGES.length + 300 - (Date.now() - started));
+      timers.push(setTimeout(() => { if (live) onDone(g); }, wait));
     };
     (async () => {
       try {
@@ -140,10 +162,58 @@ function PersonaLoading({ onDone }: { onDone: (gig: GigProfile | null) => void }
         finish(null);
       }
     })();
-    return () => { live = false; };
+    return () => { live = false; timers.forEach(clearTimeout); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return <LoadingBody title="페르소나를 만들고 있어요" sub="연결된 데이터를 읽어 나를 분석하고 있어요" />;
+
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 24, paddingTop: 8 }}>
+      <View style={{ alignItems: 'center', paddingVertical: 14 }}>
+        <Mascot head size={88} radius={26} />
+      </View>
+      <Title title={'페르소나를 만들고 있어요'} sub="측정할 수 있는 구조와 AI가 읽은 행동을 섞지 않고, 마지막 결정에서 결합해요." />
+      <View style={{ gap: 12 }}>
+        {READ_STAGES.map((s, i) => {
+          const state = i < stage ? 'done' : i === stage ? 'loading' : 'wait';
+          return (
+            <View
+              key={s.n}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 13,
+                backgroundColor: state === 'wait' ? colors.bg : '#fff',
+                borderWidth: 1.4, borderColor: state === 'done' ? colors.greenLine : state === 'loading' ? colors.green : colors.line,
+                borderRadius: 16, padding: 15, opacity: state === 'wait' ? 0.5 : 1,
+              }}
+            >
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: state === 'done' ? colors.green : colors.bg, borderWidth: state === 'done' ? 0 : 1.4, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
+                {state === 'done'
+                  ? <Icon name="check" size={14} color="#fff" sw={2.6} />
+                  : <Text style={{ fontSize: 12, fontWeight: '800', color: colors.sub }}>{s.n}</Text>}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{s.title}</Text>
+                  <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub2 }}>{s.badge}</Text>
+                </View>
+                <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{s.sub}</Text>
+              </View>
+              {state === 'loading' ? <ActivityIndicator size="small" color={colors.green} /> : null}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ── 돈 관리 습관 — AI 성향 4축(마이 탭 카드와 단일 소스). 공개(구조) 다음 장 ──
+function Habits({ cta, onNext }: { cta: string; onNext: () => void }) {
+  return (
+    <Frame cta={cta} onCta={onNext}>
+      <Title kicker="AI가 읽은 나" title={'돈 관리 습관도\n읽어뒀어요'} />
+      <PersonaCard />
+    </Frame>
+  );
 }
 
 // ── 로딩(연출 전환용) ──────────────────────────────────────────────
@@ -168,12 +238,12 @@ function LoadingBody({ title, sub }: { title: string; sub: string }) {
 }
 
 // ── 페르소나 공개 — 실 긱 프로필(archetype·구조 라벨)이 주인공 ──────────────
-function Persona({ gig, onNext }: { gig: GigProfile | null; onNext: () => void }) {
+function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: GigProfile | null; cta?: string; onNext: () => void }) {
   const g = gig ?? FALLBACK_GIG;
   const [headline, tail] = g.archetype.split(' — ');
   const traits = [g.rhythm, `소득원 ${g.concentration}`, g.phase].filter(Boolean);
   return (
-    <Frame cta="맞춤 가계부 만들기" onCta={onNext}>
+    <Frame cta={cta} onCta={onNext}>
       <Title kicker="AI가 읽은 나" title={`${NAME}님은\n'${headline}'`} />
       <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 20, padding: 20, alignItems: 'center' }}>
         <Mascot head size={96} radius={28} style={{ backgroundColor: '#fff' }} />

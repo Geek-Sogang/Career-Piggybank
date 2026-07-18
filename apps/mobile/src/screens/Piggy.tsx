@@ -85,7 +85,7 @@ export function Piggy() {
       </Pressable>
 
       {/* CTA */}
-      <Pressable onPress={() => actions.pushScr('careerSync')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+      <Pressable onPress={() => actions.openCareerSync()} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
         <View style={{ gap: 2 }}>
           <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>흩어진 이력 모으기</Text>
           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '400' }}>입금·세금·인증서를 한 번에 연동하고 상품까지</Text>

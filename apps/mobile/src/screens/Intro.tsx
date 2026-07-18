@@ -82,7 +82,7 @@ export function Intro() {
           ))}
         </View>
         <Pressable
-          onPress={last ? actions.enter : () => setPage(page + 1)}
+          onPress={last ? actions.enterOnboarding : () => setPage(page + 1)}   /* 시작하기 = 흩어진 이력 모으기로 바로 (건너뛰기만 홈 직행) */
           style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 17, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 12 } }}
         >
           <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>{last ? '시작하기' : '다음'}</Text>

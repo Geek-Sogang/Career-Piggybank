@@ -38,7 +38,6 @@ function useAppState(startTab: Tab = 'home') {
   const [conn, setConn] = useState<Conn>({ github: false, mydata: false, hometax: false, kosa: false, behance: false, portfolio: false });
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
-  const [retireTab, setRetireTab] = useState<'curve' | 'pension'>('curve');   // 은퇴 상세 초기 탭
   const [plStart, setPlStart] = useState<'connect' | 'deposit'>('connect');   // 페르소나 플로우 시작 단계(홈=풀, 가계부=배분만)
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
@@ -120,7 +119,6 @@ function useAppState(startTab: Tab = 'home') {
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
     openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
-    openRetire: (t: 'curve' | 'pension') => { setRetireTab(t); setPush('retirementDetail'); setSheet(null); },
     // 페르소나→배분 플로우 — 홈 미션은 연결부터(온보딩 서사), 가계부 입금 카드는 배분만(반복 동선)
     openAllocFlow: (start: 'connect' | 'deposit') => { setPlStart(start); setPush('personaLedger'); setSheet(null); },
     // 온보딩 플로우의 일괄 연결 — 개별 연결과 같은 경로(점수 반영 + F13 계측)
@@ -168,7 +166,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario, verification]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, retireTab, plStart, lastAlloc, pacingApplied, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, plStart, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

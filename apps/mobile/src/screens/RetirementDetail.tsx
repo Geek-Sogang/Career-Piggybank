@@ -7,25 +7,12 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Card } from '@/components/ui';
 import { useApp, type Scenario } from '@/store';
 
-// 영상 [12] 은퇴 상세 — 상단 세그먼트 탭으로 '내 은퇴곡선'과 '내 연금'을 전환한다.
-// 은퇴곡선: 예측 근거(수입 예측·지출 통계) + 은퇴를 미루는 솔루션.
-// 내 연금: 납입 중 연금 + 은퇴곡선에 맞춘 납입 조정 조언.
+// 영상 [12] 은퇴 상세 — 내 은퇴곡선(실 forecast): 예측 근거(수입 예측·지출 통계) +
+// 은퇴를 미루는 솔루션. '내 연금' 탭은 연금 페이싱 설계가 확정되면 실배선으로 붙인다.
 export function RetirementDetail() {
-  const { retireTab } = useApp();
-  const [tab, setTab] = useState<'curve' | 'pension'>(retireTab);
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ flexDirection: 'row', backgroundColor: '#EDEFF2', borderRadius: 13, padding: 4 }}>
-        {([['curve', '내 은퇴곡선'], ['pension', '내 연금']] as ['curve' | 'pension', string][]).map(([k, label]) => {
-          const active = tab === k;
-          return (
-            <Pressable key={k} onPress={() => setTab(k)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: active ? '#fff' : 'transparent', alignItems: 'center', ...(active ? { shadowColor: '#111827', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } } : {}) }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: active ? colors.green : colors.sub3 }}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {tab === 'curve' ? <CurveTab /> : <PensionTab />}
+      <CurveTab />
     </View>
   );
 }
@@ -122,8 +109,9 @@ function CurveTab() {
           <Text style={{ fontSize: 15, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>은퇴 시점을 더 미루려면?</Text>
           <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 3 }}>지금 상태에서 소득 유지 구간을 늘리는 두 가지 방법이에요.</Text>
         </View>
-        <SolutionRow icon="trending" tint={colors.greenTint} color={colors.green} title="일을 더 수주하기" effect="월 1건 더 수주하면 소득 유지 구간 +3.2년" />
-        <SolutionRow icon="coin" tint={colors.bufferTint} color={colors.buffer} title="지출 줄이기" effect="월 생활비 −30만원이면 은퇴 안정 시점 +2.1년" />
+        {/* 방향만 말한다 — 효과 연수는 검증된 산출이 없어 수치로 약속하지 않는다 */}
+        <SolutionRow icon="trending" tint={colors.greenTint} color={colors.green} title="일을 더 수주하기" effect="수주 간격이 좁아질수록 소득 유지 구간이 길어져요" />
+        <SolutionRow icon="coin" tint={colors.bufferTint} color={colors.buffer} title="지출 줄이기" effect="생활비 기준선이 낮아지면 은퇴 구간이 뒤로 밀려요" />
       </Card>
 
       <Pressable onPress={() => actions.pushScr('nestEgg')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
@@ -145,102 +133,6 @@ function SolutionRow({ icon, tint, color, title, effect }: { icon: IconName; tin
         <Text style={{ fontSize: 12, fontWeight: '600', color, marginTop: 2 }}>{effect}</Text>
       </View>
     </View>
-  );
-}
-
-// ── 내 연금 ────────────────────────────────────────────────────────
-type Pension = { name: string; sub: string; monthly: number; color: string; tint: string; locked?: boolean };
-const PENSIONS: Pension[] = [
-  { name: '국민연금', sub: '의무 가입', monthly: 189_000, color: colors.buffer, tint: colors.bufferTint, locked: true },
-  { name: '연금저축펀드', sub: '세액공제 대상 (16.5%)', monthly: 250_000, color: colors.green, tint: colors.greenTint },
-  { name: 'IRP', sub: '개인형 퇴직연금', monthly: 100_000, color: colors.indigo, tint: colors.indigoTint },
-];
-const BASE_RETIRE_YEAR = 2043;   // 데모: 현재 납입 기준 은퇴 넘버 도달 해
-const STEP = 50_000;             // 조절 단위 (연금저축 월 납입)
-
-function PensionTab() {
-  const [extra, setExtra] = useState(0);   // 연금저축 월 추가 납입액
-  const projectedYear = Math.round((BASE_RETIRE_YEAR - (extra / STEP) * 0.6) * 10) / 10;
-  const yearsEarlier = Math.round(((BASE_RETIRE_YEAR - projectedYear)) * 10) / 10;
-  const savingMonthly = PENSIONS[1].monthly + extra;
-  const annualDeduction = Math.round(Math.min(savingMonthly * 12, 6_000_000) * 0.165);
-  const totalMonthly = PENSIONS.reduce((a, p) => a + p.monthly, 0) + extra;
-
-  return (
-    <View style={{ gap: 14 }}>
-      <View>
-        <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>매달 납입 중인 연금</Text>
-        <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -1, color: colors.ink, marginTop: 4, fontVariant: ['tabular-nums'] }}>₩{totalMonthly.toLocaleString('en-US')}<Text style={{ fontSize: 15, fontWeight: '700', color: colors.sub2 }}> /월</Text></Text>
-      </View>
-
-      {/* 납입 중 연금 목록 */}
-      <Card p={0} style={{ paddingHorizontal: 16, borderRadius: 16 }}>
-        {PENSIONS.map((p, i) => {
-          const monthly = p.name === '연금저축펀드' ? p.monthly + extra : p.monthly;
-          return (
-            <View key={p.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < PENSIONS.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
-              <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: p.tint, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="coin" size={21} color={p.color} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{p.name}</Text>
-                <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{p.sub}</Text>
-              </View>
-              <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.ink, fontVariant: ['tabular-nums'] }}>₩{monthly.toLocaleString('en-US')}</Text>
-            </View>
-          );
-        })}
-      </Card>
-
-      {/* 조언 + 조절 — 은퇴곡선에 맞춘 연금저축 조정 */}
-      <Card style={{ gap: 14 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 10.5, fontWeight: '800', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>피기 조언</Text>
-          <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.ink }}>연금저축 납입 조정</Text>
-        </View>
-        <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub, lineHeight: 19 }}>
-          연금저축을 조금 늘리면 세액공제도 커지고 은퇴 넘버 도달도 앞당겨져요. 슬라이더로 조정해 보세요.
-        </Text>
-
-        {/* 조절 스테퍼 */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Stepper label="−" disabled={extra <= 0} onPress={() => setExtra((e) => Math.max(0, e - STEP))} />
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>월 추가 납입</Text>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: extra > 0 ? colors.green : colors.sub3, fontVariant: ['tabular-nums'] }}>{extra > 0 ? `+₩${extra.toLocaleString('en-US')}` : '₩0'}</Text>
-          </View>
-          <Stepper label="+" disabled={extra >= STEP * 6} onPress={() => setExtra((e) => Math.min(STEP * 6, e + STEP))} />
-        </View>
-
-        {/* 효과 요약 */}
-        <View style={{ backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 8 }}>
-          <EffectLine label="은퇴 넘버 도달" value={`${Math.floor(projectedYear)}년`} accent />
-          {yearsEarlier > 0 && <EffectLine label="현재보다" value={`${yearsEarlier.toFixed(1)}년 앞당김`} />}
-          <EffectLine label="연 세액공제" value={`+₩${annualDeduction.toLocaleString('en-US')}`} />
-        </View>
-
-        <Pressable style={{ backgroundColor: extra > 0 ? colors.green : colors.dash, borderRadius: 15, paddingVertical: 16, alignItems: 'center' }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>{extra > 0 ? `월 +₩${extra.toLocaleString('en-US')} 납입 신청하기` : '납입액을 조정해 주세요'}</Text>
-        </Pressable>
-      </Card>
-    </View>
-  );
-}
-
-function EffectLine({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.greenInk }}>{label}</Text>
-      <Text style={{ fontSize: accent ? 15 : 13, fontWeight: '800', color: accent ? colors.green : colors.greenInk, fontVariant: ['tabular-nums'] }}>{value}</Text>
-    </View>
-  );
-}
-
-function Stepper({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <Pressable onPress={disabled ? undefined : onPress} style={{ width: 52, height: 52, borderRadius: 15, borderWidth: 1.4, borderColor: disabled ? colors.line : colors.green, alignItems: 'center', justifyContent: 'center', opacity: disabled ? 0.4 : 1 }}>
-      <Text style={{ fontSize: 22, fontWeight: '800', color: disabled ? colors.sub3 : colors.green }}>{label}</Text>
-    </Pressable>
   );
 }
 

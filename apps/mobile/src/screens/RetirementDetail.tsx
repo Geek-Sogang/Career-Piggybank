@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import Svg, { Path, Line, Circle } from 'react-native-svg';
 import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
@@ -7,12 +7,25 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Card } from '@/components/ui';
 import { useApp, type Scenario } from '@/store';
 
-// 영상 [12] 은퇴 상세 — 내 은퇴곡선(실 forecast): 예측 근거(수입 예측·지출 통계) +
-// 은퇴를 미루는 솔루션. '내 연금' 탭은 연금 페이싱 설계가 확정되면 실배선으로 붙인다.
+// 영상 [12] 은퇴 상세 — 세그먼트 2탭: 내 은퇴곡선(실 forecast) / 내 연금(페이싱 v1).
+// 연금 문법 = ⑤b 금액 페이싱의 6번째 적용: 사람이 밴드를 1회 승인 → AI가 이번 달
+// 페이스만 판정(근거 접지) → 실행은 항상 사람의 승인(HITL). 도달 연도 공식은 두지 않는다.
 export function RetirementDetail() {
+  const { retireTab } = useApp();
+  const [tab, setTab] = useState<'curve' | 'pension'>(retireTab);
   return (
     <View style={{ gap: 16 }}>
-      <CurveTab />
+      <View style={{ flexDirection: 'row', backgroundColor: '#EDEFF2', borderRadius: 13, padding: 4 }}>
+        {([['curve', '내 은퇴곡선'], ['pension', '내 연금']] as ['curve' | 'pension', string][]).map(([k, label]) => {
+          const active = tab === k;
+          return (
+            <Pressable key={k} onPress={() => setTab(k)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: active ? '#fff' : 'transparent', alignItems: 'center', ...(active ? { shadowColor: '#111827', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } } : {}) }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: active ? colors.green : colors.sub3 }}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {tab === 'curve' ? <CurveTab /> : <PensionTab />}
     </View>
   );
 }
@@ -132,6 +145,152 @@ function SolutionRow({ icon, tint, color, title, effect }: { icon: IconName; tin
         <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 12, fontWeight: '600', color, marginTop: 2 }}>{effect}</Text>
       </View>
+    </View>
+  );
+}
+
+// ── 내 연금 — 연동 연금 목록 + 연금 페이싱 v1(프론트 시뮬, 백엔드 ⑤b 확장 후속) ──
+// 납입 내역은 데모 시나리오 시드(마이데이터 연금 연동 가정). 하나 상품명 준수.
+export const PENSIONS: { name: string; sub: string; monthly: number; color: string; tint: string }[] = [
+  { name: '국민연금', sub: '의무 가입', monthly: 189_000, color: colors.buffer, tint: colors.bufferTint },
+  { name: '하나 연금저축펀드', sub: '세액공제 대상', monthly: 250_000, color: colors.green, tint: colors.greenTint },
+  { name: '하나 IRP', sub: '개인형 퇴직연금', monthly: 100_000, color: colors.indigo, tint: colors.indigoTint },
+];
+export const PENSION_MONTHLY_TOTAL = PENSIONS.reduce((a, p) => a + p.monthly, 0);
+
+// 사전 승인 밴드(사람이 정한 원칙)와 이번 달 기본 페이스 — 판정 시뮬 상수.
+// 효과 연수(도달 앞당김)는 검증된 산출이 없어 표시하지 않는다. 세액공제만 산수로 보여준다.
+const PACE_BAND = { min: 0, max: 400_000 };
+const PACE_AMOUNT = 300_000;
+// 세액공제 산수 — 표준 인용(16.5%, 개인 조건에 따라 13.2~16.5%): products.ts와 동일 표기 체계
+const ANNUAL_DEDUCTION = Math.round(PACE_AMOUNT * 12 * 0.165);
+
+type PaceState = 'idle' | 'judging' | 'proposed' | 'approved' | 'skipped';
+
+function PensionTab() {
+  const [pace, setPace] = useState<PaceState>('idle');
+  const [fc, setFc] = useState<Forecast | null>(null);
+  useEffect(() => {
+    let live = true;
+    getForecast().then((n) => { if (live) setFc(n); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  // 판정 연출(⑤b 프론트 시뮬 전례) — 3초 뒤 제안. 근거는 실 forecast로 접지.
+  useEffect(() => {
+    if (pace !== 'judging') return;
+    const t = setTimeout(() => setPace('proposed'), 3000);
+    return () => clearTimeout(t);
+  }, [pace]);
+
+  const reasons = fc
+    ? [
+      `다음 수입 ${fc.income_gap.expected_next_date.slice(5).replace('-', '/')}쯤 예상 — 입금 간격 중앙값 ${Math.round(fc.income_gap.median_gap_days)}일`,
+      `소득 변동계수 ${fc.income_cv.toFixed(2)} — 무리하지 않는 기본 페이스로 제안해요`,
+    ]
+    : ['소득 리듬 데이터를 불러오는 중이에요 — 기본 페이스 기준으로 제안해요'];
+
+  return (
+    <View style={{ gap: 14 }}>
+      <View>
+        <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '700' }}>매달 납입 중인 연금</Text>
+        <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -1, color: colors.ink, marginTop: 4, fontVariant: ['tabular-nums'] }}>
+          ₩{PENSION_MONTHLY_TOTAL.toLocaleString('en-US')}<Text style={{ fontSize: 15, fontWeight: '700', color: colors.sub2 }}> /월</Text>
+        </Text>
+      </View>
+
+      {/* 납입 중 연금 목록 */}
+      <Card p={0} style={{ paddingHorizontal: 16, borderRadius: 16 }}>
+        {PENSIONS.map((p, i) => (
+          <View key={p.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < PENSIONS.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
+            <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: p.tint, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="coin" size={21} color={p.color} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{p.name}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{p.sub}</Text>
+            </View>
+            <Text style={{ fontSize: 14.5, fontWeight: '800', color: colors.ink, fontVariant: ['tabular-nums'] }}>₩{p.monthly.toLocaleString('en-US')}</Text>
+          </View>
+        ))}
+      </Card>
+
+      {/* 연금 페이싱 — 정액 자동이체는 보릿고개 달에 깨진다. 리듬에 맞춰 이번 달 페이스만 판정 */}
+      <Card style={{ gap: 13 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>AI 페이싱</Text>
+          <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '800', color: colors.ink }}>이번 달 연금 페이스</Text>
+        </View>
+        <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub, lineHeight: 19 }}>
+          내가 정한 원칙(월 ₩{PACE_BAND.min.toLocaleString('en-US')}~{PACE_BAND.max.toLocaleString('en-US')} · 여윳돈이 기준 이상인 달만) 안에서, 이번 달 얼마가 무리 없는지만 판정해요. 납입은 항상 내 승인으로 실행돼요.
+        </Text>
+
+        {pace === 'idle' && (
+          <Pressable onPress={() => setPace('judging')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>이번 달 페이스 판정받기</Text>
+          </Pressable>
+        )}
+
+        {pace === 'judging' && (
+          <View style={{ alignItems: 'center', paddingVertical: 14, gap: 10 }}>
+            <ActivityIndicator size="small" color={colors.green} />
+            <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub2 }}>이번 달 소득 리듬과 여윳돈을 보고 있어요…</Text>
+          </View>
+        )}
+
+        {pace === 'proposed' && (
+          <View style={{ gap: 12 }}>
+            <View style={{ backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 6 }}>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: colors.green }}>기본 페이스</Text>
+              <Text style={{ fontSize: 17, fontWeight: '800', color: colors.ink }}>이번 달 하나 연금저축펀드에{'\n'}₩{PACE_AMOUNT.toLocaleString('en-US')} 어떠세요?</Text>
+              <View style={{ gap: 4, marginTop: 4 }}>
+                {reasons.map((r) => (
+                  <Text key={r} style={{ fontSize: 11.5, fontWeight: '500', color: colors.greenInk, lineHeight: 17 }}>· {r}</Text>
+                ))}
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.bg, borderRadius: 12, padding: 13 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.sub }}>이 페이스로 1년이면 세액공제 예상</Text>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: colors.green, fontVariant: ['tabular-nums'] }}>약 ₩{ANNUAL_DEDUCTION.toLocaleString('en-US')}</Text>
+            </View>
+            <Text style={{ fontSize: 10.5, fontWeight: '500', color: colors.sub3, lineHeight: 15 }}>
+              세액공제율 16.5% 기준 산수 — 개인 조건에 따라 13.2~16.5% · 5월 추가납부가 그만큼 가벼워져요
+            </Text>
+            <Pressable onPress={() => setPace('approved')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>이번 달 ₩{PACE_AMOUNT.toLocaleString('en-US')} 납입 승인</Text>
+            </Pressable>
+            <Pressable onPress={() => setPace('skipped')} style={{ paddingVertical: 8, alignItems: 'center' }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.sub3 }}>이번 달은 쉬어갈게요</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {pace === 'approved' && (
+          <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 14, padding: 15, gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="check" size={13} color="#fff" sw={2.6} />
+              </View>
+              <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.greenInk }}>이번 달 ₩{PACE_AMOUNT.toLocaleString('en-US')} 납입을 승인했어요</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '500', color: colors.greenInk, lineHeight: 17 }}>
+              연 세액공제 예상 약 ₩{ANNUAL_DEDUCTION.toLocaleString('en-US')} — 노후와 5월 세금을 같이 챙겼어요. 다음 달 리듬으로 다시 판정해 드릴게요.
+            </Text>
+          </View>
+        )}
+
+        {pace === 'skipped' && (
+          <View style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '600', color: colors.sub, lineHeight: 18 }}>
+              이번 달은 쉬어가요 — 소득 공백 달에 무리하지 않는 것도 페이스예요. 다음 달 리듬으로 다시 판정해 드릴게요.
+            </Text>
+          </View>
+        )}
+      </Card>
+
+      {/* 하나원큐 포지셔닝 — 무엇에(포트폴리오)는 하나원큐, 언제·얼마(페이스)는 우리 */}
+      <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub3, lineHeight: 16, marginHorizontal: 4 }}>
+        어떤 상품에 넣을지는 하나원큐 연금 솔루션이, 언제·얼마 넣을지는 내 소득 리듬을 아는 피기가 함께해요.
+      </Text>
     </View>
   );
 }

@@ -39,6 +39,7 @@ function useAppState(startTab: Tab = 'home') {
   const [scenario, setScenario] = useState<Scenario>('base');
   const [detail, setDetail] = useState<JobKey>('commerce');
   const [plStart, setPlStart] = useState<'connect' | 'onboard' | 'deposit' | 'review'>('connect');   // 페르소나 플로우 진입(홈=풀, 온보딩, 가계부=배분만, review=확정 배분 근거·재조정)
+  const [retireTab, setRetireTab] = useState<'curve' | 'pension'>('curve');   // 은퇴 상세 초기 탭(미래 탭 연금 카드=바로 pension)
   const [csMode, setCsMode] = useState<'onboard' | 'browse'>('browse');       // 이력 연동 모드(첫 실행 온보딩=구조 티저→페르소나, 평시=승인·상품)
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
@@ -122,6 +123,7 @@ function useAppState(startTab: Tab = 'home') {
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
     openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
+    openRetire: (t: 'curve' | 'pension') => { setRetireTab(t); setPush('retirementDetail'); setSheet(null); },
     // 페르소나→배분 플로우 — 홈 미션·온보딩은 연결 화면부터(온보딩은 공개 후 홈 착지), 가계부 입금 카드는 배분만
     openAllocFlow: (start: 'connect' | 'onboard' | 'deposit' | 'review') => { setPlStart(start); setPush('personaLedger'); setSheet(null); },
     // 이력 연동 — 평시 진입(browse: 승인·상품 포함). 온보딩 진입은 enterOnboarding이 담당.
@@ -171,7 +173,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario, verification]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, lastAlloc, pacingApplied, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, retireTab, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

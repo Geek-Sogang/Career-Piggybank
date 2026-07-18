@@ -5,6 +5,7 @@ import { getForecast, type Forecast } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card } from '@/components/ui';
+import { PENSIONS, PENSION_MONTHLY_TOTAL } from '@/screens/RetirementDetail';
 import { useApp } from '@/store';
 
 // 미래 탭 = 은퇴 전망 요약(박스). 박스를 누르면 상세(내 은퇴곡선 · 내 연금)로 전환한다.
@@ -73,7 +74,31 @@ export function Retirement() {
         </View>
       )}
 
-      {/* 노후 준비 상품 CTA — 연금 현황·조정은 연금 페이싱 설계 확정 후 실배선 */}
+      {/* 내 연금 요약 — 탭 = 상세의 '내 연금'(페이싱)으로 바로 */}
+      <Pressable onPress={() => actions.openRetire('pension')}>
+        <Card style={{ gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>내 연금</Text>
+            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+          </View>
+          <View>
+            <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600' }}>매달 납입 중</Text>
+            <Text style={{ fontSize: 26, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, marginTop: 2, fontVariant: ['tabular-nums'] }}>
+              ₩{PENSION_MONTHLY_TOTAL.toLocaleString('en-US')}<Text style={{ fontSize: 14, fontWeight: '700', color: colors.sub2 }}> /월</Text>
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+            {PENSIONS.map((p) => (
+              <Text key={p.name} style={{ fontSize: 11, fontWeight: '700', color: p.color, backgroundColor: p.tint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{p.name}</Text>
+            ))}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 11 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.green }}>이번 달 연금 페이스를 판정받아 보세요</Text>
+          </View>
+        </Card>
+      </Pressable>
+
+      {/* 노후 준비 상품 CTA */}
       <Pressable onPress={() => actions.pushScr('nestEgg')}>
         <View style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
           <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>

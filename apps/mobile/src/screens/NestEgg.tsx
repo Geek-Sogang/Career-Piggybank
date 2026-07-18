@@ -42,7 +42,8 @@ export function NestEgg() {
         <Text style={{ fontSize: 12.5, color: colors.sub, fontWeight: '500', marginTop: 6, lineHeight: 19 }}>연 납입액의 13.2~16.5% 세액공제 — 프리랜서에게 가장 효율적이에요.</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.greenInk, backgroundColor: colors.greenTint, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>연 최대 148.5만 공제</Text>
-          <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.sub, backgroundColor: '#F1F2F4', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>자동이체 연동</Text>
+          {/* 정액 자동이체는 보릿고개 달에 깨진다 — 긱 리듬 페이싱이 우리 문법 */}
+          <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.sub, backgroundColor: '#F1F2F4', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>소득 리듬 맞춤 납입</Text>
         </View>
       </Pressable>
 

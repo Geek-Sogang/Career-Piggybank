@@ -26,7 +26,7 @@ export function Home() {
     : {
       title: '이번 달 입금 봉투에 나눠 담기',
       sub: '페르소나 맞춤 배분 · +25 XP',
-      onPress: () => actions.pushScr('personaLedger' as const),
+      onPress: () => actions.openAllocFlow('connect'),   // 시나리오 [10] 풀플로우(연결→페르소나→배분)
     };
 
   const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;

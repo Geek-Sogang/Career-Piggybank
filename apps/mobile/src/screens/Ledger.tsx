@@ -24,11 +24,15 @@ export function Ledger() {
   const spent = monthTxns.filter((t) => t.direction === 'out').reduce((a, t) => a + t.amount, 0);
   const txnCount = txns ? monthTxns.length : 4;
 
-  const demoDepositRecorded = !!txns?.some((t) =>
-    t.date === DEMO_DEPOSIT.date && t.amount === DEMO_DEPOSIT.amount && t.counterparty === DEMO_DEPOSIT.counterparty);
-  const depositHandled = !!lastAlloc || demoDepositRecorded;
-  const depositConfirmed = lastAlloc?.confirmed ?? demoDepositRecorded;
-  const depositAmount = lastAlloc?.deposit ?? DEMO_DEPOSIT.amount;
+  // 입금 처리 상태 — 이번 세션의 배분 결정(lastAlloc) 기준. 원장에 입금이 있어도
+  // 아직 나눠 담기 전이면 트리거 카드를 보여준다(항상 재연 가능한 배분 동선).
+  const latestIncome = (txns ?? []).find((t) => t.direction === 'in' && t.kind === 'income') ?? null;
+  const depositHandled = !!lastAlloc;
+  const depositConfirmed = lastAlloc?.confirmed ?? false;
+  const depositAmount = lastAlloc?.deposit ?? latestIncome?.amount ?? DEMO_DEPOSIT.amount;
+  const depositParty = latestIncome?.counterparty ?? DEMO_DEPOSIT.counterparty;
+  const depositDate = latestIncome?.date ?? DEMO_DEPOSIT.date;
+  const depositDay = `${Number(depositDate.slice(5, 7))}월 ${Number(depositDate.slice(8, 10))}일`;
 
   return (
     <View style={{ gap: 14 }}>
@@ -38,14 +42,14 @@ export function Ledger() {
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub2 }}>새 입금 내역을 확인하고 있어요…</Text>
         </View>
       ) : !depositHandled ? (
-        <Pressable onPress={() => actions.pushScr('personaLedger')}>
+        <Pressable onPress={() => actions.openAllocFlow('deposit')}>
           <View style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="coin" size={22} color="#fff" sw={2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,.85)' }}>일주일 전 · △△플랫폼 정산</Text>
-              <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 }}>+₩3,000,000 — 봉투에 나눠 담기</Text>
+              <Text style={{ fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,.85)' }}>{depositDay} · {depositParty}</Text>
+              <Text style={{ fontSize: 15.5, fontWeight: '800', color: '#fff', marginTop: 2, letterSpacing: -0.3 }}>+₩{depositAmount.toLocaleString('en-US')} — 봉투에 나눠 담기</Text>
             </View>
             <Icon name="chevronRight" size={20} color="rgba(255,255,255,.8)" sw={2.2} />
           </View>
@@ -57,7 +61,7 @@ export function Ledger() {
               <Icon name={depositConfirmed ? 'check' : 'coin'} size={22} color="#fff" sw={2.2} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.sub2 }}>△△플랫폼 정산 · ₩{depositAmount.toLocaleString('en-US')}</Text>
+              <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.sub2 }}>{depositParty} · ₩{depositAmount.toLocaleString('en-US')}</Text>
               <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 2, letterSpacing: -0.3 }}>
                 {depositConfirmed ? '4개 봉투에 나눠 담았어요' : '배분 제안이 준비됐어요 — 확인해 주세요'}
               </Text>

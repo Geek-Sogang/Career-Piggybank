@@ -12,7 +12,7 @@ import { Mascot } from '@/components/ui';
 import { Frame, Title, FlowHeader } from '@/components/flow';
 import { PersonaCard } from '@/screens/My';
 import { usePersonalizationV2 } from '@/lib/personalization';
-import { useApp } from '@/store';
+import { useApp, type AllocNotice } from '@/store';
 
 // 영상 [10] 완숙기 · 페르소나 → 맞춤 가계부 → 봉투 배분. 토스식 진행형 UX(한 화면 = 한 목적).
 // 무대는 극본 그대로, 배우는 실 데이터: 페르소나 = getGigProfile/getPersona, 입금 = 실 거래,
@@ -49,9 +49,9 @@ const FALLBACK_GIG: Pick<GigProfile, 'archetype' | 'volatility' | 'rhythm' | 'ph
 };
 
 export function PersonaLedger() {
-  const { actions, plStart } = useApp();
-  // 시작 단계 — 홈 미션·온보딩=connect(페르소나 장 도입: 뭘 보고 만드는지 먼저 보여준다) / 가계부=deposit(배분만)
-  const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : 'connect');
+  const { actions, plStart, lastAlloc } = useApp();
+  // 시작 단계 — 홈 미션·온보딩=connect(페르소나 장 도입) / 가계부=deposit(배분만) / review=확정 배분 재검토
+  const [step, setStep] = useState<Step>(plStart === 'review' ? 'allocation' : plStart === 'deposit' ? 'deposit' : 'connect');
   const [gig, setGig] = useState<GigProfile | null>(null);
   const [txn, setTxn] = useState<Txn | null>(null);
   const go = (s: Step) => setStep(s);
@@ -92,7 +92,13 @@ export function PersonaLedger() {
       )}
       {step === 'deposit' && <Deposit txn={txn} onYes={() => go('ack')} onOther={() => { actions.back(); actions.pushScr('transactions'); }} />}
       {step === 'ack' && <Ack onNext={() => go('allocation')} />}
-      {step === 'allocation' && <Allocate txn={txn} onDone={() => { actions.back(); actions.nav('ledger'); }} />}
+      {step === 'allocation' && (
+        <Allocate
+          txn={txn}
+          review={plStart === 'review' ? lastAlloc : null}
+          onDone={() => { actions.back(); actions.nav('ledger'); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -354,10 +360,11 @@ function Ack({ onNext }: { onNext: () => void }) {
   );
 }
 
-// ── 봉투 배분 — 실 제안(근거 포함) + 사람의 조정(잔여 평형추 = 여윳돈) ────────
-function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
+// ── 봉투 배분 — 실 제안(근거 포함) + 사람의 조정(잔여 평형추 = 여윳돈).
+// review 모드: 확정된 배분(lastAlloc)의 근거를 다시 보고 재조정 — "언제든 다시 조정" 약속의 실현.
+function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNotice | null; onDone: () => void }) {
   const { actions } = useApp();
-  const depositAmount = txn?.amount ?? DEMO_DEPOSIT.amount;
+  const depositAmount = review?.deposit ?? txn?.amount ?? DEMO_DEPOSIT.amount;
   const [proposal, setProposal] = useState<Allocation | null>(null);
   const [alloc, setAlloc] = useState<EnvelopeSplit | null>(null);
   const [taxUnlocked, setTaxUnlocked] = useState(false);
@@ -366,13 +373,24 @@ function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
   const [done, setDone] = useState(false);
 
   // 실 배분 제안 — AI 판정 + 산수. 서버가 죽어도 데모는 죽지 않는다(오프라인 폴백).
+  // review면 새 제안을 만들지 않고 확정본을 그대로 편다(근거·배분 동일 사건).
   useEffect(() => {
     let live = true;
+    if (review) {
+      const synth: Allocation = {
+        id: review.id ?? 'review', status: 'confirmed', deposit: review.deposit,
+        proposed: review.split, windfall_ratio: review.windfall, needs_confirmation: false,
+        reasons: review.reasons ?? [], buffer_target: 0, invest_available: 0, persona_used: true,
+      };
+      setProposal(synth);
+      setAlloc(review.split);
+      return () => { live = false; };
+    }
     proposeAllocation(depositAmount)
       .then((a) => { if (live) { setProposal(a); setAlloc(a.proposed); } })
       .catch(() => { if (live) { setProposal(OFFLINE_ALLOCATION); setAlloc(OFFLINE_ALLOCATION.proposed); } });
     return () => { live = false; };
-  }, [depositAmount]);
+  }, [depositAmount, review]);
 
   // 조정: 대상 봉투에서 ±STEP, 상대는 항상 여윳돈(잔여 평형추). 합계 불변.
   const move = (key: EnvKey, dir: 1 | -1) => {
@@ -390,11 +408,14 @@ function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
     move('tax', dir);
   };
 
+  const changed = !!proposal && !!alloc && ENVS.some((e) => alloc[e.key] !== proposal.proposed[e.key]);
+
   // 확정 — 제안 그대로면 confirm, 만졌으면 adjust. 결정은 언제나 사람.
   const submit = async () => {
     if (!proposal || !alloc || busy) return;
+    // review에서 안 만졌으면 저장할 것이 없다 — 그대로 닫는다
+    if (review && !changed) { onDone(); return; }
     setBusy(true);
-    const changed = ENVS.some((e) => alloc[e.key] !== proposal.proposed[e.key]);
     try {
       await decideAllocation(proposal.id, changed ? 'adjust' : 'confirm', changed ? alloc : undefined);
     } catch {
@@ -402,9 +423,9 @@ function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
     }
     actions.noteAllocation({
       id: proposal.id, deposit: depositAmount, windfall: proposal.windfall_ratio,
-      split: alloc, reasons: proposal.reasons, confirmed: false,
+      split: alloc, reasons: proposal.reasons, confirmed: !!review,
     });
-    actions.markAllocConfirmed();   // 소득리듬 층(배분 승인 발판) 갱신 포함
+    if (!review) actions.markAllocConfirmed();   // 소득리듬 층 갱신 — 최초 결정에서만(재조정은 중복 집계 방지)
     setBusy(false);
     setDone(true);
   };
@@ -420,8 +441,12 @@ function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
           <View style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="check" size={40} color="#fff" sw={2.6} />
           </View>
-          <Text style={{ fontSize: 23, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, textAlign: 'center' }}>가계부에 담았어요</Text>
-          <Text style={{ fontSize: 14, fontWeight: '500', color: colors.sub2, textAlign: 'center' }}>4개 봉투에 나눠 담았어요 · 언제든 다시 조정할 수 있어요</Text>
+          <Text style={{ fontSize: 23, fontWeight: '800', letterSpacing: -0.6, color: colors.ink, textAlign: 'center' }}>
+            {review ? '조정을 저장했어요' : '가계부에 담았어요'}
+          </Text>
+          <Text style={{ fontSize: 14, fontWeight: '500', color: colors.sub2, textAlign: 'center' }}>
+            {review ? '조정한 만큼 여윳돈에서 오갔어요 · 근거는 그대로 남아요' : '4개 봉투에 나눠 담았어요 · 언제든 다시 조정할 수 있어요'}
+          </Text>
         </View>
       </Frame>
     );
@@ -431,8 +456,16 @@ function Allocate({ txn, onDone }: { txn: Txn | null; onDone: () => void }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <Frame cta={busy ? '담는 중…' : '이대로 담기'} ctaDisabled={busy} onCta={submit}>
-        <Title kicker="AI 추천 배분" title={'이렇게 나눠 담는 걸\n추천드려요'} sub="내 소득 리듬과 세율표를 함께 봤어요. 자유롭게 조정하셔도 돼요." />
+      <Frame
+        cta={busy ? '저장 중…' : review ? (changed ? '조정 저장하기' : '좋아요, 이대로 둘게요') : '이대로 담기'}
+        ctaDisabled={busy}
+        onCta={submit}
+      >
+        {review ? (
+          <Title kicker="배분 결과" title={'이렇게 나눠\n담았어요'} sub="근거를 다시 보고, 필요하면 조정할 수 있어요. 조정분은 여윳돈에서 오가요." />
+        ) : (
+          <Title kicker="AI 추천 배분" title={'이렇게 나눠 담는 걸\n추천드려요'} sub="내 소득 리듬과 세율표를 함께 봤어요. 자유롭게 조정하셔도 돼요." />
+        )}
         {/* 비율 막대 */}
         <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2, marginBottom: 18 }}>
           {ENVS.map((e) => {

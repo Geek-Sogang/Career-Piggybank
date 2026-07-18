@@ -48,7 +48,8 @@ const FALLBACK_GIG: Pick<GigProfile, 'archetype' | 'volatility' | 'rhythm' | 'ph
 
 export function PersonaLedger() {
   const { actions, plStart } = useApp();
-  const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : 'connect');
+  // 시작 단계 — 홈 미션=connect(풀플로우) / 온보딩=personaLoading(이력 연동에서 연결 완료) / 가계부=deposit(배분만)
+  const [step, setStep] = useState<Step>(plStart === 'deposit' ? 'deposit' : plStart === 'persona' ? 'personaLoading' : 'connect');
   const [gig, setGig] = useState<GigProfile | null>(null);
   const [txn, setTxn] = useState<Txn | null>(null);
   const go = (s: Step) => setStep(s);
@@ -71,7 +72,14 @@ export function PersonaLedger() {
       {step === 'personaLoading' && (
         <PersonaLoading onDone={(g) => { setGig(g); go('persona'); }} />
       )}
-      {step === 'persona' && <Persona gig={gig} onNext={() => go('ledgerLoading')} />}
+      {step === 'persona' && (
+        // 온보딩 진입이면 공개까지가 목적 — 홈에 착지시키고, 배분은 홈 미션·가계부가 이어받는다
+        <Persona
+          gig={gig}
+          cta={plStart === 'persona' ? '저금통 시작하기' : '맞춤 가계부 만들기'}
+          onNext={plStart === 'persona' ? () => { actions.back(); actions.nav('home'); } : () => go('ledgerLoading')}
+        />
+      )}
       {step === 'ledgerLoading' && (
         <Loading title={`${NAME}님만을 위한\n가계부를 준비하고 있어요`} sub="소득 리듬에 맞춘 봉투를 설계하고 있어요" onDone={() => go('deposit')} />
       )}
@@ -168,12 +176,12 @@ function LoadingBody({ title, sub }: { title: string; sub: string }) {
 }
 
 // ── 페르소나 공개 — 실 긱 프로필(archetype·구조 라벨)이 주인공 ──────────────
-function Persona({ gig, onNext }: { gig: GigProfile | null; onNext: () => void }) {
+function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: GigProfile | null; cta?: string; onNext: () => void }) {
   const g = gig ?? FALLBACK_GIG;
   const [headline, tail] = g.archetype.split(' — ');
   const traits = [g.rhythm, `소득원 ${g.concentration}`, g.phase].filter(Boolean);
   return (
-    <Frame cta="맞춤 가계부 만들기" onCta={onNext}>
+    <Frame cta={cta} onCta={onNext}>
       <Title kicker="AI가 읽은 나" title={`${NAME}님은\n'${headline}'`} />
       <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 20, padding: 20, alignItems: 'center' }}>
         <Mascot head size={96} radius={28} style={{ backgroundColor: '#fff' }} />

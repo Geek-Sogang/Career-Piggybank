@@ -64,7 +64,8 @@ export function Ledger() {
           </View>
         </Pressable>
       ) : (
-        <Pressable onPress={() => depositConfirmed ? actions.pushScr('tax') : actions.pushScr('chat')}>
+        // 확정된 배분 탭 = 근거·조정 리뷰("언제든 다시 조정" 약속의 실현) — 자동봉투 현황은 아래 카드가 담당
+        <Pressable onPress={() => depositConfirmed ? actions.openAllocFlow('review') : actions.pushScr('chat')}>
           <View style={{ backgroundColor: depositConfirmed ? colors.greenTint2 : colors.bufferTint, borderWidth: 1, borderColor: depositConfirmed ? colors.greenLine : colors.line, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: depositConfirmed ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={depositConfirmed ? 'check' : 'coin'} size={22} color="#fff" sw={2.2} />

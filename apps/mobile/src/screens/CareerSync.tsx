@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { approveJob, getGigProfile, getPendingJobs, type GigProfile, type PendingJob } from '@/api';
+import { approveJob, getPendingJobs, type PendingJob } from '@/api';
 import { PRODUCTS, type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { Frame, Title, FlowHeader } from '@/components/flow';
-import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp, type ConnSrc } from '@/store';
 
 // 영상 [9] 초창기 · 이력 연동 플로우 — 토스식 진행형 UX(한 화면 = 한 목적 = 한 액션).
@@ -16,9 +15,10 @@ import { useApp, type ConnSrc } from '@/store';
 // 모드 2종 — 온보딩(인트로 '시작하기': 요약→긱 구조 티저→페르소나 판독으로 연결,
 // 승인·상품은 첫 만남에 무거워 제외) / 평시(커리어·홈 진입: 승인·상품 포함, 기존 그대로).
 
-type Step = 'intro' | 'scan' | 'summary' | 'gig' | 'unverified' | 'products';
+type Step = 'intro' | 'scan' | 'summary' | 'unverified' | 'products';
 const FLOW: Record<'onboard' | 'browse', Step[]> = {
-  onboard: ['intro', 'scan', 'summary', 'gig'],
+  // 온보딩은 커리어 층(이력)까지만 — 구조·성향 읽기는 페르소나 장이 담당(중복·모순 방지)
+  onboard: ['intro', 'scan', 'summary'],
   browse: ['intro', 'scan', 'summary', 'unverified', 'products'],
 };
 
@@ -48,8 +48,13 @@ export function CareerSync() {
 
       {step === 'intro' && <Intro name={NAME} onStart={() => go('scan')} onLater={csMode === 'onboard' ? goHome : actions.back} />}
       {step === 'scan' && <Scan onDone={() => go('summary')} />}
-      {step === 'summary' && <Summary name={NAME} onNext={() => go(csMode === 'onboard' ? 'gig' : 'unverified')} />}
-      {step === 'gig' && <GigTeaser onNext={() => actions.openAllocFlow('onboard')} onLater={goHome} />}
+      {step === 'summary' && (
+        <Summary
+          name={NAME}
+          cta={csMode === 'onboard' ? '이 기록으로 나를 읽어보기' : '다음'}
+          onNext={() => (csMode === 'onboard' ? actions.openAllocFlow('onboard') : go('unverified'))}
+        />
+      )}
       {step === 'unverified' && <Unverified onNext={() => go('products')} />}
       {step === 'products' && <Products name={NAME} onStart={() => actions.pushScr('products')} onLater={goHome} />}
     </SafeAreaView>
@@ -142,12 +147,12 @@ function Scan({ onDone }: { onDone: () => void }) {
 // ── 3) 이력 요약 — 실 검증 이력(store, 백엔드 결정론 응답) ────────────────────
 const yearMonth = (iso: string) => iso.slice(0, 7).replace('-', '.');
 
-function Summary({ name, onNext }: { name: string; onNext: () => void }) {
+function Summary({ name, cta, onNext }: { name: string; cta: string; onNext: () => void }) {
   const { vals } = useApp();
   const recent = vals.verified.recent;
   const total = recent.reduce((a, h) => a + h.amount, 0);
   return (
-    <Frame cta="다음" onCta={onNext}>
+    <Frame cta={cta} onCta={onNext}>
       {recent.length === 0 ? (
         <>
           <Title title={'아직 모인 이력이\n없어요'} sub="정산 입금이 쌓이면 검증 이력으로 모아드려요. 지금은 다음 단계로 넘어가도 돼요." />
@@ -180,48 +185,6 @@ function Summary({ name, onNext }: { name: string; onNext: () => void }) {
           </View>
         </>
       )}
-    </Frame>
-  );
-}
-
-// ── 3.5) 긱 구조 티저(온보딩 전용) — 모은 데이터에서 즉시 측정되는 일·정산 흐름.
-// "구조는 측정, 성향은 AI": 여기는 결정론 측정까지만, AI 판독은 다음 단계(페르소나)가 한다.
-function GigTeaser({ onNext, onLater }: { onNext: () => void; onLater: () => void }) {
-  const v2 = usePersonalizationV2();   // 세션 공유 캐시 — 마이 탭과 같은 소스
-  const [gig, setGig] = useState<GigProfile | null>(null);
-  useEffect(() => {
-    let live = true;
-    getGigProfile().then((g) => { if (live) setGig(g); }).catch(() => {});
-    return () => { live = false; };
-  }, []);
-
-  const [headline, tail] = (gig?.archetype ?? '흐름을 읽는 중이에요').split(' — ');
-  return (
-    <Frame cta="이 흐름에 맞는 봉투 설계 받기" ctaSub="다음 단계 — AI가 내 성향을 읽고, 들어올 돈을 담을 봉투를 설계해요" secondary="나중에 할게요" onCta={onNext} onSecondary={onLater}>
-      <Title kicker="입금 기록으로 확인" title={'모아 보니,\n이런 흐름이에요'} />
-      {/* 아키타입 — 결정론 측정(원장 통계) */}
-      <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 20, padding: 20, alignItems: 'center', marginBottom: 12 }}>
-        <Mascot head size={72} radius={22} style={{ backgroundColor: '#fff' }} />
-        <Text style={{ fontSize: 18, fontWeight: '800', color: colors.ink, marginTop: 12 }}>{headline}</Text>
-        {tail ? (
-          <Text style={{ fontSize: 13, fontWeight: '500', color: colors.greenInk, textAlign: 'center', lineHeight: 20, marginTop: 6 }}>{tail}</Text>
-        ) : null}
-      </View>
-      {/* 구조 2요소 — 마이 탭 '내 일감·정산 흐름'과 같은 데이터 */}
-      {(v2?.gig_structure ?? []).map((s) => (
-        <View key={s.key} style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15, marginBottom: 10 }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>{s.label}</Text>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 3 }}>{s.level}</Text>
-          <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 3, lineHeight: 17 }}>{s.detail}</Text>
-        </View>
-      ))}
-      {gig?.notes?.length ? (
-        <View style={{ marginTop: 4, gap: 5 }}>
-          {gig.notes.slice(0, 2).map((n) => (
-            <Text key={n} style={{ fontSize: 12, fontWeight: '500', color: colors.sub, lineHeight: 18 }}>· {n}</Text>
-          ))}
-        </View>
-      ) : null}
     </Frame>
   );
 }

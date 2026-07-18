@@ -11,6 +11,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { Frame, Title, FlowHeader } from '@/components/flow';
 import { PersonaCard } from '@/screens/My';
+import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp } from '@/store';
 
 // 영상 [10] 완숙기 · 페르소나 → 맞춤 가계부 → 봉투 배분. 토스식 진행형 UX(한 화면 = 한 목적).
@@ -18,8 +19,8 @@ import { useApp } from '@/store';
 // 배분 = proposeAllocation(근거 포함) → 사람이 조정·확정(decideAllocation) → 소득리듬 층 갱신.
 // 진입 2종: 홈 오늘의 미션 = 풀플로우(connect부터), 가계부 입금 카드 = 배분만(deposit부터).
 
-type Step = 'connect' | 'personaLoading' | 'persona' | 'habits' | 'ledgerLoading' | 'deposit' | 'ack' | 'allocation';
-const DOT: Record<Step, number> = { connect: 0, personaLoading: 1, persona: 1, habits: 1, ledgerLoading: 2, deposit: 2, ack: 2, allocation: 3 };
+type Step = 'connect' | 'personaLoading' | 'persona' | 'habits' | 'envelopes' | 'ledgerLoading' | 'deposit' | 'ack' | 'allocation';
+const DOT: Record<Step, number> = { connect: 0, personaLoading: 1, persona: 1, habits: 1, envelopes: 2, ledgerLoading: 2, deposit: 2, ack: 2, allocation: 3 };
 const DOT_TOTAL = 4;
 
 const NAME = '조대흠';           // 앱 전역 시연 사용자 (홈 헤더와 동일)
@@ -75,12 +76,16 @@ export function PersonaLedger() {
       )}
       {step === 'persona' && <Persona gig={gig} cta="내 돈 관리 습관 보기" onNext={() => go('habits')} />}
       {step === 'habits' && (
-        // 온보딩은 여기까지 — 착지는 가계부(설계된 봉투 현황 + 입금 대기 카드가 다음 행동을 안내).
         // 기록은 입력(과거), 봉투는 출력(미래): 페르소나의 산출물을 '가계부'가 아니라 '봉투 설계'로 부른다.
         <Habits
-          cta={plStart === 'onboard' ? '가계부에서 시작하기' : '이 습관에 맞춰 봉투 설계 받기'}
-          onNext={plStart === 'onboard' ? () => { actions.back(); actions.nav('ledger'); } : () => go('ledgerLoading')}
+          cta="이 습관에 맞춘 봉투 보기"
+          onNext={() => (plStart === 'onboard' ? go('envelopes') : go('ledgerLoading'))}
         />
+      )}
+      {step === 'envelopes' && (
+        // 온보딩 마침표 — 설계의 실물(자동 봉투 4종의 역할). 금액은 입금마다 계산되므로 여기선 약속하지 않는다.
+        // 착지는 가계부: 연결에서 찾은 미처리 입금 카드가 첫 운영 사건(배분)을 안내한다.
+        <EnvelopeIntro onNext={() => { actions.back(); actions.nav('ledger'); }} />
       )}
       {step === 'ledgerLoading' && (
         <Loading title={`${NAME}님만을 위한\n봉투를 설계하고 있어요`} sub="입금이 오면 나눠 담을 4개 봉투를 준비하고 있어요" onDone={() => go('deposit')} />
@@ -107,7 +112,13 @@ function Connect({ onNext, onBack }: { onNext: () => void; onBack: () => void })
       onCta={() => { if (!already) actions.connectSources(['mydata', 'hometax']); onNext(); }}
       onSecondary={onBack}
     >
-      <Title title={'나를 이해하려면\n세 가지가 필요해요'} sub="세 가지 기록을 읽어 페르소나를 만들고, 앞으로 들어올 돈을 담을 봉투를 설계해요." />
+      {/* 이미 연결됐으면 '요청'이 아니라 '안내' — 방금 모은 기록을 읽겠다는 선언으로 바뀐다 */}
+      <Title
+        title={already ? '방금 모은 기록으로\n나를 읽을게요' : '나를 이해하려면\n세 가지가 필요해요'}
+        sub={already
+          ? '이력 연동에서 모은 세 가지 기록이에요. 이걸 읽어 페르소나를 만들고, 앞으로 들어올 돈을 담을 봉투를 설계해요.'
+          : '세 가지 기록을 읽어 페르소나를 만들고, 앞으로 들어올 돈을 담을 봉투를 설계해요.'}
+      />
       <View style={{ gap: 10 }}>
         {SOURCES.map((s, i) => (
           <View key={s.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
@@ -216,6 +227,32 @@ function Habits({ cta, onNext }: { cta: string; onNext: () => void }) {
   );
 }
 
+// ── 봉투 준비 완료(온보딩 마침표) — 설계의 실물. 자동 봉투 4종의 역할만 소개하고,
+// 금액은 약속하지 않는다(비율·금액은 입금이 올 때마다 페르소나·세율표로 계산 — 정직 원칙).
+function EnvelopeIntro({ onNext }: { onNext: () => void }) {
+  return (
+    <Frame cta="가계부에서 시작하기" ctaSub="연결에서 찾은 입금이 기다리고 있어요 — 첫 배분을 해볼 수 있어요" onCta={onNext}>
+      <Title kicker="설계 완료" title={'내 봉투 4개가\n준비됐어요'} sub="입금이 오면 이 순서로 나눠 담아요. 실제 금액은 그때그때 내 리듬과 세율표로 계산해요." />
+      <View style={{ gap: 12 }}>
+        {ENVS.map((e, i) => (
+          <View key={e.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15 }}>
+            <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: e.color }} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{i + 1}. {e.label}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{e.note}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+      <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.sub3, lineHeight: 17, marginTop: 14 }}>
+        세금이 항상 먼저예요(세율표 산수) · 남는 돈은 여윳돈으로 — 목표 봉투는 여윳돈이 생기면 추천해 드려요.
+      </Text>
+    </Frame>
+  );
+}
+
 // ── 로딩(연출 전환용) ──────────────────────────────────────────────
 function Loading({ title, sub, onDone }: { title: string; sub: string; onDone: () => void }) {
   useEffect(() => {
@@ -239,6 +276,7 @@ function LoadingBody({ title, sub }: { title: string; sub: string }) {
 
 // ── 페르소나 공개 — 실 긱 프로필(archetype·구조 라벨)이 주인공 ──────────────
 function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: GigProfile | null; cta?: string; onNext: () => void }) {
+  const v2 = usePersonalizationV2();   // 구조 2요소 — 마이 탭 '내 일감·정산 흐름'과 같은 소스
   const g = gig ?? FALLBACK_GIG;
   const [headline, tail] = g.archetype.split(' — ');
   const traits = [g.rhythm, `소득원 ${g.concentration}`, g.phase].filter(Boolean);
@@ -257,6 +295,18 @@ function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: Gig
           ))}
         </View>
       </View>
+      {/* 구조 2요소 — 방금 모은 기록에서 측정된 일·정산 흐름(결정론) */}
+      {(v2?.gig_structure ?? []).length > 0 && (
+        <View style={{ gap: 10, marginTop: 12 }}>
+          {v2!.gig_structure.map((s) => (
+            <View key={s.key} style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>{s.label}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 3 }}>{s.level}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 3, lineHeight: 17 }}>{s.detail}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub2, lineHeight: 19, marginTop: 16 }}>
         타 가계부는 '지출'을 봐요. 우리는 불규칙한 '소득'을 평탄하게 관리해요 — 그래서 입금이 오면 봉투로 나눠 담아요.
       </Text>
@@ -283,7 +333,7 @@ function Deposit({ txn, onYes, onOther }: { txn: Txn | null; onYes: () => void; 
       </View>
       <Title
         title={`${date}에 들어온\n₩${amount.toLocaleString('en-US')}이 있어요\n${isAdvance ? '혹시 새 업무 계약금인가요?' : '새 일감 정산이 맞나요?'}`}
-        sub="어떤 돈인지 알려주시면 세금·여윳돈까지 알아서 나눠 담을게요."
+        sub="연결한 기록에서 아직 봉투에 담지 않은 입금을 찾았어요. 어떤 돈인지 알려주시면 세금·여윳돈까지 알아서 나눠 담을게요."
       />
     </Frame>
   );

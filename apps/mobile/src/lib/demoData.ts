@@ -241,7 +241,7 @@ const GET: Record<string, unknown> = {
         "key": "income_stability",
         "label": "소득 안정성",
         "level": "고변동",
-        "detail": "가장 긴 수입 공백 29일 · 커리어 성장기",
+        "detail": "금액 출렁임 직장인의 7배 수준 · 가장 긴 수입 공백 29일",
         "fact_ids": [
           "F01",
           "F03",

@@ -285,13 +285,22 @@ def _goal_pacing(axes: dict | None, staleness: dict | None,
     )
 
 
+# 소득 안정성 근거 줄 — 판정을 결정한 신호(F01 금액 변동)를 앞세운다. 공백(F04)은 보조.
+# "공백 29일인데 왜 고변동?" 혼동 방지: 고변동은 금액 출렁임 판정이지 공백 판정이 아니다.
+_VOL_EVIDENCE = {
+    "고변동": "금액 출렁임 직장인의 7배 수준",
+    "변동": "금액 출렁임 긱워커 평균대",
+    "안정": "금액 출렁임 긱 기준 낮은 편",
+}
+
+
 def _structures(gig: GigProfile, facts: dict[str, Fact]) -> tuple[V2Structure, ...]:
     """긱 구조 2축 — gig_profile의 검증된 라벨을 그대로 노출한다 (재계산·재해석 없음)."""
     f04 = facts.get("F04")
     stability_detail = " · ".join(
         p for p in (
+            _VOL_EVIDENCE.get(gig.volatility, ""),
             f"가장 긴 수입 공백 {f04.display}" if f04 and f04.value is not None else "",
-            f"커리어 {gig.phase}",
         ) if p
     ) or "관측 부족"
     structure_detail = _RHYTHM_DETAIL.get(gig.rhythm, gig.rhythm)

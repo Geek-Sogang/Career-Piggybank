@@ -333,7 +333,8 @@ function FinancialResponseCard({ v2, onUpdated }: {
   );
 }
 
-function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
+// 온보딩 습관 장(PersonaLedger)에서도 같은 카드를 쓴다 — 마이 탭과 단일 소스.
+export function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
   const output = Object.fromEntries(v2.financial_response.map((decision) => [decision.key, decision]));
   const rows = [
     {

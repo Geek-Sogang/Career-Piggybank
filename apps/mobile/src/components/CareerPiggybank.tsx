@@ -57,6 +57,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
   const myRender = characterRender(skinKey, MY_JOB);   // 기본 스킨은 null → 2D 마스코트 폴백
   const next = piggybank.levels.find((level) => level.level === piggybank.level + 1) ?? null;
   const [open, setOpen] = useState<'roadmap' | 'missions' | 'peers' | 'scraps' | null>(null);
+  const [scrapWrite, setScrapWrite] = useState(false);
   const toggle = (key: 'roadmap' | 'missions' | 'peers' | 'scraps') => setOpen((cur) => (cur === key ? null : key));
 
   if (compact) {
@@ -203,10 +204,24 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
           ))}
         </FoldRow>
         <FoldRow title="커리어 조각 모음" meta={`${scraps.length}개`} open={open === 'scraps'} onPress={() => toggle('scraps')}>
+          {/* 상시 작성 진입 — 미션 행을 몰라도 여기서 바로 조각을 저금할 수 있다 */}
+          {scrapWrite ? (
+            <View style={{ marginTop: -10 }}>
+              <ScrapComposer
+                onSaved={async (scrap) => { setScraps((current) => [scrap, ...current]); setScrapWrite(false); await onMissionUpdated?.(); }}
+                onCancel={() => setScrapWrite(false)}
+              />
+            </View>
+          ) : (
+            <Pressable onPress={() => setScrapWrite(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.4, borderColor: colors.greenLine, borderStyle: 'dashed', borderRadius: 11, paddingVertical: 10 }}>
+              <Icon name="plus" size={14} color={colors.green} sw={2.4} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.green }}>오늘 한 일 한 줄 저금하기</Text>
+            </Pressable>
+          )}
           {scraps.length === 0 ? (
             <View style={{ borderRadius: 10, backgroundColor: colors.bg, padding: 12 }}>
               <Text style={{ fontSize: 11.5, fontWeight: '400', color: colors.sub2 }}>
-                아직 모은 조각이 없어요 — 오늘의 미션에서 한 줄 저금해 보세요
+                아직 모은 조각이 없어요 — 오늘 배운 것, 끝낸 일을 한 줄로 남겨보세요
               </Text>
             </View>
           ) : (
@@ -229,25 +244,9 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
   onOpenLedger?: () => void;
   onScrapSaved?: (scrap: CareerScrap) => void;
 }) {
-  const [saving, setSaving] = useState(false);
   const [cared, setCared] = useState(false);
-  const [scrapText, setScrapText] = useState('');
   const [composerOpen, setComposerOpen] = useState(false);
   const missions = piggybank.daily_missions.filter((mission) => mission.available).slice(0, 3);
-  const saveScrap = async () => {
-    const content = scrapText.trim();
-    if (saving || !content) return;
-    setSaving(true);
-    try {
-      const result = await saveCareerScrap(content);
-      onScrapSaved?.(result.scrap);
-      setScrapText('');
-      setComposerOpen(false);
-      await onMissionUpdated?.();
-    } catch {} finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <View>
@@ -270,7 +269,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
           return (
             <Pressable
               key={mission.id}
-              disabled={(done && mission.id !== 'career_scrap') || saving || !actionable}
+              disabled={(done && mission.id !== 'career_scrap') || !actionable}
               onPress={onPress}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : colors.bg, paddingVertical: 10, paddingHorizontal: 11 }}
             >
@@ -291,27 +290,54 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
 
       {/* 조각 저금 입력 — 상시 노출 대신 스크랩 미션을 탭했을 때만 */}
       {composerOpen && (
-        <View style={{ marginTop: 10, gap: 7 }}>
-          <TextInput
-            value={scrapText}
-            onChangeText={setScrapText}
-            placeholder="예: 결제 화면의 빈 상태를 개선하고 배운 점을 기록했어요"
-            placeholderTextColor={colors.sub3}
-            multiline
-            maxLength={500}
-            autoFocus
-            style={{ minHeight: 72, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, backgroundColor: '#fff', padding: 11, fontSize: 12, fontWeight: '400', lineHeight: 17, color: colors.ink, textAlignVertical: 'top' }}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 7 }}>
-            <Pressable onPress={() => { setComposerOpen(false); setScrapText(''); }} style={{ paddingVertical: 8, paddingHorizontal: 12 }}>
-              <Text style={{ fontSize: 11, fontWeight: '600', color: colors.sub2 }}>취소</Text>
-            </Pressable>
-            <Pressable disabled={scrapText.trim().length < 2 || saving} onPress={saveScrap} style={{ paddingVertical: 8, paddingHorizontal: 13, borderRadius: 9, backgroundColor: scrapText.trim().length >= 2 ? colors.green : colors.line }}>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>{saving ? '저금 중…' : '저금하기'}</Text>
-            </Pressable>
-          </View>
-        </View>
+        <ScrapComposer
+          onSaved={async (scrap) => { onScrapSaved?.(scrap); setComposerOpen(false); await onMissionUpdated?.(); }}
+          onCancel={() => setComposerOpen(false)}
+        />
       )}
+    </View>
+  );
+}
+
+// 조각 저금 컴포저 — 오늘의 미션(스크랩 탭)과 조각 모음 접힘이 같은 입력을 쓴다
+function ScrapComposer({ onSaved, onCancel }: {
+  onSaved: (scrap: CareerScrap) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [scrapText, setScrapText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    const content = scrapText.trim();
+    if (saving || content.length < 2) return;
+    setSaving(true);
+    try {
+      const result = await saveCareerScrap(content);
+      setScrapText('');
+      await onSaved(result.scrap);
+    } catch {} finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <View style={{ marginTop: 10, gap: 7 }}>
+      <TextInput
+        value={scrapText}
+        onChangeText={setScrapText}
+        placeholder="예: 결제 화면의 빈 상태를 개선하고 배운 점을 기록했어요"
+        placeholderTextColor={colors.sub3}
+        multiline
+        maxLength={500}
+        autoFocus
+        style={{ minHeight: 72, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, backgroundColor: '#fff', padding: 11, fontSize: 12, fontWeight: '400', lineHeight: 17, color: colors.ink, textAlignVertical: 'top' }}
+      />
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 7 }}>
+        <Pressable onPress={onCancel} style={{ paddingVertical: 8, paddingHorizontal: 12 }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.sub2 }}>취소</Text>
+        </Pressable>
+        <Pressable disabled={scrapText.trim().length < 2 || saving} onPress={save} style={{ paddingVertical: 8, paddingHorizontal: 13, borderRadius: 9, backgroundColor: scrapText.trim().length >= 2 ? colors.green : colors.line }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff' }}>{saving ? '저금 중…' : '저금하기'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

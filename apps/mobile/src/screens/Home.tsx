@@ -5,7 +5,7 @@ import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { CareerPiggybank } from '@/components/CareerPiggybank';
 import { Card, Mascot, T } from '@/components/ui';
-import { CAREER_SCORE_VALUES, useApp } from '@/store';
+import { useApp } from '@/store';
 
 // 홈 = 4블록: 저금통(브랜드) → 내 봉투(돈) → 4갈래 진입 → 오늘의 미션(행동).
 // 미래 소득 차트는 홈에서 빼고 퀵액션 → Retirement 화면이 담당한다.
@@ -17,16 +17,18 @@ export function Home() {
     if (!sheet) getEnvelopeBalances().then((r) => setEnv(r.balances)).catch(() => {});
   }, [sheet]);
 
-  const nextTask = !vals.conn.hometax
+  // 오늘의 미션 요약 — 카드 탭 = 미션창. (배분 풀플로우는 가계부 입금 카드·온보딩이 담당)
+  const waiting = vals.piggybank.daily_missions.filter((m) => m.available && !m.completed);
+  const nextTask = waiting.length > 0
     ? {
-      title: `흩어진 이력 모으고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
-      sub: '입금·세금·인증서 연동 · 미션 경험치 +30 XP',
-      onPress: () => actions.openCareerSync(),
+      title: waiting[0].title,
+      sub: `${vals.piggybank.phase.label} · 대기 미션 ${waiting.length}개`,
+      onPress: () => actions.pushScr('missions'),
     }
     : {
-      title: '이번 달 입금 봉투에 나눠 담기',
-      sub: '페르소나 맞춤 배분 · +25 XP',
-      onPress: () => actions.openAllocFlow('connect'),   // 시나리오 [10] 풀플로우(연결→페르소나→배분)
+      title: '오늘 미션을 모두 마쳤어요',
+      sub: '미션 탭에서 성장 로드맵을 확인해 보세요',
+      onPress: () => actions.pushScr('missions'),
     };
 
   const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;

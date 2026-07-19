@@ -11,7 +11,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { CharacterHero } from '@/components/ProfileAvatar';
 import { Frame, Title, FlowHeader } from '@/components/flow';
-import { PersonaCard, axisSummaries } from '@/screens/My';
+import { PersonaCard, PersonalizationMapCard, axisSummaries } from '@/screens/My';
 import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp, type AllocNotice } from '@/store';
 
@@ -225,11 +225,29 @@ function PersonaLoading({ onDone }: { onDone: (gig: GigProfile | null) => void }
 }
 
 // ── 돈 관리 습관 — AI 성향 4축(마이 탭 카드와 단일 소스). 공개(구조) 다음 장 ──
+// "어떻게 맞춰지는지"가 궁금해지는 자리라 과정 맵(마이 탭과 동일 카드)을 접힘으로 제공한다.
 function Habits({ cta, onNext }: { cta: string; onNext: () => void }) {
+  const v2 = usePersonalizationV2();
+  const [mapOpen, setMapOpen] = useState(false);
   return (
     <Frame cta={cta} onCta={onNext}>
       <Title ai kicker="AI가 읽은 나" title={'돈 관리 습관도\n읽어뒀어요'} />
       <PersonaCard />
+      {v2 && (
+        <View style={{ marginTop: 12 }}>
+          <Pressable
+            onPress={() => setMapOpen((o) => !o)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: colors.line, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#fff' }}
+          >
+            <Icon name="shield" size={18} color={colors.ai} />
+            <Text style={{ flex: 1, fontSize: 13.5, fontWeight: '700', color: colors.ink }}>나에게 맞춰지는 과정 보기</Text>
+            <View style={{ transform: [{ rotate: mapOpen ? '90deg' : '0deg' }] }}>
+              <Icon name="chevronRight" size={16} color={colors.chev} sw={2.2} />
+            </View>
+          </Pressable>
+          {mapOpen && <View style={{ marginTop: 10 }}><PersonalizationMapCard v2={v2} /></View>}
+        </View>
+      )}
     </Frame>
   );
 }

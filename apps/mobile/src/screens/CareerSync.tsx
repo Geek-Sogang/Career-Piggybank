@@ -152,14 +152,22 @@ function Scan({ onDone }: { onDone: () => void }) {
 const depositVideo = require('../../assets/videos/career-deposit.mp4');
 
 function Saved({ onDone }: { onDone: () => void }) {
-  const player = useVideoPlayer(depositVideo, (p) => { p.loop = false; p.muted = false; p.volume = 1; p.play(); });
+  const player = useVideoPlayer(depositVideo, (p) => {
+    p.loop = false;
+    p.muted = false;
+    p.volume = 1;
+  });
   useEffect(() => {
-    const t = setTimeout(onDone, 4400);   // 영상 4.0s + 여운. 탭하면 바로 넘어간다
-    return () => clearTimeout(t);
+    player.currentTime = 0;
+    player.muted = false;
+    player.volume = 1;
+    player.play();
+    const t = setTimeout(onDone, 4400);   // 영상 4.0s + 여운 뒤 다음 장으로 자동 진행한다.
+    return () => { clearTimeout(t); player.pause(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [player]);
   return (
-    <Pressable onPress={onDone} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 60, gap: 22 }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 60, gap: 22 }}>
       <View style={{ width: 280, height: 210, borderRadius: 26, overflow: 'hidden', backgroundColor: '#EDEDED' }}>
         <VideoView player={player} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
       </View>
@@ -169,7 +177,7 @@ function Saved({ onDone }: { onDone: () => void }) {
         </Text>
         <Text style={{ fontSize: 13, fontWeight: '500', color: colors.sub2, textAlign: 'center' }}>모은 이력이 검증 저금통에 차곡차곡 담겼어요</Text>
       </View>
-    </Pressable>
+    </View>
   );
 }
 

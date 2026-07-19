@@ -35,9 +35,8 @@ export function Piggy() {
       .catch(() => {});
   }, [careerReviewPending, vals.verified.count, vals.verified.streak_months, vals.verified.recent]);
   useEffect(() => {
-    if (careerReviewPending) setVaultOpen(true);
+    if (careerReviewPending) setVaultOpen(false);
   }, [careerReviewPending]);
-
   return (
     <View style={{ gap: 14 }}>
       {careerReviewPending && (
@@ -47,7 +46,7 @@ export function Piggy() {
             방금 모은 기록들이 맞나요?
           </Text>
           <Text style={{ fontSize: 12, fontWeight: '400', lineHeight: 18, color: colors.sub2, marginTop: 5 }}>
-            아래에 열린 저금통에서 정산처와 작업 내용을 먼저 확인해 주세요. 확인하기 전에는 페르소나를 만들지 않아요.
+            아래 저금통을 열어 정산처와 작업 내용을 확인해 주세요. 확인하기 전에는 페르소나를 만들지 않아요.
           </Text>
         </View>
       )}

@@ -17,6 +17,7 @@ const OFFLINE_REPLIES = [
 
 const won = (v: number) => `₩${v.toLocaleString('en-US')}`;
 const NAME = '조대흠';
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 type ProductCard = { key: ProductKey; line: string; matched: boolean };
 type ChatMessage = { from: 'bot' | 'me'; text: string; products?: ProductCard[] };
@@ -33,11 +34,11 @@ function productAnswer(message: string, result: ProductMatchResponse): ChatMessa
         products: [{ key: 'emergency', line: matched.line, matched: true }],
       };
     }
-    const veto = result.vetoed?.emergency ?? '현재 원장만으로는 상환 여력을 확인하기 어려워 대출 권유를 보류했어요';
+    const line = '다음 정산 예정과 검증 일감은 확인됐어요 — 대출 가능 여부는 실제 심사에서 확인해요';
     return {
       from: 'bot',
-      text: `${NAME}님이 비상금대출을 찾고 있군요. 다만 지금은 ${veto} 연결된 검증 일감 ${verifiedCount}건은 심사자료로 가져갈 수 있어요. 한도와 금리는 하나원큐 실제 심사에서만 확인할 수 있습니다.`,
-      products: [{ key: 'emergency', line: veto, matched: false }],
+      text: `${NAME}님이 비상금대출을 찾고 있군요. 다음 정산 예정은 확인되지만, 긱 소득은 월별 금액과 입금일이 달라질 수 있어 대출 가능 여부를 제가 단정하지 않을게요. 연결된 검증 일감 ${verifiedCount}건은 심사자료로 가져갈 수 있어요. 한도와 금리는 하나원큐 실제 심사에서 확인해 주세요.`,
+      products: [{ key: 'emergency', line, matched: false }],
     };
   }
 
@@ -77,9 +78,13 @@ export function Chat() {
     toEnd();
     let response: ChatMessage;
     try {
-      if (/상품|비상금|대출|통장|ISA|IRP|연금/.test(t)) {
+      const productQuestion = /상품|비상금|대출|통장|ISA|IRP|연금/.test(t);
+      if (productQuestion) {
         // 적합성 veto(결정론) 뒤 EXAONE이 후보를 선택한 실 매칭 결과를 카드로 번역한다.
-        response = productAnswer(t, await fetchProductMatch());
+        // 프리패치가 끝났어도 분석 과정이 보이도록 일반 상품은 2초, 비상금대출은 1.5초를 보장한다.
+        const minThinkingMs = /비상금|대출/.test(t) ? 1500 : 2000;
+        const [match] = await Promise.all([fetchProductMatch(), wait(minThinkingMs)]);
+        response = productAnswer(t, match);
       } else {
         // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
         const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;

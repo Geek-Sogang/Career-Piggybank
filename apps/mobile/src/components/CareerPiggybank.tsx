@@ -39,7 +39,7 @@ const PEER_BANKS: { skin: string; job: CharacterJob; name: string; line: string 
   { skin: 'sparkle', job: 'creator', name: '유튜버 · 반짝 저금통', line: 'Lv.4 · 시즌 미션 진행 중' },
 ];
 
-export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onAddCareer, onWriteScrap, onMissionUpdated, onOpenLedger }: {
+export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onAddCareer, onWriteScrap, onMissionUpdated, onOpenLedger, onCarePiggy }: {
   piggybank: Piggybank;
   compact?: boolean;
   /** 신뢰 층 요약 칩 — 홈에서 검증 점수·단계를 1줄로. 게임 층(XP)과 어휘·색을 섞지 않는다. */
@@ -52,6 +52,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   onWriteScrap?: () => void;
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
+  onCarePiggy?: () => void;
 }) {
   const v2 = usePersonalizationV2();   // 세션 공유 캐시 — compact(홈 배너) 스킨 렌더도 여기서
   const [scraps, setScraps] = useState<CareerScrap[]>([]);
@@ -185,6 +186,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
           onMissionUpdated={onMissionUpdated}
           onOpenLedger={onOpenLedger}
           onWriteScrap={onWriteScrap}
+          onCarePiggy={onCarePiggy}
           onScrapSaved={(scrap) => setScraps((current) => [scrap, ...current])}
         />
       </Card>
@@ -262,11 +264,12 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   );
 }
 
-function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, onScrapSaved }: {
+function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, onCarePiggy, onScrapSaved }: {
   piggybank: Piggybank;
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
   onWriteScrap?: () => void;
+  onCarePiggy?: () => void;
   onScrapSaved?: (scrap: CareerScrap) => void;
 }) {
   const [cared, setCared] = useState(false);
@@ -303,11 +306,11 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
             ? () => (onWriteScrap ? onWriteScrap() : setComposerOpen((current) => !current))
             : mission.id === 'today_transactions'
               ? onOpenLedger
-              : () => setCared(true);
+              : () => { setCared(true); onCarePiggy?.(); };
           return (
             <Pressable
               key={mission.id}
-              disabled={(done && mission.id !== 'career_scrap' && mission.id !== 'today_transactions') || !actionable}
+              disabled={(done && mission.id !== 'career_scrap' && mission.id !== 'today_transactions' && mission.id !== 'care_piggy') || !actionable}
               onPress={onPress}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : colors.bg, paddingVertical: 10, paddingHorizontal: 11 }}
             >
@@ -331,6 +334,8 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
                   ? '또 저금'
                   : mission.id === 'today_transactions' && done
                     ? '다시 보기'
+                    : mission.id === 'care_piggy' && done
+                      ? '다시 보기'
                     : done ? '완료' : mission.xp > 0 ? `+${mission.xp} XP` : '반응 보기'}
               </Text>
             </Pressable>

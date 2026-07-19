@@ -24,7 +24,7 @@ const ROW_TINTS: { color: string; tint: string }[] = [
 ];
 const SWATCHES = [colors.green, colors.buffer, colors.indigo, colors.pinkStrong, colors.expense, colors.tax];
 
-// 조대흠 데모 시드의 직전 EXAONE 분석 스냅샷. 화면은 최대 0.5초만 기다린 뒤 이 캐시를
+// 조대흠 데모 시드의 직전 EXAONE 분석 스냅샷. 화면은 1.5초 동안 분석 연출을 보여준 뒤 이 캐시를
 // 먼저 보여주고, 백그라운드의 최신 EXAONE 결과가 도착하면 즉시 교체한다.
 const CACHED_IDEAS: EnvelopeIdea[] = [
   { name: '일 없는 달 대비 비상금', why: '고변동 소득과 최장 무수입 공백을 버틸 안전자금이 필요해요.', evidence: ['F01', 'F04'] },
@@ -44,7 +44,6 @@ export function EnvelopeSuggest() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [cached, setCached] = useState(false);
-  const [unavailable, setUnavailable] = useState(false);
   const [creating, setCreating] = useState<Prefill | null>(null);
   const [added, setAdded] = useState<Goal[]>([]);   // 이 화면에서 실제로 개설한 봉투들
 
@@ -52,35 +51,36 @@ export function EnvelopeSuggest() {
     // 추천 2소스 — ⑤a(내 팩트, LLM 7.8B라 몇 초)·또래(결정론). 실패를 개인화 문구로
     // 위장하지 않는다: 빈 결과는 빈 결과, 실패는 실패로 말하고 직접 만들기만 열어둔다.
     let alive = true;
-    let settled = false;
+    let revealed = false;
+    let liveResult: [Awaited<ReturnType<typeof recommendEnvelopes>>, Goal[]] | null = null;
     const previewTimer = setTimeout(() => {
-      if (!alive || settled) return;
-      setIdeas(CACHED_IDEAS);
-      setPeers(CACHED_PEERS);
-      setCached(true);
+      if (!alive) return;
+      revealed = true;
+      if (liveResult) {
+        setIdeas(liveResult[0].recommendations ?? []);
+        setPeers(liveResult[0].peers ?? []);
+        setGoals(liveResult[1]);
+        setCached(false);
+      } else {
+        setIdeas(CACHED_IDEAS);
+        setPeers(CACHED_PEERS);
+        setCached(true);
+      }
       setLoading(false);
-    }, 500);
+    }, 1500);
     Promise.all([recommendEnvelopes(), getGoals().catch(() => [] as Goal[])])
       .then(([r, g]) => {
         if (!alive) return;
-        settled = true;
-        clearTimeout(previewTimer);
-        setIdeas(r.recommendations ?? []);
-        setPeers(r.peers ?? []);
-        setGoals(g);
-        setCached(false);
-        setLoading(false);
+        liveResult = [r, g];
+        if (revealed) {
+          setIdeas(r.recommendations ?? []);
+          setPeers(r.peers ?? []);
+          setGoals(g);
+          setCached(false);
+        }
       })
       .catch(() => {
         if (!alive) return;
-        clearTimeout(previewTimer);
-        if (!cached) {
-          setIdeas(CACHED_IDEAS);
-          setPeers(CACHED_PEERS);
-          setCached(true);
-        }
-        setUnavailable(false);
-        setLoading(false);
       });
     return () => { alive = false; clearTimeout(previewTimer); };
     // 캐시 노출 여부는 비동기 결과로만 갱신한다.
@@ -133,14 +133,6 @@ export function EnvelopeSuggest() {
             </Text>
           </View>
         )}
-        {!loading && unavailable && (
-          <View style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15, marginBottom: 20 }}>
-            <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub2, lineHeight: 18 }}>
-              추천을 불러오지 못했어요 — 개인화 문구를 지어내지 않고 직접 만들기만 열어둘게요.
-            </Text>
-          </View>
-        )}
-
         {/* 피기 픽 — ⑤a LLM 추천(이름·근거). 금액은 개설 폼에서 사람이 정한다 */}
         {visibleIdeas.length > 0 && (
           <>

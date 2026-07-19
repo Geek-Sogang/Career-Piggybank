@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { DEMO_DEPOSIT, getEnvelopeBalances, getTransactions, prefetchEnvelopeRecommendations, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
+import { AutoEnvelopeSummary } from '@/components/AutoEnvelopeSummary';
 import { Card, T } from '@/components/ui';
 import { useApp } from '@/store';
 
@@ -23,10 +24,6 @@ export function Ledger() {
   useEffect(() => {
     getEnvelopeBalances().then(setEnv).catch(() => {});
   }, [lastAlloc]);
-
-  const taxExpected = env?.annual_tax_expected ?? null;
-  const taxPrepared = env?.tax_prepared ?? null;
-  const taxReady = taxExpected != null && taxPrepared != null && taxPrepared >= taxExpected;
 
   const month = txns?.[0]?.date.slice(0, 7) ?? '2025-05';
   const monthTxns = (txns ?? []).filter((t) => t.date.startsWith(month));
@@ -82,46 +79,9 @@ export function Ledger() {
         </Pressable>
       )}
 
-      {/* 봉투 현황 히어로 — 가계부의 첫 질문 "내 돈, 지금 어떻게 나뉘어 있나" → 자동 봉투 상세 */}
+      {/* 홈의 `내 봉투`와 같은 시각 언어 — 탭하면 자동 봉투 상세로 이동 */}
       <Pressable onPress={() => actions.pushScr('tax')}>
-        <Card style={{ gap: 13 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>자동 봉투</Text>
-              <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>입금마다 세금·경비·여윳돈으로 자동 적립</Text>
-            </View>
-            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
-          </View>
-          {/* 봉투 비중 바 — 실 잔액 비율(조회 전엔 대표 비율) */}
-          <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
-            {([['tax', 4], ['expense', 30], ['buffer', 20], ['spendable', 46]] as const).map(([k, fallback]) => {
-              const v = env?.balances?.[k] ?? fallback;
-              return v > 0 ? <View key={k} style={{ flex: v, backgroundColor: colors[k] }} /> : null;
-            })}
-          </View>
-          {/* 세금 준비 현황 — 백엔드 결정론 계산. 긍정 프레임은 유지하되 상태는 정직하게 */}
-          {taxExpected != null && taxPrepared != null && (
-            <View style={{ backgroundColor: colors.greenTint, borderRadius: 12, padding: 14, gap: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: taxReady ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name={taxReady ? 'check' : 'coin'} size={13} color="#fff" sw={2.6} />
-                </View>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: colors.greenInk }}>
-                  {taxReady ? '5월 종소세, 넉넉히 준비됐어요' : '5월 종소세, 모아가는 중이에요'}
-                </Text>
-              </View>
-              <View style={{ gap: 6 }}>
-                <TaxLine label="예상 세금" value={`₩${taxExpected.toLocaleString('en-US')}`} />
-                <TaxLine label="모은 금액" value={`₩${taxPrepared.toLocaleString('en-US')}`} strong />
-                {taxReady ? (
-                  <TaxLine label="여유분" value={`+₩${(taxPrepared - taxExpected).toLocaleString('en-US')}`} accent />
-                ) : (
-                  <TaxLine label="앞으로 모을 금액" value={`₩${(taxExpected - taxPrepared).toLocaleString('en-US')}`} />
-                )}
-              </View>
-            </View>
-          )}
-        </Card>
+        <AutoEnvelopeSummary data={env} />
       </Pressable>
 
       {/* 이번 달 요약 */}
@@ -149,15 +109,6 @@ export function Ledger() {
         <MenuRow icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="봉투 추천" sub="피기 픽 · 또래 픽 · 나만의 봉투" onPress={() => actions.pushScr('envelopeSuggest')} />
         <MenuRow icon="trending" tint={colors.indigoTint} color={colors.indigo} title="여윳돈 굴리기" sub="₩99,555 · 버퍼 초과분 보수적 운용" onPress={() => actions.openSheet('invest')} last />
       </Card>
-    </View>
-  );
-}
-
-function TaxLine({ label, value, strong, accent }: { label: string; value: string; strong?: boolean; accent?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.greenInk }}>{label}</Text>
-      <Text style={{ fontSize: strong ? 14 : 12.5, fontWeight: strong ? '800' : '700', color: accent ? colors.green : colors.greenInk, ...T.num }}>{value}</Text>
     </View>
   );
 }

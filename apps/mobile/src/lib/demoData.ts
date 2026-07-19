@@ -69,9 +69,9 @@ const GET: Record<string, unknown> = {
       "level_title": "정산 새싹",
       "max_level": 10,
       "current_threshold": 180,
-      "next_threshold": 320,
-      "xp_to_next": 69,
-      "progress": 0.5071,
+      "next_threshold": 280,
+      "xp_to_next": 29,
+      "progress": 0.71,
       "completed_missions": 6,
       "missions": [
         {
@@ -133,10 +133,10 @@ const GET: Record<string, unknown> = {
         {
           "id": "today_transactions",
           "title": "오늘 거래 정리",
-          "xp": 1,
+          "xp": 30,
           "completed": false,
           "available": true,
-          "description": "미분류 거래가 있을 때만 열려요"
+          "description": "정산 입금이 내 일감인지 직접 확인해요"
         },
         {
           "id": "career_scrap",
@@ -185,9 +185,9 @@ const GET: Record<string, unknown> = {
         {
           "level": 4,
           "title": "리듬 수집가",
-          "threshold": 320,
-          "reward": "우대금리 쿠폰 확인",
-          "node_type": "reward"
+          "threshold": 280,
+          "reward": "리듬 수집가 스킨",
+          "node_type": "character"
         },
         {
           "level": 5,
@@ -1370,9 +1370,9 @@ const POST: Record<string, unknown> = {
         "level_title": "정산 새싹",
         "max_level": 10,
         "current_threshold": 180,
-        "next_threshold": 320,
-        "xp_to_next": 69,
-        "progress": 0.5071,
+        "next_threshold": 280,
+        "xp_to_next": 29,
+        "progress": 0.71,
         "completed_missions": 6,
         "missions": [
           {
@@ -1434,10 +1434,10 @@ const POST: Record<string, unknown> = {
           {
             "id": "today_transactions",
             "title": "오늘 거래 정리",
-            "xp": 1,
+            "xp": 30,
             "completed": false,
             "available": true,
-            "description": "미분류 거래가 있을 때만 열려요"
+            "description": "정산 입금이 내 일감인지 직접 확인해요"
           },
           {
             "id": "career_scrap",
@@ -1486,9 +1486,9 @@ const POST: Record<string, unknown> = {
           {
             "level": 4,
             "title": "리듬 수집가",
-            "threshold": 320,
-            "reward": "우대금리 쿠폰 확인",
-            "node_type": "reward"
+            "threshold": 280,
+            "reward": "리듬 수집가 스킨",
+            "node_type": "character"
           },
           {
             "level": 5,

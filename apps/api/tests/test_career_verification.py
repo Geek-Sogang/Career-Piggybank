@@ -1,6 +1,8 @@
 """커리어 검증 SSOT와 페르소나 신선도 소비 게이트."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 
 from app.engines import career_verification, facts as facts_svc, product_match
@@ -123,6 +125,46 @@ def test_only_explicitly_verified_jobs_count_as_work_xp() -> None:
     )
     assert verified.verified.count == 1
     assert verified.piggybank.work_xp == 30
+
+
+def test_verified_job_completes_today_transaction_mission_without_double_xp() -> None:
+    txn = {
+        "id": "today-job", "date": "2025-05-10", "amount": 700_000,
+        "direction": "in", "counterparty": "오늘 발주처", "memo": "개발",
+        "kind": "income", "needs_review": False,
+    }
+    events = [{
+        "type": "career_job_verified", "ref_id": "today-job", "payload": {},
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }]
+    result = career_verification.compute([], events=events, txns=[txn])
+    mission = next(m for m in result.piggybank.daily_missions if m["id"] == "today_transactions")
+    assert mission["completed"] is True
+    assert mission["xp"] == 30
+    assert result.piggybank.work_xp == 30
+    assert result.piggybank.daily_xp == 0  # 표시 보상은 work_xp이며 중복 적립하지 않는다.
+
+
+def test_tagging_income_does_not_complete_job_verification_mission() -> None:
+    txn = {
+        "id": "pending-job", "date": "2025-05-10", "amount": 700_000,
+        "direction": "in", "counterparty": "오늘 발주처", "memo": "개발",
+        "kind": "income", "needs_review": False,
+    }
+    events = [{
+        "type": "txn_tagged", "ref_id": "pending-job", "payload": {"kind": "income"},
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }]
+    result = career_verification.compute([], events=events, txns=[txn])
+    mission = next(m for m in result.piggybank.daily_missions if m["id"] == "today_transactions")
+    assert mission["completed"] is False
+    assert mission["available"] is True
+
+
+def test_level_four_unlocks_the_rhythm_collector_character() -> None:
+    level_four = career_verification.LEVELS[3]
+    assert (level_four.level, level_four.threshold) == (4, 280)
+    assert level_four.node_type == "character"
 
 
 def test_approved_deposit_adds_first_mission_xp_without_changing_trust_score() -> None:

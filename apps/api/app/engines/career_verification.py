@@ -62,7 +62,7 @@ LEVELS = (
     LevelDefinition(1, "첫 동전", 0, "기본 저금통", "character"),
     LevelDefinition(2, "일감 모으기", 80, "하나머니 혜택 확인", "reward"),
     LevelDefinition(3, "정산 새싹", 180, "새싹 스킨", "character"),
-    LevelDefinition(4, "리듬 수집가", 320, "우대금리 쿠폰 확인", "reward"),
+    LevelDefinition(4, "리듬 수집가", 280, "리듬 수집가 스킨", "character"),
     LevelDefinition(5, "든든 저금통", 500, "저금통 1차 성장", "character"),
     LevelDefinition(6, "커리어 성장", 720, "파킹통장 우대 확인", "reward"),
     LevelDefinition(7, "신뢰 수집가", 980, "직군 소품", "character"),
@@ -267,13 +267,23 @@ def _daily_missions(events: list[dict] | tuple[dict, ...],
                     txns: list[dict] | tuple[dict, ...]) -> tuple[dict, ...]:
     today = datetime.now(timezone.utc).date().isoformat()
     scrap_done = today in _event_dates(events, "career_scrap_saved")
-    tag_done = today in _event_dates(events, "txn_tagged")
-    has_review = any(txn.get("needs_review") for txn in txns)
+    verified_done = today in _event_dates(events, "career_job_verified")
+    verified_ids = {
+        event.get("ref_id") for event in events
+        if event.get("type") == "career_job_verified" and event.get("ref_id")
+    }
+    has_pending_job = any(
+        txn.get("kind") == "income"
+        and txn.get("direction") == "in"
+        and not txn.get("needs_review")
+        and txn.get("id") not in verified_ids
+        for txn in txns
+    )
     return (
         {
-            "id": "today_transactions", "title": "오늘 거래 정리", "xp": 1,
-            "completed": tag_done, "available": has_review or tag_done,
-            "description": "미분류 거래가 있을 때만 열려요",
+            "id": "today_transactions", "title": "오늘 거래 정리", "xp": XP_PER_VERIFIED_JOB,
+            "completed": verified_done, "available": has_pending_job or verified_done,
+            "description": "정산 입금이 내 일감인지 직접 확인해요",
         },
         {
             "id": "career_scrap", "title": "오늘의 커리어 조각 저금", "xp": XP_PER_DAILY_SCRAP,

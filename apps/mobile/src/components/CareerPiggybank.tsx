@@ -39,7 +39,7 @@ const PEER_BANKS: { skin: string; job: CharacterJob; name: string; line: string 
   { skin: 'sparkle', job: 'creator', name: '유튜버 · 반짝 저금통', line: 'Lv.4 · 시즌 미션 진행 중' },
 ];
 
-export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onAddCareer, onMissionUpdated, onOpenLedger }: {
+export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onAddCareer, onWriteScrap, onMissionUpdated, onOpenLedger }: {
   piggybank: Piggybank;
   compact?: boolean;
   /** 신뢰 층 요약 칩 — 홈에서 검증 점수·단계를 1줄로. 게임 층(XP)과 어휘·색을 섞지 않는다. */
@@ -48,6 +48,8 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   verifiedCount?: number;
   /** '검증된 일감 담기' CTA — 실 승인 큐(JobProof)로 연결 (HITL 유지) */
   onAddCareer?: () => void;
+  /** 커리어 조각 저금 전용 페이지 열기 — 있으면 인라인 컴포저 대신 페이지로 */
+  onWriteScrap?: () => void;
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
 }) {
@@ -182,6 +184,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
           piggybank={piggybank}
           onMissionUpdated={onMissionUpdated}
           onOpenLedger={onOpenLedger}
+          onWriteScrap={onWriteScrap}
           onScrapSaved={(scrap) => setScraps((current) => [scrap, ...current])}
         />
       </Card>
@@ -225,8 +228,8 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
           ))}
         </FoldRow>
         <FoldRow title="커리어 조각 모음" meta={`${scraps.length}개`} open={open === 'scraps'} onPress={() => toggle('scraps')}>
-          {/* 상시 작성 진입 — 미션 행을 몰라도 여기서 바로 조각을 저금할 수 있다 */}
-          {scrapWrite ? (
+          {/* 상시 작성 진입 — 전용 페이지가 연결돼 있으면 페이지로, 아니면 인라인 컴포저 */}
+          {scrapWrite && !onWriteScrap ? (
             <View style={{ marginTop: -10 }}>
               <ScrapComposer
                 onSaved={async (scrap) => { setScraps((current) => [scrap, ...current]); setScrapWrite(false); await onMissionUpdated?.(); }}
@@ -234,7 +237,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
               />
             </View>
           ) : (
-            <Pressable onPress={() => setScrapWrite(true)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.4, borderColor: colors.greenLine, borderStyle: 'dashed', borderRadius: 11, paddingVertical: 10 }}>
+            <Pressable onPress={() => (onWriteScrap ? onWriteScrap() : setScrapWrite(true))} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.4, borderColor: colors.greenLine, borderStyle: 'dashed', borderRadius: 11, paddingVertical: 10 }}>
               <Icon name="plus" size={14} color={colors.green} sw={2.4} />
               <Text style={{ fontSize: 12, fontWeight: '700', color: colors.green }}>오늘 한 일 한 줄 저금하기</Text>
             </Pressable>
@@ -259,10 +262,11 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   );
 }
 
-function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }: {
+function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, onScrapSaved }: {
   piggybank: Piggybank;
   onMissionUpdated?: () => void | Promise<unknown>;
   onOpenLedger?: () => void;
+  onWriteScrap?: () => void;
   onScrapSaved?: (scrap: CareerScrap) => void;
 }) {
   const [cared, setCared] = useState(false);
@@ -296,7 +300,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
           const done = mission.completed || (mission.id === 'care_piggy' && cared);
           const actionable = mission.id === 'career_scrap' || mission.id === 'today_transactions' || mission.id === 'care_piggy';
           const onPress = mission.id === 'career_scrap'
-            ? () => setComposerOpen((current) => !current)
+            ? () => (onWriteScrap ? onWriteScrap() : setComposerOpen((current) => !current))
             : mission.id === 'today_transactions'
               ? onOpenLedger
               : () => setCared(true);
@@ -352,7 +356,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
 }
 
 // 조각 저금 컴포저 — 오늘의 미션(스크랩 탭)과 조각 모음 접힘이 같은 입력을 쓴다
-function ScrapComposer({ onSaved, onCancel }: {
+export function ScrapComposer({ onSaved, onCancel }: {
   onSaved: (scrap: CareerScrap) => void | Promise<void>;
   onCancel: () => void;
 }) {

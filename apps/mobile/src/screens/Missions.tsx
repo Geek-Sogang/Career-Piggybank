@@ -12,6 +12,7 @@ export function Missions() {
         piggybank={vals.piggybank}
         verifiedCount={vals.verified.count}
         onAddCareer={() => actions.pushScr('jobProof')}
+        onWriteScrap={() => actions.pushScr('scrapWrite')}
         onMissionUpdated={actions.refreshCareer}
         onOpenLedger={() => actions.nav('ledger')}
       />

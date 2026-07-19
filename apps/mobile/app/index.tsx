@@ -34,6 +34,7 @@ import { LockScreen } from '@/screens/LockScreen';
 import { TxDetail } from '@/screens/TxDetail';
 import { ProductDetail } from '@/screens/ProductDetail';
 import { EmptyState } from '@/screens/EmptyState';
+import { ScrapWrite } from '@/screens/ScrapWrite';
 
 export default function Index() {
   return (
@@ -47,7 +48,7 @@ const SCREENS: Record<string, () => JSX.Element> = {
   home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My, future: Retirement,
   connect: Connect, jobProof: JobProof, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
   dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
-  productDetail: ProductDetail, emptyState: EmptyState, transactions: Transactions, goals: Goals, retirementDetail: RetirementDetail,
+  productDetail: ProductDetail, emptyState: EmptyState, scrapWrite: ScrapWrite, transactions: Transactions, goals: Goals, retirementDetail: RetirementDetail,
 };
 
 function Shell() {

@@ -8,7 +8,7 @@ import type { ProductKey } from '@/products';
 export type AllocNotice = { id?: string; deposit: number; windfall: number; split: EnvelopeSplit; reasons?: string[]; confirmed: boolean };
 
 export type Tab = 'home' | 'ledger' | 'missions' | 'piggy' | 'future';
-export type Push = null | 'connect' | 'jobProof' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState' | 'my' | 'careerSync' | 'personaLedger' | 'envelopeSuggest' | 'transactions' | 'goals' | 'retirementDetail';
+export type Push = null | 'connect' | 'jobProof' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState' | 'scrapWrite' | 'my' | 'careerSync' | 'personaLedger' | 'envelopeSuggest' | 'transactions' | 'goals' | 'retirementDetail';
 export type Sheet = null | 'consent' | 'invest' | 'allocation' | 'pacing';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'kosa' | 'behance' | 'portfolio';
@@ -167,7 +167,7 @@ function useAppState(startTab: Tab = 'home') {
       stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
       tabTitle: ({ ledger: '가계부', missions: '미션', piggy: '커리어', future: '미래' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', jobProof: '일감 증명', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)', my: '마이', transactions: '거래 내역', goals: '목표 봉투', retirementDetail: '미래 소득 · 은퇴' } as Record<string, string>)[push || ''] || '',
+      headerTitle: ({ connect: '커리어 연결하기', jobProof: '일감 증명', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)', scrapWrite: '커리어 조각 저금', my: '마이', transactions: '거래 내역', goals: '목표 봉투', retirementDetail: '미래 소득 · 은퇴' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,

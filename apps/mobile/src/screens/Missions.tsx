@@ -10,6 +10,8 @@ export function Missions() {
     <View style={{ gap: 14 }}>
       <CareerPiggybank
         piggybank={vals.piggybank}
+        verifiedCount={vals.verified.count}
+        onAddCareer={() => actions.pushScr('jobProof')}
         onMissionUpdated={actions.refreshCareer}
         onOpenLedger={() => actions.nav('ledger')}
       />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { approveJob, getPendingJobs, type PendingJob } from '@/api';
 import { PRODUCTS, type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
@@ -16,11 +17,11 @@ import { useApp, type ConnSrc } from '@/store';
 // 모드 2종 — 온보딩(인트로 '시작하기': 요약→긱 구조 티저→페르소나 판독으로 연결,
 // 승인·상품은 첫 만남에 무거워 제외) / 평시(커리어·홈 진입: 승인·상품 포함, 기존 그대로).
 
-type Step = 'intro' | 'scan' | 'summary' | 'unverified' | 'products';
+type Step = 'intro' | 'scan' | 'saved' | 'summary' | 'unverified' | 'products';
 const FLOW: Record<'onboard' | 'browse', Step[]> = {
   // 온보딩은 커리어 층(이력)까지만 — 구조·성향 읽기는 페르소나 장이 담당(중복·모순 방지)
-  onboard: ['intro', 'scan', 'summary'],
-  browse: ['intro', 'scan', 'summary', 'unverified', 'products'],
+  onboard: ['intro', 'scan', 'saved', 'summary'],
+  browse: ['intro', 'scan', 'saved', 'summary', 'unverified', 'products'],
 };
 
 // 순차 스캔 대상 — 각 행이 완료될 때 해당 소스를 실제로 연결한다
@@ -48,7 +49,8 @@ export function CareerSync() {
       <FlowHeader total={steps.length} index={idx} onBack={csMode === 'onboard' ? goHome : actions.back} />
 
       {step === 'intro' && <Intro name={NAME} onStart={() => go('scan')} onLater={csMode === 'onboard' ? goHome : actions.back} />}
-      {step === 'scan' && <Scan onDone={() => go('summary')} />}
+      {step === 'scan' && <Scan onDone={() => go('saved')} />}
+      {step === 'saved' && <Saved onDone={() => go('summary')} />}
       {step === 'summary' && (
         <Summary
           name={NAME}
@@ -142,6 +144,31 @@ function Scan({ onDone }: { onDone: () => void }) {
         })}
       </View>
     </View>
+  );
+}
+
+// ── 2.5) 적립 완료 연출 — 모은 이력이 저금통에 담기는 순간 (마스코트 영상, 자동 진행) ──
+const depositVideo = require('../../assets/videos/career-deposit.mp4');
+
+function Saved({ onDone }: { onDone: () => void }) {
+  const player = useVideoPlayer(depositVideo, (p) => { p.loop = false; p.muted = false; p.volume = 1; p.play(); });
+  useEffect(() => {
+    const t = setTimeout(onDone, 4400);   // 영상 4.0s + 여운. 탭하면 바로 넘어간다
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Pressable onPress={onDone} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 60, gap: 22 }}>
+      <View style={{ width: 280, height: 210, borderRadius: 26, overflow: 'hidden', backgroundColor: '#EDEDED' }}>
+        <VideoView player={player} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
+      </View>
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', letterSpacing: -0.5, color: colors.ink, textAlign: 'center' }}>
+          커리어 저금통에{'\n'}적립 완료됐어요
+        </Text>
+        <Text style={{ fontSize: 13, fontWeight: '500', color: colors.sub2, textAlign: 'center' }}>모은 이력이 검증 저금통에 차곡차곡 담겼어요</Text>
+      </View>
+    </Pressable>
   );
 }
 

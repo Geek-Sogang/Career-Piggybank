@@ -146,6 +146,13 @@ function Shell() {
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
         <TabButton icon="tabHome" label="홈" active={tab === 'home' && !push} onPress={() => actions.nav('home')} />
         <TabButton icon="tabLedger" label="가계부" active={tab === 'ledger' && !push} onPress={() => actions.nav('ledger')} />
+        {/* 중앙 미션 탭 — 떠 있는 마스코트 버튼 (PiggybankRedesign 시안) */}
+        <Pressable onPress={() => actions.nav('missions')} style={{ flex: 1, alignItems: 'center' }}>
+          <View style={{ width: 54, height: 54, borderRadius: 20, backgroundColor: colors.green, marginTop: -16, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 6 } }}>
+            <Mascot head size={60} radius={0} style={{ backgroundColor: 'transparent' }} />
+          </View>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: tab === 'missions' && !push ? colors.green : colors.sub3, marginTop: 3 }}>미션</Text>
+        </Pressable>
         <TabButton icon="shield" label="커리어" active={tab === 'piggy' && !push} onPress={() => actions.nav('piggy')} />
         <TabButton icon="houseSmall" label="미래" active={tab === 'future' && !push} onPress={() => actions.nav('future')} />
       </View>

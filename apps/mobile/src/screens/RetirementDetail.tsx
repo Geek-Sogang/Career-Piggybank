@@ -296,9 +296,11 @@ function PensionTab() {
 }
 
 // ── 차트 로직 ──────────────────────────────────────────────────────
-const X0 = 10, X1 = 310, Y0 = 24, Y1 = 176;
+export const X0 = 10, X1 = 310;
+const Y0 = 24, Y1 = 176;
 
-function buildChart(p: Forecast['path'], retirement: Forecast['retirement'], scenario: Scenario) {
+// 미래 탭 요약 카드(Retirement)도 같은 곡선을 그린다 — 요약과 상세가 다른 모양이면 안 된다.
+export function buildChart(p: Forecast['path'], retirement: Forecast['retirement'], scenario: Scenario) {
   const years = p.years;
   const span = Math.max(1, years[years.length - 1] - years[0]);
   const x = (yr: number) => X0 + ((yr - years[0]) / span) * (X1 - X0);

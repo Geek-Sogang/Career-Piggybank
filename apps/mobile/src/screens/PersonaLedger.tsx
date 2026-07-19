@@ -11,7 +11,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { CharacterHero } from '@/components/ProfileAvatar';
 import { Frame, Title, FlowHeader } from '@/components/flow';
-import { PersonaCard, PersonalizationMapCard, axisSummaries } from '@/screens/My';
+import { PersonaCard, PersonalizationMapCard, axisSummaries, personaProse } from '@/screens/My';
 import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp, type AllocNotice } from '@/store';
 
@@ -323,6 +323,10 @@ function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: Gig
             <Text key={t} style={{ fontSize: 11.5, fontWeight: '700', color: colors.green, backgroundColor: '#fff', paddingVertical: 6, paddingHorizontal: 11, borderRadius: 10, overflow: 'hidden' }}>{t}</Text>
           ))}
         </View>
+        {/* 줄글 요약 — 검증된 레벨 문장의 결정론 조립(마이 탭과 단일 소스). 마무리 문장은 하단 카피가 담당 */}
+        {(() => { const prose = personaProse(v2, persona, { withOutro: false }); return prose ? (
+          <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.ink2, textAlign: 'center', lineHeight: 19, marginTop: 14 }}>{prose}</Text>
+        ) : null; })()}
       </View>
       {/* 구조 2 — 방금 모은 기록에서 측정된 일·정산 흐름(결정론) */}
       {(v2?.gig_structure ?? []).length > 0 && (

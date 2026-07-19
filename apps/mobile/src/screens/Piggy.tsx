@@ -4,6 +4,9 @@ import { fetchStrength } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
+import { CharacterImage, characterRender } from '@/components/CharacterImage';
+import { MY_JOB, skinKeyFor } from '@/components/CareerPiggybank';
+import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp } from '@/store';
 
 // 서버/LLM 미가동 시 오프라인 폴백 문구
@@ -14,6 +17,10 @@ const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도
 export function Piggy() {
   const { actions, vals } = useApp();
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const v2 = usePersonalizationV2();
+  const vaultSkin = skinKeyFor(v2);
+  const vaultRender = characterRender(vaultSkin, MY_JOB, true) != null;
   useEffect(() => {
     fetchStrength({
       verified_count: vals.verified.count,
@@ -38,51 +45,64 @@ export function Piggy() {
         </View>
       </View>
 
-      {/* 검증된 이력 — 점수·단계·통계 요약 */}
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>검증된 이력</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.greenInk, backgroundColor: colors.greenTint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden', ...T.num }}>{vals.score}점</Text>
-            <Text style={{ fontSize: 11.5, fontWeight: '600', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>{vals.stage}</Text>
+      {/* 검증 저금통 — 검증된 일감이 담기는 금고. 탭하면 담긴 일감이 펼쳐진다 (PiggybankRedesign) */}
+      <View style={{ borderRadius: 20, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+        <Pressable onPress={() => setVaultOpen((o) => !o)}>
+          <View style={{ paddingTop: 16, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.3 }}>검증 저금통</Text>
+              <Text style={{ fontSize: 10.5, fontWeight: '600', color: 'rgba(255,255,255,.82)', marginTop: 1 }}>검증된 일감이 차곡차곡 담겨요</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden', ...T.num }}>{vals.score}점</Text>
+              <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>{vals.stage}</Text>
+            </View>
           </View>
+          <View style={{ height: 172, alignItems: 'center', justifyContent: 'flex-end', marginTop: 2 }}>
+            {/* 밝은 원형 무대 — 컷아웃 에셋의 흰 잔영을 진한 그린 위에서 흡수한다 */}
+            <View style={{ position: 'absolute', bottom: 2, width: 200, height: 168, borderRadius: 100, backgroundColor: 'rgba(255,255,255,.18)' }} />
+            <View style={{ position: 'absolute', bottom: 14, width: 150, height: 18, borderRadius: 999, backgroundColor: 'rgba(0,0,0,.18)' }} />
+            {vaultRender ? (
+              <CharacterImage cutout skin={vaultSkin} job={MY_JOB} width={168} height={168} />
+            ) : (
+              <Mascot head size={120} radius={34} style={{ marginBottom: 10 }} />
+            )}
+          </View>
+        </Pressable>
+        <View style={{ backgroundColor: '#fff', padding: 18 }}>
+          <View style={{ flexDirection: 'row' }}>
+            <Stat value={`${vals.verified.count}`} unit="건" label="담긴 검증" />
+            <Stat value={`${vals.verified.streak_months}`} unit="개월" label="연속 확인" borderLeft />
+            <Stat value={`${vals.verified.span_months}`} unit="개월" label="활동 범위" flex={1.2} borderLeft />
+          </View>
+          <Pressable onPress={() => setVaultOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 12, paddingVertical: 11 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.greenInk }}>{vaultOpen ? '담긴 일감 접기' : '저금통 열어 담긴 일감 보기'}</Text>
+            <View style={{ transform: [{ rotate: vaultOpen ? '270deg' : '90deg' }] }}>
+              <Icon name="chevronRight" size={15} color={colors.greenInk} sw={2.4} />
+            </View>
+          </Pressable>
+          {vaultOpen && (
+            <View style={{ marginTop: 10, gap: 8 }}>
+              {vals.verified.recent.map((job, index) => {
+                const key = job.counterparty.includes('커머스') ? 'commerce' : job.counterparty.includes('스튜디오') ? 'studio' : null;
+                const row = <JobRow
+                  badge={job.counterparty.replace(/[△○㈜]/g, '').slice(0, 1) || '일'}
+                  badgeBg={index % 2 ? colors.orangeTint : colors.indigoTint}
+                  badgeColor={index % 2 ? colors.orange : colors.indigo}
+                  title={`${job.counterparty} · ${job.memo}`}
+                  sub={`${job.date.slice(0, 7).replace('-', '.')} 정산 · 연결 자료 확인`}
+                  amount={`₩${Math.round(job.amount).toLocaleString('en-US')}`}
+                  verified
+                />;
+                return key ? <Pressable key={job.id} onPress={() => actions.openJob(key)}>{row}</Pressable> : <View key={job.id}>{row}</View>;
+              })}
+              <Pressable onPress={() => actions.openJob('personal')}>
+                <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
+              </Pressable>
+            </View>
+          )}
         </View>
-        <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <Stat value={`${vals.verified.count}`} unit="건" label="검증 완료" />
-          <Stat value={`${vals.verified.streak_months}`} unit="개월" label="연속 확인" borderLeft />
-          <Stat value={`${vals.verified.span_months}`} unit="개월" label="활동 범위" flex={1.2} borderLeft />
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 }}>
-          {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: i <= ['잠정', '준검증', '확정'].indexOf(vals.stage) ? colors.green : colors.line }} />)}
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>잠정</Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>준검증</Text>
-          <Text style={{ fontSize: 11, fontWeight: '500', color: vals.stage === '확정' ? colors.green : colors.faint2 }}>확정</Text>
-        </View>
-      </Card>
-
-      {/* 쌓인 검증 일감 — 이 화면의 주인공 */}
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>
-        최근 검증 일감 {vals.verified.recent.length}건 · 전체 {vals.verified.count}건
-      </Text>
-
-      {vals.verified.recent.map((job, index) => {
-        const key = job.counterparty.includes('커머스') ? 'commerce' : job.counterparty.includes('스튜디오') ? 'studio' : null;
-        const row = <JobRow
-          badge={job.counterparty.replace(/[△○㈜]/g, '').slice(0, 1) || '일'}
-          badgeBg={index % 2 ? colors.orangeTint : colors.indigoTint}
-          badgeColor={index % 2 ? colors.orange : colors.indigo}
-          title={`${job.counterparty} · ${job.memo}`}
-          sub={`${job.date.slice(0, 7).replace('-', '.')} 정산 · 연결 자료 확인`}
-          amount={`₩${Math.round(job.amount).toLocaleString('en-US')}`}
-          verified
-        />;
-        return key ? <Pressable key={job.id} onPress={() => actions.openJob(key)}>{row}</Pressable> : <View key={job.id}>{row}</View>;
-      })}
-      <Pressable onPress={() => actions.openJob('personal')}>
-        <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
-      </Pressable>
+      </View>
 
       {/* CTA */}
       <Pressable onPress={() => actions.openCareerSync()} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>

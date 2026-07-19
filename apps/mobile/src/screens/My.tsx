@@ -154,10 +154,13 @@ export function My() {
   const [detailOpen, setDetailOpen] = useState(false);
   const v2 = usePersonalizationV2();   // 아바타·홈 배너와 같은 세션 공유 캐시
   const [v2Error, setV2Error] = useState(false);
+  const [persona, setPersona] = useState<Persona | null>(null);   // 줄글 요약용 4축
   const reloadV2 = () => {
     setV2Error(false);
+    getPersona().then(setPersona).catch(() => {});
     return loadPersonalizationV2(true).then((r) => setV2Error(r == null));
   };
+  useEffect(() => { getPersona().then(setPersona).catch(() => {}); }, []);
   useEffect(() => {
     if (v2) { setV2Error(false); return; }
     void loadPersonalizationV2().then((r) => setV2Error(r == null));
@@ -181,7 +184,7 @@ export function My() {
 
       {/* 긱 구조 2 + 금융 대응 3 — 측정·판독·서비스 매핑을 분리한다. */}
       {v2 && <GigProfileCard v2={v2} />}
-      {v2 && <FinancialResponseCard v2={v2} onUpdated={updatePersonalizationV2} />}
+      {v2 && <FinancialResponseCard v2={v2} prose={personaProse(v2, persona)} onUpdated={updatePersonalizationV2} />}
       {!v2 && v2Error && (
         <Card>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>개인화 프로필을 불러오지 못했어요</Text>
@@ -270,8 +273,10 @@ const MGMT_BUTTON_COPY: Record<string, string> = {
   자율: '간단히', 가이드: '함께', '적극 관리': '꼼꼼히',
 };
 
-function FinancialResponseCard({ v2, onUpdated }: {
+function FinancialResponseCard({ v2, prose, onUpdated }: {
   v2: PersonalizationV2;
+  /** 페르소나 줄글 요약 — 있으면 일반 도입문을 대체한다 */
+  prose?: string | null;
   onUpdated: (profile: PersonalizationV2) => void;
 }) {
   const [saving, setSaving] = useState(false);
@@ -293,8 +298,8 @@ function FinancialResponseCard({ v2, onUpdated }: {
         <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>정산 흐름에 맞춘 돈 관리</Text>
         <Text style={{ fontSize: 10, fontWeight: '800', color: colors.ai, backgroundColor: colors.aiTint, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>나에게 맞춤</Text>
       </View>
-      <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '400', lineHeight: 16, marginTop: 6 }}>
-        고정 월급이 아니라 다음 정산까지 버티는 흐름을 기준으로 맞췄어요.
+      <Text style={{ fontSize: 11.5, color: colors.sub, fontWeight: '400', lineHeight: 17, marginTop: 6 }}>
+        {prose ?? '고정 월급이 아니라 다음 정산까지 버티는 흐름을 기준으로 맞췄어요.'}
       </Text>
 
       {/* 안전자금 운용 방향 — 실제 정책은 같은 raw 위험감내 연속값을 소비하고, 여기는 표시 번역. */}
@@ -441,6 +446,45 @@ function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').
 
 // 내부 4축은 유지하되 사용자는 생활 질문·관측 결과·읽은 기록으로 이해한다.
 const AXIS_ORDER = ['risk_tolerance', 'time_preference', 'self_control', 'planning'];
+
+// 페르소나 줄글 — 검증된 레벨 문자열을 결정론으로 조립한다(지어내지 않음).
+// 마이 탭 '정산 흐름에 맞춘 돈 관리' 도입부와 온보딩 공개 화면이 같은 문장을 쓴다.
+const PROSE_VOL: Record<string, string> = {
+  고변동: '달마다 들어오는 금액 차이가 크고', 변동: '달마다 금액이 조금씩 다르고',
+  안정: '비슷한 금액이 꾸준히 들어오고', '관측 부족': '수입 흐름은 아직 지켜보는 중이고',
+};
+const PROSE_CONC: Record<string, string> = {
+  다각화: '수입은 여러 곳에서 나눠 들어와요', '소수 집중': '수입은 몇 곳에 집중돼 있어요',
+  '단일 의존': '수입이 한 곳에 크게 기대어 있어요', '관측 부족': '정산처는 조금 더 살펴보고 있어요',
+};
+const PROSE_RISK: Record<'low' | 'mid' | 'high', string> = {
+  low: '안전자금을 먼저 챙기고', mid: '생활과 안전자금을 함께 보고', high: '여유가 생기면 다음 목표에도 활용하고',
+};
+const PROSE_TIME: Record<'low' | 'mid' | 'high', string> = {
+  low: '지금 필요한 지출을 먼저 봐요', mid: '지금과 미래를 함께 봐요', high: '미래 준비를 더 먼저 챙겨요',
+};
+const bucketOf = (value: number): 'low' | 'mid' | 'high' => (value <= 0.3 ? 'low' : value >= 0.7 ? 'high' : 'mid');
+
+export function personaProse(
+  v2: PersonalizationV2 | null,
+  persona: Persona | null,
+  { withOutro = true }: { withOutro?: boolean } = {},
+): string | null {
+  if (!v2) return null;
+  const levels = Object.fromEntries(v2.gig_structure.map((s) => [s.key, s.level]));
+  const vol = PROSE_VOL[levels.income_stability ?? ''];
+  const conc = PROSE_CONC[levels.income_source_structure ?? ''];
+  const sentences: string[] = [];
+  if (vol && conc) sentences.push(`${vol}, ${conc}.`);
+  const risk = persona?.axes?.risk_tolerance;
+  const time = persona?.axes?.time_preference;
+  if (risk && time && !risk.fallback && !time.fallback) {
+    sentences.push(`돈 관리는 ${PROSE_RISK[bucketOf(risk.value)]} ${PROSE_TIME[bucketOf(time.value)]}.`);
+  }
+  if (sentences.length === 0) return null;
+  if (withOutro) sentences.push('그래서 피기는 다음 정산까지 버티는 흐름을 기준으로 봉투와 제안 속도를 맞춰요.');
+  return sentences.join(' ');
+}
 
 // 4축 한 줄 요약 — 온보딩 페르소나 공개(2+4 표기)와 마이 탭이 같은 번역을 쓴다.
 export function axisSummaries(persona: Persona | null): { key: string; tag: string; line: string; fallback: boolean }[] {

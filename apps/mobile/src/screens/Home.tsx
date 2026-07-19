@@ -23,12 +23,12 @@ export function Home() {
     ? {
       title: waiting[0].title,
       sub: `${vals.piggybank.phase.label} · 대기 미션 ${waiting.length}개`,
-      onPress: () => actions.pushScr('missions'),
+      onPress: () => actions.nav('missions'),
     }
     : {
       title: '오늘 미션을 모두 마쳤어요',
       sub: '미션 탭에서 성장 로드맵을 확인해 보세요',
-      onPress: () => actions.pushScr('missions'),
+      onPress: () => actions.nav('missions'),
     };
 
   const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;
@@ -42,7 +42,7 @@ export function Home() {
   return (
     <View style={{ gap: 14 }}>
       {/* 저금통 히어로 — 하나 초록(브랜드 첫 카드의 색), 상세는 미션 탭 */}
-      <Pressable onPress={() => actions.pushScr('missions')}>
+      <Pressable onPress={() => actions.nav('missions')}>
         <CareerPiggybank
           piggybank={vals.piggybank}
           compact

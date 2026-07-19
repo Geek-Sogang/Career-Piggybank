@@ -5,6 +5,7 @@ import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
 import { CharacterImage, characterRender } from '@/components/CharacterImage';
+import { CareerSourceIcon } from '@/components/CareerSourceIcon';
 import { MY_JOB, skinKeyFor } from '@/components/CareerPiggybank';
 import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp } from '@/store';
@@ -15,13 +16,14 @@ const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도
 // 커리어 탭 — 신뢰 층 전용: 검증된 일감이 쌓인 것을 보여주는 화면.
 // 게임 층(저금통·미션·XP)은 미션 탭이, 돈(목표 봉투·페이싱)은 정산 탭이 담당한다.
 export function Piggy() {
-  const { actions, vals } = useApp();
+  const { actions, vals, careerReviewPending } = useApp();
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
   const [vaultOpen, setVaultOpen] = useState(false);
   const v2 = usePersonalizationV2();
   const vaultSkin = skinKeyFor(v2);
   const vaultRender = characterRender(vaultSkin, MY_JOB, true) != null;
   useEffect(() => {
+    if (careerReviewPending) return;
     fetchStrength({
       verified_count: vals.verified.count,
       months_active: vals.verified.streak_months,
@@ -31,19 +33,36 @@ export function Piggy() {
     })
       .then((s) => setStrength(`"${s.line}"`)) // 결정론 후보 원문 — AI는 선택만 했음
       .catch(() => {});
-  }, [vals.verified.count, vals.verified.streak_months, vals.verified.recent]);
+  }, [careerReviewPending, vals.verified.count, vals.verified.streak_months, vals.verified.recent]);
+  useEffect(() => {
+    if (careerReviewPending) setVaultOpen(true);
+  }, [careerReviewPending]);
 
   return (
     <View style={{ gap: 14 }}>
-      {/* AI 강점 — 검증 이력에서 AI가 고른 한 줄. 이 탭의 첫인상 = "AI가 요약한 나" */}
-      <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
-          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
-          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
+      {careerReviewPending && (
+        <View style={{ borderWidth: 1.5, borderColor: colors.greenLine, backgroundColor: colors.greenTint2, borderRadius: 18, padding: 16 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green }}>이력 확인</Text>
+          <Text style={{ fontSize: 19, fontWeight: '800', letterSpacing: -0.5, lineHeight: 26, color: colors.ink, marginTop: 4 }}>
+            방금 모은 기록들이 맞나요?
+          </Text>
+          <Text style={{ fontSize: 12, fontWeight: '400', lineHeight: 18, color: colors.sub2, marginTop: 5 }}>
+            아래에 열린 저금통에서 정산처와 작업 내용을 먼저 확인해 주세요. 확인하기 전에는 페르소나를 만들지 않아요.
+          </Text>
         </View>
-      </View>
+      )}
+
+      {/* AI 강점 — 검증 이력에서 AI가 고른 한 줄. 이 탭의 첫인상 = "AI가 요약한 나" */}
+      {!careerReviewPending && (
+        <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
+            <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
+          </View>
+        </View>
+      )}
 
       {/* 검증 저금통 — 검증된 일감이 담기는 금고. 탭하면 담긴 일감이 펼쳐진다 (PiggybankRedesign) */}
       <View style={{ borderRadius: 20, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
@@ -83,12 +102,10 @@ export function Piggy() {
           </Pressable>
           {vaultOpen && (
             <View style={{ marginTop: 10, gap: 8 }}>
-              {vals.verified.recent.map((job, index) => {
+              {vals.verified.recent.map((job) => {
                 const key = job.counterparty.includes('커머스') ? 'commerce' : job.counterparty.includes('스튜디오') ? 'studio' : null;
                 const row = <JobRow
-                  badge={job.counterparty.replace(/[△○㈜]/g, '').slice(0, 1) || '일'}
-                  badgeBg={index % 2 ? colors.orangeTint : colors.indigoTint}
-                  badgeColor={index % 2 ? colors.orange : colors.indigo}
+                  counterparty={job.counterparty}
                   title={`${job.counterparty} · ${job.memo}`}
                   sub={`${job.date.slice(0, 7).replace('-', '.')} 정산 · 연결 자료 확인`}
                   amount={`₩${Math.round(job.amount).toLocaleString('en-US')}`}
@@ -97,15 +114,24 @@ export function Piggy() {
                 return key ? <Pressable key={job.id} onPress={() => actions.openJob(key)}>{row}</Pressable> : <View key={job.id}>{row}</View>;
               })}
               <Pressable onPress={() => actions.openJob('personal')}>
-                <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
+                <JobRow counterparty="개인 프로젝트" title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
               </Pressable>
             </View>
           )}
         </View>
       </View>
 
+      {careerReviewPending && (
+        <Pressable
+          onPress={actions.confirmCareerHistory}
+          style={{ borderRadius: 16, backgroundColor: colors.green, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', shadowColor: colors.green, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 } }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>네, 이 기록들이 맞아요</Text>
+        </Pressable>
+      )}
+
       {/* CTA */}
-      <Pressable onPress={() => actions.openCareerSync()} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+      {!careerReviewPending && <Pressable onPress={() => actions.openCareerSync()} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
         <View style={{ gap: 2 }}>
           <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>흩어진 이력 모으기</Text>
           <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '400' }}>입금·세금·인증서를 한 번에 연동하고 상품까지</Text>
@@ -113,17 +139,15 @@ export function Piggy() {
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={20} color="#fff" sw={2.2} />
         </View>
-      </Pressable>
+      </Pressable>}
     </View>
   );
 }
 
-function JobRow({ badge, badgeBg, badgeColor, title, sub, amount, verified, right, rightSub }: { badge: string; badgeBg: string; badgeColor: string; title: string; sub: string; amount?: string; verified?: boolean; right?: string; rightSub?: string }) {
+function JobRow({ counterparty, title, sub, amount, verified, right, rightSub }: { counterparty: string; title: string; sub: string; amount?: string; verified?: boolean; right?: string; rightSub?: string }) {
   return (
     <Card p={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16 }}>
-      <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: badgeBg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 15, fontWeight: '800', color: badgeColor }}>{badge}</Text>
-      </View>
+      <CareerSourceIcon counterparty={counterparty} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>{sub}</Text>

@@ -52,19 +52,20 @@ const SCREENS: Record<string, () => JSX.Element> = {
 };
 
 function Shell() {
-  const { entered, tab, push, sheet, vals, actions } = useApp();
+  const { entered, tab, push, sheet, vals, actions, backgroundPersonaEnabled, careerReviewPending } = useApp();
   const insets = useSafeAreaInsets();
   const Screen = SCREENS[vals.scr] || Home;
+  const contentScrollRef = useRef<ScrollView>(null);
 
   // 벨 인박스 — 어젠다 큐(피기가 아직 말하지 않은 사건). 시트가 닫힐 때마다 재조회:
   // 배분 승인/조정 직후가 바로 어젠다(후속 질문·브리핑)가 생기는 순간이다
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [inbox, setInbox] = useState(false);
   const personaBooted = useRef(false);
-  // 온보딩 뒤 백그라운드 판독. 입금 핫패스를 막지 않으며, 완료 전에는 모든 화면이
-  // '소득 구조 기반'이라고 정직하게 표시한다. 없거나 stale인 축만 다시 읽는다.
+  // 인트로를 건너뛴 진입만 백그라운드 판독한다. 정식 온보딩은 커리어 이력 확인 뒤
+  // 사용자가 '페르소나 만들기'를 눌렀을 때 PersonaLedger가 명시적으로 판독한다.
   useEffect(() => {
-    if (!entered || personaBooted.current) return;
+    if (!entered || !backgroundPersonaEnabled || personaBooted.current) return;
     personaBooted.current = true;
     getPersona()
       .then((p) => {
@@ -73,10 +74,13 @@ function Shell() {
       })
       .catch(() => readPersona('onboarding'))
       .catch(() => {});
-  }, [entered]);
+  }, [entered, backgroundPersonaEnabled]);
   useEffect(() => {
     if (!sheet && entered) getAgenda().then((r) => setAgenda(r.items)).catch(() => {});
   }, [sheet, entered]);
+  useEffect(() => {
+    contentScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [vals.scr, careerReviewPending]);
   const openInbox = () => { if (agenda.length) setInbox(true); };
   const closeInbox = (consume: boolean) => {
     setInbox(false);
@@ -129,7 +133,7 @@ function Shell() {
       )}
 
       {/* 본문 */}
-      <ScrollView key={vals.scr} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={contentScrollRef} key={vals.scr} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
         <Screen />
       </ScrollView>
 

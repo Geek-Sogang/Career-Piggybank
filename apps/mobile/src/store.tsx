@@ -41,7 +41,9 @@ function useAppState(startTab: Tab = 'home') {
   const [detail, setDetail] = useState<JobKey>('commerce');
   const [plStart, setPlStart] = useState<'connect' | 'onboard' | 'deposit' | 'review'>('connect');   // 페르소나 플로우 진입(홈=풀, 온보딩, 가계부=배분만, review=확정 배분 근거·재조정)
   const [retireTab, setRetireTab] = useState<'curve' | 'pension'>('curve');   // 은퇴 상세 초기 탭(미래 탭 연금 카드=바로 pension)
-  const [csMode, setCsMode] = useState<'onboard' | 'browse'>('browse');       // 이력 연동 모드(첫 실행 온보딩=구조 티저→페르소나, 평시=승인·상품)
+  const [csMode, setCsMode] = useState<'onboard' | 'browse'>('browse');       // 이력 연동 모드(첫 실행=이력 공개·확인→페르소나, 평시=승인·상품)
+  const [careerReviewPending, setCareerReviewPending] = useState(false);     // 온보딩 이력은 커리어 탭에서 사람이 확인한 뒤에만 페르소나로 넘긴다
+  const [backgroundPersonaEnabled, setBackgroundPersonaEnabled] = useState(false); // 건너뛰기 진입만 백그라운드 판독. 온보딩은 명시적 CTA 뒤 판독
   const [product, setProduct] = useState<ProductKey>('emergency');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
@@ -117,10 +119,10 @@ function useAppState(startTab: Tab = 'home') {
   };
 
   const actions = {
-    enter: () => setEntered(true),
+    enter: () => { setBackgroundPersonaEnabled(true); setEntered(true); },
     // 첫 실행 온보딩 — 인트로 '시작하기'에서 흩어진 이력 모으기로 바로 이어진다
-    enterOnboarding: () => { setEntered(true); setCsMode('onboard'); setPush('careerSync'); setSheet(null); },
-    leave: () => { setEntered(false); setPush(null); setTab('home'); },
+    enterOnboarding: () => { setBackgroundPersonaEnabled(false); setCareerReviewPending(false); setEntered(true); setCsMode('onboard'); setPush('careerSync'); setSheet(null); },
+    leave: () => { setBackgroundPersonaEnabled(false); setCareerReviewPending(false); setEntered(false); setPush(null); setTab('home'); },
     nav: (t: Tab) => { setTab(t); setPush(null); setSheet(null); },
     pushScr: (id: Exclude<Push, null>) => { setPush(id); setSheet(null); },
     openJob: (key: JobKey) => { setDetail(key); setPush('verifiedDetail'); setSheet(null); },
@@ -129,6 +131,9 @@ function useAppState(startTab: Tab = 'home') {
     openAllocFlow: (start: 'connect' | 'onboard' | 'deposit' | 'review') => { setPlStart(start); setPush('personaLedger'); setSheet(null); },
     // 이력 연동 — 평시 진입(browse: 승인·상품 포함). 온보딩 진입은 enterOnboarding이 담당.
     openCareerSync: () => { setCsMode('browse'); setPush('careerSync'); setSheet(null); },
+    // 온보딩에서 모은 이력을 커리어 탭에 먼저 공개하고, 사용자 확인 뒤에만 페르소나 판독 화면을 연다.
+    reviewCareerHistory: () => { setCareerReviewPending(true); setTab('piggy'); setPush(null); setSheet(null); },
+    confirmCareerHistory: () => { setCareerReviewPending(false); setPlStart('onboard'); setPush('personaLedger'); setSheet(null); },
     // 온보딩 플로우의 일괄 연결 — 개별 연결과 같은 경로(점수 반영 + F13 계측)
     connectSources: (srcs: ConnSrc[]) => srcs.forEach((s) => apply(s, true)),
     openProduct: (key: ProductKey) => { setProduct(key); setPush('productDetail'); setSheet(null); },
@@ -174,7 +179,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario, verification]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, retireTab, lastAlloc, pacingApplied, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, careerReviewPending, backgroundPersonaEnabled, retireTab, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

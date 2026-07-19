@@ -8,13 +8,14 @@ import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { CharacterHero } from '@/components/ProfileAvatar';
+import { CareerSourceIcon } from '@/components/CareerSourceIcon';
 import { Frame, Title, FlowHeader } from '@/components/flow';
 import { useApp, type ConnSrc } from '@/store';
 
 // 영상 [9] 초창기 · 이력 연동 플로우 — 토스식 진행형 UX(한 화면 = 한 목적 = 한 액션).
 // 무대는 극본, 배우는 실 데이터: 스캔 = 행별 실 연결(conn·점수·F13), 요약 = 실 검증 이력,
 // 미인증 = 실 승인 큐(사람의 승인만 검증 사건을 만든다), 상품 = products.ts 실 카탈로그.
-// 모드 2종 — 온보딩(인트로 '시작하기': 요약→긱 구조 티저→페르소나 판독으로 연결,
+// 모드 2종 — 온보딩(인트로 '시작하기': 요약→커리어 탭에서 이력 확인→페르소나 판독으로 연결,
 // 승인·상품은 첫 만남에 무거워 제외) / 평시(커리어·홈 진입: 승인·상품 포함, 기존 그대로).
 
 type Step = 'intro' | 'scan' | 'saved' | 'summary' | 'unverified' | 'products';
@@ -54,8 +55,8 @@ export function CareerSync() {
       {step === 'summary' && (
         <Summary
           name={NAME}
-          cta={csMode === 'onboard' ? '이 기록으로 나를 읽어보기' : '다음'}
-          onNext={() => (csMode === 'onboard' ? actions.openAllocFlow('onboard') : go('unverified'))}
+          cta={csMode === 'onboard' ? '커리어에서 확인하기' : '다음'}
+          onNext={() => (csMode === 'onboard' ? actions.reviewCareerHistory() : go('unverified'))}
         />
       )}
       {step === 'unverified' && <Unverified onNext={() => go('products')} />}
@@ -197,9 +198,7 @@ function Summary({ name, cta, onNext }: { name: string; cta: string; onNext: () 
           <View style={{ gap: 10 }}>
             {recent.map((h) => (
               <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 14 }}>
-                <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: colors.green }}>{h.counterparty.replace(/[△○㈜\s]/g, '').slice(0, 1) || '일'}</Text>
-                </View>
+                <CareerSourceIcon counterparty={h.counterparty} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{h.counterparty}{h.memo ? ` · ${h.memo}` : ''}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>

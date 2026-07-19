@@ -65,7 +65,7 @@ export function Tax() {
         </View>
         <View style={{ marginTop: 16 }}>
           {rows.map((r, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: '#F4F5F6' }}>
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: colors.line2 }}>
               <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: r.c }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{r.label}</Text>
@@ -104,7 +104,7 @@ export function Tax() {
                       {won(bal)} <Text style={{ fontSize: 11, color: colors.sub3, fontWeight: '600' }}>/ {won(g.target_amount)}</Text>
                     </Text>
                   </View>
-                  <View style={{ height: 8, borderRadius: 4, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.line3, overflow: 'hidden' }}>
                     <View style={{ width: `${p * 100}%`, height: 8, borderRadius: 4, backgroundColor: colors.buffer }} />
                   </View>
                   {added > 0 ? (
@@ -155,7 +155,7 @@ export function Tax() {
       </Card>
 
       {/* 계산 가정 */}
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 21, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>계산 가정 · 검증 가능한 산수</Text>{'\n'}
           연매출 3,000만 · 단순경비율 적용 → 과세표준 2,100만{'\n'}

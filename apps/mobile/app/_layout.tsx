@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { loadPersonalizationV2 } from '@/lib/personalization';
+import { colors } from '@/theme/colors';
 
 // 개발 웹 서버(expo start --web)에도 아이폰 프레임을 입힌다. output:"single"에선
 // +html.tsx가 무시되고 프레임 CSS는 export 후 scripts/inject-phone-frame.mjs가 주입하므로,
@@ -43,7 +44,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F7F8FA' } }} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />
     </SafeAreaProvider>
   );
 }

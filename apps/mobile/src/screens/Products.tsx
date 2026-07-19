@@ -15,7 +15,7 @@ export function Products() {
   return (
     <View style={{ gap: 14 }}>
       <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '500', lineHeight: 20, marginHorizontal: 2 }}>
-        커리어 점수는 한도를 계산하지 않아요. <Text style={{ color: colors.ink, fontWeight: '700' }}>검증 {vals.stage}</Text> 단계에 따라 연결할 수 있는 심사자료만 달라집니다.
+        커리어 점수는 한도를 계산하지 않아요. <Text style={{ color: colors.ink, fontWeight: '700' }}>검증 {vals.stage}</Text> 단계에 따라 연결할 수 있는 심사자료만 달라져요.
       </Text>
 
       {/* 히어로 — 비상금 대출 */}
@@ -42,7 +42,7 @@ export function Products() {
               <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{m.name}</Text>
               <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{m.desc}</Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
           </Card>
         </Pressable>
       ))}

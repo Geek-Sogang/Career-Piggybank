@@ -64,11 +64,11 @@ export function Frame({ children, cta, ctaSub, onCta, ctaDisabled, secondary, on
   );
 }
 
-/** 키커 + 큰 제목 + 서브. */
-export function Title({ kicker, title, sub }: { kicker?: string; title: string; sub?: string }) {
+/** 키커 + 큰 제목 + 서브. ai=true면 키커를 AI 보라로 (AI가 판단한 장에만). */
+export function Title({ kicker, title, sub, ai }: { kicker?: string; title: string; sub?: string; ai?: boolean }) {
   return (
     <View style={{ marginBottom: 22 }}>
-      {kicker ? <Text style={{ fontSize: 13, fontWeight: '700', color: colors.green, marginBottom: 8 }}>{kicker}</Text> : null}
+      {kicker ? <Text style={{ fontSize: 13, fontWeight: '700', color: ai ? colors.ai : colors.green, marginBottom: 8 }}>{kicker}</Text> : null}
       <Text style={{ fontSize: 24, fontWeight: '800', letterSpacing: -0.6, lineHeight: 33, color: colors.ink }}>{title}</Text>
       {sub ? <Text style={{ fontSize: 14, fontWeight: '500', color: colors.sub, lineHeight: 21, marginTop: 10 }}>{sub}</Text> : null}
     </View>

@@ -15,7 +15,7 @@ export function RetirementDetail() {
   const [tab, setTab] = useState<'curve' | 'pension'>(retireTab);
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ flexDirection: 'row', backgroundColor: '#EDEFF2', borderRadius: 13, padding: 4 }}>
+      <View style={{ flexDirection: 'row', backgroundColor: colors.line3, borderRadius: 13, padding: 4 }}>
         {([['curve', '내 은퇴곡선'], ['pension', '내 연금']] as ['curve' | 'pension', string][]).map(([k, label]) => {
           const active = tab === k;
           return (
@@ -62,19 +62,19 @@ function CurveTab() {
             {chart ? (
               <>
                 <Path d={chart.band} fill="rgba(0,132,133,.10)" />
-                <Line x1={X0} y1={chart.targetY} x2={X1} y2={chart.targetY} stroke="#D7DBE0" strokeWidth={1.4} strokeDasharray="4 4" />
+                <Line x1={X0} y1={chart.targetY} x2={X1} y2={chart.targetY} stroke={colors.dash} strokeWidth={1.4} strokeDasharray="4 4" />
                 <Path d={chart.curve} fill="none" stroke={colors.green} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
                 {chart.crossX != null && <Circle cx={chart.crossX} cy={chart.targetY} r={4.5} fill={colors.green} stroke="#fff" strokeWidth={2} />}
               </>
             ) : unavail ? (
               <>
                 <Path d="M10 170 C 110 150 205 86 310 50 L 310 104 C 205 134 110 168 10 176 Z" fill="rgba(0,132,133,.10)" />
-                <Line x1="10" y1="74" x2="310" y2="74" stroke="#D7DBE0" strokeWidth={1.4} strokeDasharray="4 4" />
+                <Line x1="10" y1="74" x2="310" y2="74" stroke={colors.dash} strokeWidth={1.4} strokeDasharray="4 4" />
                 <Path d="M10 173 C 110 158 205 92 310 62" fill="none" stroke={colors.green} strokeWidth={2.6} strokeLinecap="round" />
                 <Circle cx="206" cy="74" r="4.5" fill={colors.green} stroke="#fff" strokeWidth={2} />
               </>
             ) : (
-              <Line x1="10" y1="100" x2="310" y2="100" stroke="#E3E6EA" strokeWidth={10} strokeLinecap="round" />
+              <Line x1="10" y1="100" x2="310" y2="100" stroke={colors.line4} strokeWidth={10} strokeLinecap="round" />
             )}
           </Svg>
           {(chart || unavail) && (
@@ -95,7 +95,7 @@ function CurveTab() {
       </View>
 
       {/* 소득 경로 토글 */}
-      <View style={{ flexDirection: 'row', gap: 6, backgroundColor: '#EDEFF2', borderRadius: 13, padding: 4 }}>
+      <View style={{ flexDirection: 'row', gap: 6, backgroundColor: colors.line3, borderRadius: 13, padding: 4 }}>
         {([['cons', '소득 하방'], ['base', '기준'], ['opt', '소득 상방']] as [Scenario, string][]).map(([s, label]) => {
           const active = scenario === s;
           return (
@@ -107,7 +107,7 @@ function CurveTab() {
       </View>
 
       {/* 계산 배경 — 수입 예측 · 지출 통계 */}
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>어떻게 계산했나요?</Text>{'\n'}
           · 수입 예측: 수주 간격·발주처 다양성·단가 추세(내 원장만 가진 신호)를 연령 곡선보다 우선 반영해요.{'\n'}
@@ -217,7 +217,7 @@ function PensionTab() {
       {/* 연금 페이싱 — 정액 자동이체는 보릿고개 달에 깨진다. 리듬에 맞춰 이번 달 페이스만 판정 */}
       <Card style={{ gap: 13 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>AI 페이싱</Text>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: colors.ai, backgroundColor: colors.aiTint, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>AI 페이싱</Text>
           <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '800', color: colors.ink }}>이번 달 연금 페이스</Text>
         </View>
         <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub, lineHeight: 19 }}>
@@ -252,7 +252,7 @@ function PensionTab() {
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.sub }}>이 페이스로 1년이면 세액공제 예상</Text>
               <Text style={{ fontSize: 14, fontWeight: '800', color: colors.green, fontVariant: ['tabular-nums'] }}>약 ₩{ANNUAL_DEDUCTION.toLocaleString('en-US')}</Text>
             </View>
-            <Text style={{ fontSize: 10.5, fontWeight: '500', color: colors.sub3, lineHeight: 15 }}>
+            <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub3, lineHeight: 16 }}>
               세액공제율 16.5% 기준 산수 — 개인 조건에 따라 13.2~16.5% · 5월 추가납부가 그만큼 가벼워져요
             </Text>
             <Pressable onPress={() => setPace('approved')} style={{ backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
@@ -296,9 +296,11 @@ function PensionTab() {
 }
 
 // ── 차트 로직 ──────────────────────────────────────────────────────
-const X0 = 10, X1 = 310, Y0 = 24, Y1 = 176;
+export const X0 = 10, X1 = 310;
+const Y0 = 24, Y1 = 176;
 
-function buildChart(p: Forecast['path'], retirement: Forecast['retirement'], scenario: Scenario) {
+// 미래 탭 요약 카드(Retirement)도 같은 곡선을 그린다 — 요약과 상세가 다른 모양이면 안 된다.
+export function buildChart(p: Forecast['path'], retirement: Forecast['retirement'], scenario: Scenario) {
   const years = p.years;
   const span = Math.max(1, years[years.length - 1] - years[0]);
   const x = (yr: number) => X0 + ((yr - years[0]) / span) * (X1 - X0);
@@ -334,7 +336,7 @@ function Legend({ color, band, dash, text }: { color?: string; band?: boolean; d
       {band ? (
         <View style={{ width: 12, height: 10, borderRadius: 2, backgroundColor: 'rgba(0,132,133,.18)' }} />
       ) : dash ? (
-        <View style={{ width: 14, borderTopWidth: 2, borderTopColor: '#C2C7CE', borderStyle: 'dashed' }} />
+        <View style={{ width: 14, borderTopWidth: 2, borderTopColor: colors.chev, borderStyle: 'dashed' }} />
       ) : (
         <View style={{ width: 14, height: 3, borderRadius: 2, backgroundColor: color }} />
       )}

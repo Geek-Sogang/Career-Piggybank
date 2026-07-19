@@ -5,7 +5,7 @@ import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { CareerPiggybank } from '@/components/CareerPiggybank';
 import { Card, Mascot, T } from '@/components/ui';
-import { CAREER_SCORE_VALUES, useApp } from '@/store';
+import { useApp } from '@/store';
 
 // 홈 = 4블록: 저금통(브랜드) → 내 봉투(돈) → 4갈래 진입 → 오늘의 미션(행동).
 // 미래 소득 차트는 홈에서 빼고 퀵액션 → Retirement 화면이 담당한다.
@@ -17,16 +17,18 @@ export function Home() {
     if (!sheet) getEnvelopeBalances().then((r) => setEnv(r.balances)).catch(() => {});
   }, [sheet]);
 
-  const nextTask = !vals.conn.hometax
+  // 오늘의 미션 요약 — 카드 탭 = 미션창. (배분 풀플로우는 가계부 입금 카드·온보딩이 담당)
+  const waiting = vals.piggybank.daily_missions.filter((m) => m.available && !m.completed);
+  const nextTask = waiting.length > 0
     ? {
-      title: `흩어진 이력 모으고 +${CAREER_SCORE_VALUES.hometax}점 받기`,
-      sub: '입금·세금·인증서 연동 · 미션 경험치 +30 XP',
-      onPress: () => actions.openCareerSync(),
+      title: waiting[0].title,
+      sub: `${vals.piggybank.phase.label} · 대기 미션 ${waiting.length}개`,
+      onPress: () => actions.nav('missions'),
     }
     : {
-      title: '이번 달 입금 봉투에 나눠 담기',
-      sub: '페르소나 맞춤 배분 · +25 XP',
-      onPress: () => actions.openAllocFlow('connect'),   // 시나리오 [10] 풀플로우(연결→페르소나→배분)
+      title: '오늘 미션을 모두 마쳤어요',
+      sub: '미션 탭에서 성장 로드맵을 확인해 보세요',
+      onPress: () => actions.nav('missions'),
     };
 
   const envTotal = env ? Object.values(env).reduce((a, b) => a + Math.max(0, b), 0) : 0;
@@ -40,7 +42,7 @@ export function Home() {
   return (
     <View style={{ gap: 14 }}>
       {/* 저금통 히어로 — 하나 초록(브랜드 첫 카드의 색), 상세는 미션 탭 */}
-      <Pressable onPress={() => actions.pushScr('missions')}>
+      <Pressable onPress={() => actions.nav('missions')}>
         <CareerPiggybank
           piggybank={vals.piggybank}
           compact
@@ -54,7 +56,7 @@ export function Home() {
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>내 봉투</Text>
-              <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+              <Icon name="chevronRight" size={18} color={colors.chev} sw={2.2} />
             </View>
             <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600', marginTop: 10 }}>지금 쓸 수 있는 돈</Text>
             <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -0.8, color: colors.ink, marginTop: 2, ...T.num }}>
@@ -105,7 +107,7 @@ export function Home() {
             <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>{nextTask.title}</Text>
             <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '400' }}>{nextTask.sub}</Text>
           </View>
-          <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+          <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
         </Card>
       </Pressable>
     </View>

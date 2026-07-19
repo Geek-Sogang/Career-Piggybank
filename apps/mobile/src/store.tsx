@@ -1,13 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getCareerVerification, logBehavior, updateCareerVerification, type CareerVerification, type EnvelopeSplit } from '@/api';
+import { colors } from '@/theme/colors';
 import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
 // 최근 입금 배분 이벤트 — 시트·피기 코치 챗·잠금화면 알림이 같은 사건을 이어 말한다
 export type AllocNotice = { id?: string; deposit: number; windfall: number; split: EnvelopeSplit; reasons?: string[]; confirmed: boolean };
 
-export type Tab = 'home' | 'ledger' | 'piggy' | 'future';
-export type Push = null | 'connect' | 'jobProof' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState' | 'missions' | 'my' | 'careerSync' | 'personaLedger' | 'envelopeSuggest' | 'transactions' | 'goals' | 'retirementDetail';
+export type Tab = 'home' | 'ledger' | 'missions' | 'piggy' | 'future';
+export type Push = null | 'connect' | 'jobProof' | 'verifiedDetail' | 'tax' | 'retirement' | 'dataSovereignty' | 'products' | 'settings' | 'nestEgg' | 'chat' | 'lockscreen' | 'txDetail' | 'productDetail' | 'emptyState' | 'scrapWrite' | 'my' | 'careerSync' | 'personaLedger' | 'envelopeSuggest' | 'transactions' | 'goals' | 'retirementDetail';
 export type Sheet = null | 'consent' | 'invest' | 'allocation' | 'pacing';
 export type Scenario = 'cons' | 'base' | 'opt';
 export type ConnSrc = 'github' | 'mydata' | 'hometax' | 'kosa' | 'behance' | 'portfolio';
@@ -15,7 +16,7 @@ type Conn = Record<ConnSrc, boolean>;
 
 export const CAREER_SCORE_VALUES: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
 // 커리어 검증 점수 = 검증 실적 + 외부 연결 소스. 금융상품 한도와는 분리된 평판 신호다.
-const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
+const STAGE_MAP = { 잠정: [colors.sub, colors.line2], 준검증: [colors.buffer, colors.bufferTint], 확정: [colors.green, colors.greenTint] } as const;
 const SC = {
   cons: ['2039 ~ 2041', 0.56, 0.08, '소득 하방 가정'],
   base: ['2041 ~ 2044', 0.63, 0.11, '기준 소득 가정'],
@@ -165,8 +166,8 @@ function useAppState(startTab: Tab = 'home') {
       reviewBasis: verification.review_connection.basis,
       stageColor: STAGE_MAP[stage][0], stageBg: STAGE_MAP[stage][1],
       scLabel: sc[0] as string, scLeft: sc[1] as number, scWidth: sc[2] as number, scSub: sc[3] as string,
-      tabTitle: ({ ledger: '가계부', piggy: '커리어', future: '미래' } as Record<string, string>)[tab] || '',
-      headerTitle: ({ connect: '커리어 연결하기', jobProof: '일감 증명', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)', missions: '미션', my: '마이', transactions: '거래 내역', goals: '목표 봉투', retirementDetail: '미래 소득 · 은퇴' } as Record<string, string>)[push || ''] || '',
+      tabTitle: ({ ledger: '가계부', missions: '미션', piggy: '커리어', future: '미래' } as Record<string, string>)[tab] || '',
+      headerTitle: ({ connect: '커리어 연결하기', jobProof: '일감 증명', verifiedDetail: '검증 상세', tax: '자동 봉투', retirement: '미래 소득 · 은퇴', dataSovereignty: '데이터 주권', products: '상품 연결', settings: '알림 · 설정', nestEgg: '노후 준비', txDetail: '거래 상세', productDetail: '상품 상세', emptyState: '커리어 (빈 상태)', scrapWrite: '커리어 조각 저금', my: '마이', transactions: '거래 내역', goals: '목표 봉투', retirementDetail: '미래 소득 · 은퇴' } as Record<string, string>)[push || ''] || '',
       showGreeting: !push && tab === 'home',
       showTabTitle: !push && tab !== 'home',
       showBackHdr: !!push,

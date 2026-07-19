@@ -112,7 +112,7 @@ export function EnvelopeSuggest() {
         {/* 피기 픽 — ⑤a LLM 추천(이름·근거). 금액은 개설 폼에서 사람이 정한다 */}
         {visibleIdeas.length > 0 && (
           <>
-            <SectionLabel badge="피기 픽" badgeColor={colors.green} badgeBg={colors.greenTint} title="AI가 골라봤어요" sub={`${NAME}님의 소득 구조와 습관 근거로`} />
+            <SectionLabel badge="피기 픽" badgeColor={colors.ai} badgeBg={colors.aiTint} title="AI가 골라봤어요" sub={`${NAME}님의 소득 구조와 습관 근거로`} />
             <View style={{ gap: 10, marginBottom: 22 }}>
               {visibleIdeas.map((s, i) => (
                 <SuggestRow
@@ -252,7 +252,7 @@ function CreateSheet({ prefill, onClose, onCreated }: {
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.5)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 30 }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 18 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 18 }} />
         <Text style={{ fontSize: 19, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>봉투 만들기</Text>
 
         <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.sub, marginTop: 18, marginBottom: 8 }}>봉투 이름</Text>

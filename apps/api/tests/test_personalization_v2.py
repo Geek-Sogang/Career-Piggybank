@@ -192,7 +192,9 @@ def test_gig_structure_reuses_gig_profile_labels_verbatim():
     p = _build()
     by_key = {s.key: s for s in p.gig_structure}
     assert by_key[v2.STABILITY_KEY].level == "고변동"
-    assert "성장기" in by_key[v2.STABILITY_KEY].detail
+    # 근거 줄은 판정 신호(F01 금액 출렁임)를 앞세우고 공백(F04)은 보조로 붙는다
+    assert "금액 출렁임" in by_key[v2.STABILITY_KEY].detail
+    assert "수입 공백" in by_key[v2.STABILITY_KEY].detail
     assert by_key[v2.STRUCTURE_KEY].level == "소수 집중"
     assert "플랫폼 정산" in by_key[v2.STRUCTURE_KEY].detail
 

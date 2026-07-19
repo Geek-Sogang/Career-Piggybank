@@ -1,4 +1,5 @@
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { colors } from '@/theme/colors';
 
 type Props = { name: IconName; size?: number; color?: string; sw?: number };
 
@@ -9,7 +10,7 @@ export type IconName =
   | 'shieldCheck' | 'send' | 'arrowRight' | 'coin' | 'ledgerDoc';
 
 /** 디자인 소스의 인라인 SVG를 react-native-svg로 1:1 포팅. */
-export function Icon({ name, size = 24, color = '#1A1A1A', sw = 1.9 }: Props) {
+export function Icon({ name, size = 24, color = colors.ink, sw = 1.9 }: Props) {
   const s = { stroke: color, strokeWidth: sw, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
   const V = (children: React.ReactNode, vb = '0 0 24 24') => (
     <Svg width={size} height={size} viewBox={vb}>{children}</Svg>

@@ -36,7 +36,7 @@ export function TxDetail() {
         <Row icon="building" color={colors.green} title="종소세 절세 반영" desc="사업 경비 → 과세표준에서 제외" />
       </Card>
 
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>경비 자동 분류</Text>{'\n'}
           소프트웨어·장비 구독은 사업 경비로 자동 분류돼, 과세표준에서 빠지고 5월에 낼 세금이 줄어요.
@@ -49,7 +49,7 @@ export function TxDetail() {
 function Row({ icon, color, title, desc, border }: { icon: 'card' | 'building'; color: string; title: string; desc: string; border?: boolean }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 14, borderBottomWidth: border ? 1 : 0, borderBottomColor: colors.line2 }}>
-      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: '#F4F5F6', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: colors.line2, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={icon} size={20} color={color} />
       </View>
       <View style={{ flex: 1 }}>

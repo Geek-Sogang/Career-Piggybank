@@ -65,7 +65,7 @@ export function GoalSection({ goals, onCreated, onPace }: {
                   {wonFmt(bal)} <Text style={{ color: colors.sub3 }}>/ {wonFmt(g.target_amount)}</Text>
                 </Text>
               </View>
-              <View style={{ height: 7, borderRadius: 4, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
+              <View style={{ height: 7, borderRadius: 4, backgroundColor: colors.line3, overflow: 'hidden' }}>
                 <View style={{ width: `${pct * 100}%`, height: 7, borderRadius: 4, backgroundColor: colors.buffer }} />
               </View>
               {added > 0 ? (

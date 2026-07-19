@@ -64,8 +64,8 @@ export function Ledger() {
           </View>
         </Pressable>
       ) : (
-        // 확정된 배분 탭 = 근거·조정 리뷰("언제든 다시 조정" 약속의 실현) — 자동봉투 현황은 아래 카드가 담당
-        <Pressable onPress={() => depositConfirmed ? actions.openAllocFlow('review') : actions.pushScr('chat')}>
+        // 확정된 배분 탭 = 자동 봉투 상세(이번 입금이 어떻게 담겼는지) — 근거·조정 리뷰는 자동 봉투에서 이어진다
+        <Pressable onPress={() => depositConfirmed ? actions.pushScr('tax') : actions.pushScr('chat')}>
           <View style={{ backgroundColor: depositConfirmed ? colors.greenTint2 : colors.bufferTint, borderWidth: 1, borderColor: depositConfirmed ? colors.greenLine : colors.line, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: depositConfirmed ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={depositConfirmed ? 'check' : 'coin'} size={22} color="#fff" sw={2.2} />
@@ -76,7 +76,7 @@ export function Ledger() {
                 {depositConfirmed ? '4개 봉투에 나눠 담았어요' : '배분 제안이 준비됐어요 — 확인해 주세요'}
               </Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#9AA1A9" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.sub3} sw={2.2} />
           </View>
         </Pressable>
       )}
@@ -89,7 +89,7 @@ export function Ledger() {
               <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>자동 봉투</Text>
               <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>입금마다 세금·경비·여윳돈으로 자동 적립</Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
           </View>
           {/* 봉투 비중 바 — 실 잔액 비율(조회 전엔 대표 비율) */}
           <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
@@ -171,7 +171,7 @@ function MenuRow({ icon, tint, color, title, sub, onPress, last }: { icon: IconN
         <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{sub}</Text>
       </View>
-      <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+      <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
     </Pressable>
   );
 }

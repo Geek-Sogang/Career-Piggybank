@@ -154,10 +154,13 @@ export function My() {
   const [detailOpen, setDetailOpen] = useState(false);
   const v2 = usePersonalizationV2();   // 아바타·홈 배너와 같은 세션 공유 캐시
   const [v2Error, setV2Error] = useState(false);
+  const [persona, setPersona] = useState<Persona | null>(null);   // 줄글 요약용 4축
   const reloadV2 = () => {
     setV2Error(false);
+    getPersona().then(setPersona).catch(() => {});
     return loadPersonalizationV2(true).then((r) => setV2Error(r == null));
   };
+  useEffect(() => { getPersona().then(setPersona).catch(() => {}); }, []);
   useEffect(() => {
     if (v2) { setV2Error(false); return; }
     void loadPersonalizationV2().then((r) => setV2Error(r == null));
@@ -181,7 +184,7 @@ export function My() {
 
       {/* 긱 구조 2 + 금융 대응 3 — 측정·판독·서비스 매핑을 분리한다. */}
       {v2 && <GigProfileCard v2={v2} />}
-      {v2 && <FinancialResponseCard v2={v2} onUpdated={updatePersonalizationV2} />}
+      {v2 && <FinancialResponseCard v2={v2} prose={personaProse(v2, persona)} onUpdated={updatePersonalizationV2} />}
       {!v2 && v2Error && (
         <Card>
           <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>개인화 프로필을 불러오지 못했어요</Text>
@@ -194,10 +197,10 @@ export function My() {
       {/* 판단 근거 자세히 보기 — 4축 원본 판독(게이지·근거·신선도)은 접힘 안으로 */}
       <Card p={0} style={{ paddingHorizontal: 16 }}>
         <Pressable onPress={() => setDetailOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15 }}>
-          <Icon name="shield" size={20} color="#7C5CBF" />
+          <Icon name="shield" size={20} color={colors.ai} />
           <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: colors.ink }}>왜 이렇게 맞췄는지 보기</Text>
           <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub3 }}>{detailOpen ? '접기' : '거래·정산 기록 기반'}</Text>
-          <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+          <Icon name="chevronRight" size={18} color={colors.chev} sw={2.2} />
         </Pressable>
       </Card>
       {detailOpen && v2 && <PersonalizationMapCard v2={v2} />}
@@ -208,7 +211,7 @@ export function My() {
           <Pressable key={m.label} onPress={() => actions.pushScr(m.push)} style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 15, borderBottomWidth: i < MENU.length - 1 ? 1 : 0, borderBottomColor: colors.line2 }}>
             <Icon name={m.icon} size={20} color={m.color} />
             <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{m.label}</Text>
-            <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={18} color={colors.chev} sw={2.2} />
           </Pressable>
         ))}
       </Card>
@@ -270,8 +273,10 @@ const MGMT_BUTTON_COPY: Record<string, string> = {
   자율: '간단히', 가이드: '함께', '적극 관리': '꼼꼼히',
 };
 
-function FinancialResponseCard({ v2, onUpdated }: {
+function FinancialResponseCard({ v2, prose, onUpdated }: {
   v2: PersonalizationV2;
+  /** 페르소나 줄글 요약 — 있으면 일반 도입문을 대체한다 */
+  prose?: string | null;
   onUpdated: (profile: PersonalizationV2) => void;
 }) {
   const [saving, setSaving] = useState(false);
@@ -291,10 +296,10 @@ function FinancialResponseCard({ v2, onUpdated }: {
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>정산 흐름에 맞춘 돈 관리</Text>
-        <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>나에게 맞춤</Text>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: colors.ai, backgroundColor: colors.aiTint, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>나에게 맞춤</Text>
       </View>
-      <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '400', lineHeight: 16, marginTop: 6 }}>
-        고정 월급이 아니라 다음 정산까지 버티는 흐름을 기준으로 맞췄어요.
+      <Text style={{ fontSize: 11.5, color: colors.sub, fontWeight: '400', lineHeight: 17, marginTop: 6 }}>
+        {prose ?? '고정 월급이 아니라 다음 정산까지 버티는 흐름을 기준으로 맞췄어요.'}
       </Text>
 
       {/* 안전자금 운용 방향 — 실제 정책은 같은 raw 위험감내 연속값을 소비하고, 여기는 표시 번역. */}
@@ -307,8 +312,8 @@ function FinancialResponseCard({ v2, onUpdated }: {
           const active = v2.effective_management === level;
           return (
             <Pressable key={level} disabled={saving} onPress={() => pick(level === v2.management_override ? null : level)}
-              style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1.4, borderColor: active ? '#7C5CBF' : colors.line2, backgroundColor: active ? '#F5F1FB' : '#fff' }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: active ? '#7C5CBF' : colors.sub2 }}>
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11, borderWidth: 1.4, borderColor: active ? colors.ai : colors.line2, backgroundColor: active ? colors.aiTint : '#fff' }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: active ? colors.ai : colors.sub2 }}>
                 {MGMT_BUTTON_COPY[level]}
               </Text>
             </Pressable>
@@ -333,7 +338,8 @@ function FinancialResponseCard({ v2, onUpdated }: {
   );
 }
 
-function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
+// 온보딩 습관 장(PersonaLedger)에서도 같은 카드를 쓴다 — 마이 탭과 단일 소스.
+export function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
   const output = Object.fromEntries(v2.financial_response.map((decision) => [decision.key, decision]));
   const rows = [
     {
@@ -365,7 +371,7 @@ function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
       <MapStage number="2" title="금융 행동 성향" badge="EXAONE 판독">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {['안전 여유', '돈의 시간', '지출 조절', '관리 습관'].map((label) => (
-            <Text key={label} style={{ fontSize: 10.5, fontWeight: '700', color: '#6D4AA7', backgroundColor: '#F5F1FB', paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>{label}</Text>
+            <Text key={label} style={{ fontSize: 10.5, fontWeight: '700', color: colors.ai, backgroundColor: colors.aiTint, paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, overflow: 'hidden' }}>{label}</Text>
           ))}
         </View>
       </MapStage>
@@ -373,7 +379,7 @@ function PersonalizationMapCard({ v2 }: { v2: PersonalizationV2 }) {
       <MapStage number="3" title="서비스 개인화" badge="구조 + 성향">
         <View style={{ gap: 8 }}>
           {rows.map((row) => (
-            <View key={row.title} style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 10 }}>
+            <View key={row.title} style={{ borderRadius: 10, backgroundColor: colors.bg, padding: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                 <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '800', color: colors.ink }}>{row.title}</Text>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: colors.green }}>{row.result}</Text>
@@ -394,7 +400,7 @@ function MapStage({ number, title, badge, children }: { number: string; title: s
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 }}>
         <View style={{ width: 21, height: 21, borderRadius: 11, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>{number}</Text></View>
         <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: colors.ink }}>{title}</Text>
-        <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub2 }}>{badge}</Text>
+        <Text style={{ fontSize: 9.5, fontWeight: '700', color: badge === 'EXAONE 판독' ? colors.ai : colors.sub2 }}>{badge}</Text>
       </View>
       {children}
     </View>
@@ -426,11 +432,11 @@ function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').
         </Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-        <Text style={{ fontSize: 14.5, fontWeight: '800', color: onHold ? colors.sub2 : '#7C5CBF' }}>
+        <Text style={{ fontSize: 14.5, fontWeight: '800', color: onHold ? colors.sub2 : colors.ai }}>
           {displayLevel}
         </Text>
         {overrideLevel && (
-          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.sub3, backgroundColor: '#F2F4F6', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>내가 선택</Text>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.sub3, backgroundColor: colors.line2, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>내가 선택</Text>
         )}
       </View>
       <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '400', lineHeight: 15 }}>{reason}</Text>
@@ -440,6 +446,60 @@ function V2DecisionRow({ decision, overrideLevel }: { decision: import('@/api').
 
 // 내부 4축은 유지하되 사용자는 생활 질문·관측 결과·읽은 기록으로 이해한다.
 const AXIS_ORDER = ['risk_tolerance', 'time_preference', 'self_control', 'planning'];
+
+// 페르소나 줄글 — 검증된 레벨 문자열을 결정론으로 조립한다(지어내지 않음).
+// 마이 탭 '정산 흐름에 맞춘 돈 관리' 도입부와 온보딩 공개 화면이 같은 문장을 쓴다.
+const PROSE_VOL: Record<string, string> = {
+  고변동: '달마다 들어오는 금액 차이가 크고', 변동: '달마다 금액이 조금씩 다르고',
+  안정: '비슷한 금액이 꾸준히 들어오고', '관측 부족': '수입 흐름은 아직 지켜보는 중이고',
+};
+const PROSE_CONC: Record<string, string> = {
+  다각화: '수입은 여러 곳에서 나눠 들어와요', '소수 집중': '수입은 몇 곳에 집중돼 있어요',
+  '단일 의존': '수입이 한 곳에 크게 기대어 있어요', '관측 부족': '정산처는 조금 더 살펴보고 있어요',
+};
+const PROSE_RISK: Record<'low' | 'mid' | 'high', string> = {
+  low: '안전자금을 먼저 챙기고', mid: '생활과 안전자금을 함께 보고', high: '여유가 생기면 다음 목표에도 활용하고',
+};
+const PROSE_TIME: Record<'low' | 'mid' | 'high', string> = {
+  low: '지금 필요한 지출을 먼저 봐요', mid: '지금과 미래를 함께 봐요', high: '미래 준비를 더 먼저 챙겨요',
+};
+const bucketOf = (value: number): 'low' | 'mid' | 'high' => (value <= 0.3 ? 'low' : value >= 0.7 ? 'high' : 'mid');
+
+export function personaProse(
+  v2: PersonalizationV2 | null,
+  persona: Persona | null,
+  { withOutro = true }: { withOutro?: boolean } = {},
+): string | null {
+  if (!v2) return null;
+  const levels = Object.fromEntries(v2.gig_structure.map((s) => [s.key, s.level]));
+  const vol = PROSE_VOL[levels.income_stability ?? ''];
+  const conc = PROSE_CONC[levels.income_source_structure ?? ''];
+  const sentences: string[] = [];
+  if (vol && conc) sentences.push(`${vol}, ${conc}.`);
+  const risk = persona?.axes?.risk_tolerance;
+  const time = persona?.axes?.time_preference;
+  if (risk && time && !risk.fallback && !time.fallback) {
+    sentences.push(`돈 관리는 ${PROSE_RISK[bucketOf(risk.value)]} ${PROSE_TIME[bucketOf(time.value)]}.`);
+  }
+  if (sentences.length === 0) return null;
+  if (withOutro) sentences.push('그래서 피기는 다음 정산까지 버티는 흐름을 기준으로 봉투와 제안 속도를 맞춰요.');
+  return sentences.join(' ');
+}
+
+// 4축 한 줄 요약 — 온보딩 페르소나 공개(2+4 표기)와 마이 탭이 같은 번역을 쓴다.
+export function axisSummaries(persona: Persona | null): { key: string; tag: string; line: string; fallback: boolean }[] {
+  if (!persona) return [];
+  return AXIS_ORDER.flatMap((key) => {
+    const a = persona.axes[key];
+    if (!a) return [];
+    return [{
+      key,
+      tag: AXIS_UI[key]?.tag ?? a.label,
+      line: a.fallback ? '아직 단정하지 않고 더 지켜볼게요' : friendlyAxisResult(key, a.value),
+      fallback: !!a.fallback,
+    }];
+  });
+}
 
 // 온보딩 페르소나 플로우(habits 스텝)에서도 같은 카드를 쓴다 — 마이 탭과 단일 소스.
 export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
@@ -459,7 +519,7 @@ export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
     <Card>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>피기가 살펴본 돈 관리 습관</Text>
-        <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>최근 기록 기반</Text>
+        <Text style={{ fontSize: 10, fontWeight: '800', color: colors.ai, backgroundColor: colors.aiTint, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>최근 기록 기반</Text>
       </View>
       {missing || !persona ? (
         <View style={{ marginTop: 10, gap: 10 }}>
@@ -469,8 +529,8 @@ export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
               : '최근 입금·지출·정산 기록을 바탕으로 나에게 편한 돈 관리 방식을 맞춰볼게요.'}
           </Text>
           {!reading && (
-            <Pressable onPress={runRead} style={{ borderWidth: 1.4, borderColor: '#E2D8F3', backgroundColor: '#F5F1FB', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#7C5CBF' }}>최근 기록으로 맞춰보기</Text>
+            <Pressable onPress={runRead} style={{ borderWidth: 1.4, borderColor: colors.aiLine, backgroundColor: colors.aiTint, borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.ai }}>최근 기록으로 맞춰보기</Text>
             </Pressable>
           )}
         </View>
@@ -483,17 +543,17 @@ export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
             const a = persona.axes[key];
             if (!a) return null;
             return (
-              <View key={key} style={{ gap: 5, backgroundColor: '#FAF9FC', borderRadius: 11, padding: 11 }}>
+              <View key={key} style={{ gap: 5, backgroundColor: colors.aiBg, borderRadius: 11, padding: 11 }}>
                 <View style={{ alignItems: 'flex-start' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: a.fallback ? colors.sub2 : '#7C5CBF', backgroundColor: a.fallback ? '#ECEFF2' : '#EEE8F8', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: a.fallback ? colors.sub2 : colors.ai, backgroundColor: a.fallback ? colors.line3 : colors.aiTint2, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
                     {AXIS_UI[key]?.tag ?? a.label}
                   </Text>
                   <Text style={{ fontSize: 12.5, fontWeight: '700', color: a.fallback ? colors.sub2 : colors.ink, lineHeight: 18, marginTop: 6 }}>
                     {a.fallback ? '아직 단정하지 않고 더 지켜볼게요' : friendlyAxisResult(key, a.value)}
                   </Text>
                 </View>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
-                  <View style={{ width: `${a.value * 100}%`, height: 6, borderRadius: 3, backgroundColor: a.fallback ? '#C9CED4' : '#7C5CBF' }} />
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.line3, overflow: 'hidden' }}>
+                  <View style={{ width: `${a.value * 100}%`, height: 6, borderRadius: 3, backgroundColor: a.fallback ? '#C9CED4' : colors.ai }} />
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '400', color: colors.sub3, lineHeight: 14 }}>
                   살펴본 기록 · {friendlyFacts(a.evidence, key) || '관련 기록을 더 모으는 중'}
@@ -502,16 +562,16 @@ export function PersonaCard({ onChanged }: { onChanged?: () => void }) {
             );
           })}
           {persona.staleness?.stale && (
-            <Pressable onPress={runRead} disabled={reading} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F3E3C2', borderRadius: 11, padding: 10 }}>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '500', color: '#9A6B15', lineHeight: 16 }}>
+            <Pressable onPress={runRead} disabled={reading} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.amberTint, borderWidth: 1, borderColor: colors.amberLine, borderRadius: 11, padding: 10 }}>
+              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '500', color: colors.amber, lineHeight: 16 }}>
                 {reading ? '최근 기록으로 다시 맞추는 중 …' : `그 사이 거래 ${persona.staleness.new_txns}건이 쌓였어요. 돈 관리 방식을 다시 맞춰볼까요?`}
               </Text>
-              {!reading && <Icon name="chevronRight" size={14} color="#9A6B15" sw={2.2} />}
+              {!reading && <Icon name="chevronRight" size={14} color={colors.amber} sw={2.2} />}
             </Pressable>
           )}
           {!persona.staleness?.stale && (
             <Pressable onPress={runRead} disabled={reading} style={{ alignSelf: 'flex-start', paddingVertical: 3 }}>
-              <Text style={{ fontSize: 10.5, color: '#7C5CBF', fontWeight: '700' }}>
+              <Text style={{ fontSize: 10.5, color: colors.ai, fontWeight: '700' }}>
                 {reading ? '최근 기록으로 다시 맞추는 중 …' : '최근 기록으로 다시 맞추기'}
               </Text>
             </Pressable>

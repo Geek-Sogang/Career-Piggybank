@@ -64,7 +64,7 @@ export function Chat() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F2F4F6' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.line2 }} edges={['top', 'bottom']}>
       <View style={{ height: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.line3 }}>
         <Pressable onPress={actions.back} hitSlop={8}><Icon name="chevronLeft" size={24} color={colors.ink} sw={2} /></Pressable>
         <Mascot head size={32} radius={16} />
@@ -75,7 +75,7 @@ export function Chat() {
       </View>
 
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 11 }} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
-        <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: '#E5E8EB', paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>오늘 오후 2:14</Text>
+        <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: colors.line4, paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>오늘 오후 2:14</Text>
         <Bot>큰 돈이 들어왔네요! 🎉{'\n'}혹시 새 계약 하셨어요?</Bot>
         <Me>네, ○○커머스 신규 프로젝트요</Me>
         <Bot>
@@ -97,7 +97,7 @@ export function Chat() {
         {/* 입금 이벤트 — 코치가 먼저 말 걸기 (숫자는 결정론 엔진 출력 그대로, 코치는 전달만) */}
         {lastAlloc && (
           <>
-            <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: '#E5E8EB', paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>방금</Text>
+            <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: colors.line4, paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>방금</Text>
             <Bot>
               💰 {won(lastAlloc.deposit)} 입금이 들어왔어요! 평소의 {lastAlloc.windfall.toFixed(1)}배 큰 금액이라 제가 배분을 제안드렸어요.
             </Bot>
@@ -135,7 +135,7 @@ export function Chat() {
           placeholder="메시지 입력…"
           placeholderTextColor={colors.sub3}
           returnKeyType="send"
-          style={{ flex: 1, height: 38, backgroundColor: '#F2F4F6', borderRadius: 19, paddingHorizontal: 16, fontSize: 13, color: colors.ink }}
+          style={{ flex: 1, height: 38, backgroundColor: colors.line2, borderRadius: 19, paddingHorizontal: 16, fontSize: 13, color: colors.ink }}
         />
         <Pressable onPress={send} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: text.trim() ? colors.green : '#C7D0CF', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="send" size={18} color="#fff" sw={2} />

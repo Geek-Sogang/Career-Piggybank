@@ -6,6 +6,7 @@
 // 네트워크 대신 녹화 픽스처(demoData)를 반환한다 — 라이브 백엔드에서 캡처한
 // 조대흠 시드 응답. 실서비스가 아니라 "화면 보여주기"용 정적 데모.
 import { demoGet, demoPost } from '@/lib/demoData';
+import type { ProductKey } from '@/products';
 
 const DEMO = process.env.EXPO_PUBLIC_DEMO === '1';
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:8000';
@@ -80,15 +81,36 @@ export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT)
 
 export type EnvelopeSplit = { tax: number; expense: number; spendable: number; buffer: number };
 // 배분 → 하나 상품 훅 — 선택은 백엔드 룰, product_id는 products.ts ProductKey와 1:1
-export type ProductHook = { product_id: string; envelope: string; name: string; line: string };
+export type ProductHook = { product_id: ProductKey; envelope: string; name: string; line: string };
 
 // ⑥ 상품 매칭 (AI) — 핫패스 아님: 시트는 룰 훅을 즉시 보여주고, 이 호출이 돌아오면 승급.
 // 후보는 적합성 veto(결정론)를 통과한 것만 — AI는 그 메뉴 안에서 고르고 근거 팩트를 인용.
 export type ProductMatchPick = ProductHook & { evidence: string[]; source: 'llm' | 'rule' };
+export type ProductMatchCandidate = Omit<ProductHook, 'line'> & { basis: string };
+export type ProductMatchResponse = {
+  matches: ProductMatchPick[];
+  candidates?: ProductMatchCandidate[];
+  vetoed: Partial<Record<ProductKey, string>>;
+  persona_used: boolean;
+  persona_staleness?: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
+  note: string;
+  verification: CareerVerification;
+};
+let productMatchCache: ProductMatchResponse | null = null;
+let productMatchPending: Promise<ProductMatchResponse> | null = null;
 export function fetchProductMatch() {
-  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string; verification: CareerVerification }>(
-    '/v1/products/match', {}, 60_000, // 로컬 7.8B 생성 대기
-  );
+  if (productMatchCache) return Promise.resolve(productMatchCache);
+  if (productMatchPending) return productMatchPending;
+  productMatchPending = post<ProductMatchResponse>(
+    '/v1/products/match', {}, 60_000, // 로컬 EXAONE 결과는 화면 사이에서 재사용
+  ).then((result) => {
+    if ((result.candidates?.length ?? 0) > 0 || result.matches.length > 0) productMatchCache = result;
+    return result;
+  }).finally(() => { productMatchPending = null; });
+  return productMatchPending;
+}
+export function prefetchProductMatch() {
+  void fetchProductMatch().catch(() => {});
 }
 export type Allocation = {
   id: string;
@@ -280,10 +302,24 @@ export type PeerIdea = {
   pool: number; scope: 'job' | 'all'; basis: string;
   months_to_reach: number | null; affordable_amount: number | null;
 };
+export type EnvelopeRecommendation = {
+  recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean;
+};
+let envelopeRecommendationCache: EnvelopeRecommendation | null = null;
+let envelopeRecommendationPending: Promise<EnvelopeRecommendation> | null = null;
 export function recommendEnvelopes() {
-  return post<{ recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean }>(
-    '/v1/envelopes/recommend', {}, 60_000, // 로컬 7.8B 생성 대기
-  );
+  if (envelopeRecommendationCache) return Promise.resolve(envelopeRecommendationCache);
+  if (envelopeRecommendationPending) return envelopeRecommendationPending;
+  envelopeRecommendationPending = post<EnvelopeRecommendation>(
+    '/v1/envelopes/recommend', {}, 60_000, // 로컬 EXAONE 생성은 화면 진입 전에 미리 시작
+  ).then((result) => {
+    envelopeRecommendationCache = result;
+    return result;
+  }).finally(() => { envelopeRecommendationPending = null; });
+  return envelopeRecommendationPending;
+}
+export function prefetchEnvelopeRecommendations() {
+  void recommendEnvelopes().catch(() => {});
 }
 // ⑤b 금액 페이싱 — 판단(우선순위·스탠스)은 AI, 원화 번역은 산수, 실행은 confirm만
 export type PacingProposal = {
@@ -368,11 +404,11 @@ export const OFFLINE_ALLOCATION: Allocation = {
   windfall_ratio: 3.75,
   needs_confirmation: true,
   reasons: [
-    '세금봉투 108,900원: 실효 추가세율 3.6%를 먼저 떼어 5월 종소세에 대비해요',
-    '경비봉투 400,000원: 이번 달 예상 경비를 채워요',
-    '즉시가용 1,200,000원: 이번 달 생활비까지 채워요',
-    '여윳돈 1,291,100원: 소득 변동에 대비해 버퍼 목표까지 더 모아요',
-    '이번 입금은 평소(800,000원)의 3.8배 — 코치가 확인을 요청해요',
+    '세금봉투 108,900원: 이번 입금의 3.6%를 떼어 5월 종소세를 준비해요',
+    '경비봉투 400,000원: 현재 0원이라 이번 달 예상 경비 400,000원을 채워요',
+    '생활비 1,200,000원: 현재 0원이라 다음 수입 전까지 쓸 한 달 생활비를 채워요',
+    '여윳돈 1,291,100원: 소득 공백에 대비할 목표 3,120,000원까지 1,828,900원 더 필요해요',
+    '이번 입금은 평소 800,000원의 3.8배라 담기 전에 한 번 더 확인해요',
   ],
   product_hooks: [
     {

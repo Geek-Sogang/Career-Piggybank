@@ -1541,7 +1541,7 @@ const POST: Record<string, unknown> = {
   "/v1/envelopes/recommend": {
     "recommendations": [
       {
-        "name": "일 없는 달 대비 버퍼",
+        "name": "일 없는 달 대비 비상금",
         "why": "고변동 소득과 29일의 최장 무수입 공백으로 인해 안정적인 버퍼가 필요합니다.",
         "evidence": [
           "F04"

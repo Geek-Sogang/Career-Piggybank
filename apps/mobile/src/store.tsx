@@ -45,6 +45,7 @@ function useAppState(startTab: Tab = 'home') {
   const [careerReviewPending, setCareerReviewPending] = useState(false);     // 온보딩 이력은 커리어 탭에서 사람이 확인한 뒤에만 페르소나로 넘긴다
   const [backgroundPersonaEnabled, setBackgroundPersonaEnabled] = useState(false); // 건너뛰기 진입만 백그라운드 판독. 온보딩은 명시적 CTA 뒤 판독
   const [product, setProduct] = useState<ProductKey>('emergency');
+  const [transactionsTab, setTransactionsTab] = useState<'verified' | 'unverified'>('verified');
   const [lastAlloc, setLastAlloc] = useState<AllocNotice | null>(null);
   const [pacingApplied, setPacingApplied] = useState<Record<string, number>>({}); // 목표봉투에 방금 담은 금액 오버레이(백엔드 나중에)
   const [verification, setVerification] = useState<Pick<CareerVerification, 'score' | 'stage' | 'review_connection' | 'verified' | 'piggybank'>>({
@@ -137,6 +138,9 @@ function useAppState(startTab: Tab = 'home') {
     // 온보딩 플로우의 일괄 연결 — 개별 연결과 같은 경로(점수 반영 + F13 계측)
     connectSources: (srcs: ConnSrc[]) => srcs.forEach((s) => apply(s, true)),
     openProduct: (key: ProductKey) => { setProduct(key); setPush('productDetail'); setSheet(null); },
+    openTransactions: (initialTab: 'verified' | 'unverified' = 'verified') => {
+      setTransactionsTab(initialTab); setPush('transactions'); setSheet(null);
+    },
     back: () => setPush(null),
     openSheet: (s: Exclude<Sheet, null>) => setSheet(s),
     noteAllocation: (n: AllocNotice) => setLastAlloc(n),
@@ -179,7 +183,7 @@ function useAppState(startTab: Tab = 'home') {
     };
   }, [conn, push, tab, scenario, verification]);
 
-  return { entered, tab, push, sheet, scenario, detail, product, plStart, csMode, careerReviewPending, backgroundPersonaEnabled, retireTab, lastAlloc, pacingApplied, flash, vals, actions };
+  return { entered, tab, push, sheet, scenario, detail, product, transactionsTab, plStart, csMode, careerReviewPending, backgroundPersonaEnabled, retireTab, lastAlloc, pacingApplied, flash, vals, actions };
 }
 
 export function AppProvider({ children, startTab = 'home' }: { children: ReactNode; startTab?: Tab }) {

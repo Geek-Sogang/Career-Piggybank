@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { coachChat, decideAllocation, DEMO_COACH_CONTEXT } from '@/api';
+import { coachChat, decideAllocation, DEMO_COACH_CONTEXT, fetchProductMatch, prefetchProductMatch, type ProductMatchResponse } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { useApp } from '@/store';
+import { PRODUCTS, type ProductKey } from '@/products';
 
 // 백엔드(로컬 LLM) 미가동 시 오프라인 폴백 — 데모가 죽지 않는 원칙
 const OFFLINE_REPLIES = [
@@ -15,11 +16,47 @@ const OFFLINE_REPLIES = [
 ];
 
 const won = (v: number) => `₩${v.toLocaleString('en-US')}`;
+const NAME = '조대흠';
+
+type ProductCard = { key: ProductKey; line: string; matched: boolean };
+type ChatMessage = { from: 'bot' | 'me'; text: string; products?: ProductCard[] };
+
+function productAnswer(message: string, result: ProductMatchResponse): ChatMessage {
+  const asksEmergency = /비상금|대출/.test(message);
+  if (asksEmergency) {
+    const matched = result.matches.find((pick) => pick.product_id === 'emergency');
+    const verifiedCount = result.verification?.verified?.count ?? 0;
+    if (matched) {
+      return {
+        from: 'bot',
+        text: `${NAME}님에게는 ${matched.name}이 현재 적격 후보예요. ${matched.line} 신청 전 한도·금리·상환 조건은 하나원큐 실제 심사에서 확인해 주세요.`,
+        products: [{ key: 'emergency', line: matched.line, matched: true }],
+      };
+    }
+    const veto = result.vetoed?.emergency ?? '현재 원장만으로는 상환 여력을 확인하기 어려워 대출 권유를 보류했어요';
+    return {
+      from: 'bot',
+      text: `${NAME}님이 비상금대출을 찾고 있군요. 다만 지금은 ${veto} 연결된 검증 일감 ${verifiedCount}건은 심사자료로 가져갈 수 있어요. 한도와 금리는 하나원큐 실제 심사에서만 확인할 수 있습니다.`,
+      products: [{ key: 'emergency', line: veto, matched: false }],
+    };
+  }
+
+  const picks = result.matches.slice(0, 2);
+  if (!picks.length) {
+    return { from: 'bot', text: '현재 확인된 돈 흐름만으로는 억지로 상품을 권하지 않을게요. 원하는 상품 종류가 있으면 적격 조건부터 함께 확인해 드릴게요.' };
+  }
+  const names = picks.map((pick) => pick.name).join('과 ');
+  return {
+    from: 'bot',
+    text: `${NAME}님의 긱 소득 구조와 금융 페르소나를 EXAONE이 함께 분석했을 때, 지금은 ${names}을 먼저 살펴보는 것이 맞아요. 구체적으로 원하는 상품이 있을까요?`,
+    products: picks.map((pick) => ({ key: pick.product_id, line: pick.line, matched: true })),
+  };
+}
 
 export function Chat() {
   const { lastAlloc, actions } = useApp();
   const [text, setText] = useState('');
-  const [extra, setExtra] = useState<{ from: 'bot' | 'me'; text: string }[]>([]);
+  const [extra, setExtra] = useState<ChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   const [approving, setApproving] = useState(false);
   const scroll = useRef<ScrollView>(null);
@@ -27,6 +64,7 @@ export function Chat() {
   // 진입 시 최신(방금 배분 제안 + 근거 + 승인 버튼)이 바로 보이게 맨 아래로
   useEffect(() => {
     const t = setTimeout(() => scroll.current?.scrollToEnd({ animated: false }), 150);
+    prefetchProductMatch();
     return () => clearTimeout(t);
   }, []);
 
@@ -37,16 +75,21 @@ export function Chat() {
     setText('');
     setThinking(true);
     toEnd();
-    let reply: string;
+    let response: ChatMessage;
     try {
-      // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
-      const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;
-      reply = (await coachChat(t, context)).reply;
+      if (/상품|비상금|대출|통장|ISA|IRP|연금/.test(t)) {
+        // 적합성 veto(결정론) 뒤 EXAONE이 후보를 선택한 실 매칭 결과를 카드로 번역한다.
+        response = productAnswer(t, await fetchProductMatch());
+      } else {
+        // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
+        const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;
+        response = { from: 'bot', text: (await coachChat(t, context)).reply };
+      }
     } catch {
-      reply = OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length];
+      response = { from: 'bot', text: OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length] };
     }
     setThinking(false);
-    setExtra((e) => [...e, { from: 'bot', text: reply }]);
+    setExtra((e) => [...e, response]);
     toEnd();
   };
 
@@ -123,7 +166,16 @@ export function Chat() {
             )}
           </>
         )}
-        {extra.map((m, i) => (m.from === 'bot' ? <Bot key={i}>{m.text}</Bot> : <Me key={i}>{m.text}</Me>))}
+        {extra.map((m, i) => (
+          m.from === 'bot' ? (
+            <View key={i} style={{ gap: 8 }}>
+              <Bot>{m.text}</Bot>
+              {m.products?.map((product) => (
+                <ProductTicket key={product.key} product={product} onOpen={() => actions.pushScr('products')} />
+              ))}
+            </View>
+          ) : <Me key={i}>{m.text}</Me>
+        ))}
         {thinking && <Bot>피기가 생각 중이에요 …</Bot>}
       </ScrollView>
 
@@ -142,6 +194,33 @@ export function Chat() {
         </Pressable>
       </View>
     </SafeAreaView>
+  );
+}
+
+function ProductTicket({ product, onOpen }: { product: ProductCard; onOpen: () => void }) {
+  const p = PRODUCTS[product.key];
+  return (
+    <View style={{ marginLeft: 36, maxWidth: '86%', backgroundColor: '#fff', borderRadius: 17, overflow: 'hidden', borderWidth: 1, borderColor: product.matched ? colors.ai : colors.line, shadowColor: colors.ai, shadowOpacity: product.matched ? 0.12 : 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}>
+      <View style={{ padding: 14, gap: 9 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: p.badgeBg, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: p.badgeColor }}>{p.badge}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10.5, fontWeight: '800', color: product.matched ? colors.ai : colors.sub2 }}>
+              {product.matched ? 'EXAONE 맞춤 분석' : '요청 상품 · 권유 보류'}
+            </Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink, marginTop: 2 }}>{p.name}</Text>
+          </View>
+        </View>
+        <Text style={{ fontSize: 11.5, fontWeight: '400', lineHeight: 17, color: colors.sub }}>{product.line}</Text>
+        <Text style={{ fontSize: 10.5, fontWeight: '500', color: colors.sub3 }}>자격·한도·금리는 하나원큐 실제 심사에서 결정돼요</Text>
+      </View>
+      <Pressable onPress={onOpen} style={{ backgroundColor: product.matched ? colors.aiTint : colors.greenTint2, borderTopWidth: 1, borderTopColor: colors.line2, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 12.5, fontWeight: '800', color: product.matched ? colors.ai : colors.green }}>금융상품에서 더 보기</Text>
+        <Icon name="arrowRight" size={17} color={product.matched ? colors.ai : colors.green} sw={2} />
+      </Pressable>
+    </View>
   );
 }
 

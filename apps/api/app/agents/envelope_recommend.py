@@ -27,6 +27,15 @@ MAX_NAME_CHARS = 20
 LOCKED_PREFIX = ("세금", "경비")   # 추천 금지 — 잠긴 층의 이름을 참칭할 수 없다
 
 
+def _friendly_name(name: str) -> str:
+    """AI가 고른 목적은 유지하고, 화면 명칭만 데모의 긱워커 언어로 통일한다."""
+    if "일 없는 달" in name or "소득 공백" in name:
+        return "일 없는 달 대비 비상금"
+    if "성장" in name and ("다각화" in name or "기회" in name):
+        return "성장기 다각화 투자"
+    return name
+
+
 @dataclass(frozen=True)
 class EnvelopeIdea:
     name: str                  # 구체적 이름 ("일 없는 달")
@@ -99,7 +108,7 @@ def recommend(facts: list[Fact], axes: dict | None, existing: list[dict],
     for item in out["recommendations"][:MAX_RECOMMENDATIONS]:
         if not isinstance(item, dict):
             continue
-        name = str(item.get("name", "")).strip()[:MAX_NAME_CHARS]
+        name = _friendly_name(str(item.get("name", "")).strip())[:MAX_NAME_CHARS]
         why = str(item.get("why", "")).strip()[:120]
         raw = item.get("evidence")
         evidence = tuple(e for e in raw if e in measured) if isinstance(raw, list) else ()

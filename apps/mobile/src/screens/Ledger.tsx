@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { DEMO_DEPOSIT, getEnvelopeBalances, getTransactions, type Txn } from '@/api';
+import { DEMO_DEPOSIT, getEnvelopeBalances, getTransactions, prefetchEnvelopeRecommendations, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Card, T } from '@/components/ui';
@@ -17,6 +17,7 @@ export function Ledger() {
     getTransactions()
       .then((next) => { setTxns(next); setReady(true); })
       .catch(() => { setTxns(null); setReady(true); });
+    prefetchEnvelopeRecommendations();
   }, []);
   // 봉투 잔액·세금 준비 현황 — 배분(lastAlloc) 뒤 재조회해 방금 담은 몫을 반영
   useEffect(() => {
@@ -143,7 +144,7 @@ export function Ledger() {
 
       {/* 메뉴 — 누르면 전용 화면으로 전환 */}
       <Card p={0} style={{ paddingHorizontal: 16, borderRadius: 16 }}>
-        <MenuRow icon="ledgerDoc" tint={colors.bufferTint} color={colors.buffer} title="거래 내역" sub={`이번 달 ${txnCount}건 · AI 자동 분류`} onPress={() => actions.pushScr('transactions')} />
+        <MenuRow icon="ledgerDoc" tint={colors.bufferTint} color={colors.buffer} title="거래 내역" sub={`이번 달 ${txnCount}건 · AI 자동 분류`} onPress={() => actions.openTransactions('verified')} />
         <MenuRow icon="coin" tint={colors.greenTint} color={colors.green} title="목표 봉투" sub="여윳돈에서 목표로 나눠 담기" onPress={() => actions.pushScr('goals')} />
         <MenuRow icon="cardPig" tint={colors.pinkTint} color={colors.pinkStrong} title="봉투 추천" sub="피기 픽 · 또래 픽 · 나만의 봉투" onPress={() => actions.pushScr('envelopeSuggest')} />
         <MenuRow icon="trending" tint={colors.indigoTint} color={colors.indigo} title="여윳돈 굴리기" sub="₩99,555 · 버퍼 초과분 보수적 운용" onPress={() => actions.openSheet('invest')} last />

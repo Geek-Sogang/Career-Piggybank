@@ -11,6 +11,7 @@ import { useApp } from '@/store';
 export function ScrapWrite() {
   const { actions } = useApp();
   const [scraps, setScraps] = useState<CareerScrap[]>([]);
+  const [xpNotice, setXpNotice] = useState<number | null>(null);
   useEffect(() => { getCareerScraps().then(setScraps).catch(() => {}); }, []);
 
   return (
@@ -21,14 +22,23 @@ export function ScrapWrite() {
           아티클·레포·레퍼런스, 끝낸 일, 배운 점 — 무엇이든 좋아요. 모인 조각은 커리어 조각 모음에 쌓여요.
         </Text>
         <ScrapComposer
-          onSaved={async (scrap) => {
+          onSaved={async (scrap, xpAwarded) => {
             setScraps((current) => [scrap, ...current]);
             await actions.refreshCareer();
-            actions.back();
+            setXpNotice(xpAwarded ? 1 : 0);
+            setTimeout(actions.back, 1200);
           }}
           onCancel={actions.back}
         />
       </Card>
+
+      {xpNotice != null && (
+        <View style={{ backgroundColor: colors.green, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center' }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
+            {xpNotice > 0 ? `${xpNotice} XP가 올랐습니다!` : '오늘 받을 수 있는 1 XP를 이미 받았어요'}
+          </Text>
+        </View>
+      )}
 
       {scraps.length > 0 && (
         <Card>

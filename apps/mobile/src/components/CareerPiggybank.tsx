@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, Text, TextInput, View, type ViewStyle } from 'react-native';
+import { Image, Pressable, Text, TextInput, View, type ViewStyle } from 'react-native';
 import {
   getCareerScraps, getForecast, saveCareerScrap,
   type CareerScrap, type CareerVerification, type PersonalizationV2,
@@ -11,6 +11,7 @@ import { Card, Mascot, T } from '@/components/ui';
 import { usePersonalizationV2 } from '@/lib/personalization';
 
 type Piggybank = CareerVerification['piggybank'];
+const level4Piggy = require('../../assets/characters/level4-rhythm-collector.png');
 
 const SKINS = {
   default: { label: '기본 저금통', tint: colors.pinkTint, ink: colors.pinkInk },
@@ -39,19 +40,18 @@ const PEER_BANKS: { skin: string; job: CharacterJob; name: string; line: string 
   { skin: 'sparkle', job: 'creator', name: '유튜버 · 반짝 저금통', line: 'Lv.4 · 시즌 미션 진행 중' },
 ];
 
-export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onAddCareer, onWriteScrap, onMissionUpdated, onOpenLedger, onCarePiggy }: {
+export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCount, onWriteScrap, onMissionUpdated, onTodayTransactions, onCarePiggy }: {
   piggybank: Piggybank;
   compact?: boolean;
   /** 신뢰 층 요약 칩 — 홈에서 검증 점수·단계를 1줄로. 게임 층(XP)과 어휘·색을 섞지 않는다. */
   trust?: { score: number; stage: string; onPress: () => void };
   /** 담은 일감 건수 — 무대 하단 '담은 일감 N건 · XP' 표기용 (없으면 work_xp로 역산) */
   verifiedCount?: number;
-  /** '검증된 일감 담기' CTA — 실 승인 큐(JobProof)로 연결 (HITL 유지) */
-  onAddCareer?: () => void;
   /** 커리어 조각 저금 전용 페이지 열기 — 있으면 인라인 컴포저 대신 페이지로 */
   onWriteScrap?: () => void;
   onMissionUpdated?: () => void | Promise<unknown>;
-  onOpenLedger?: () => void;
+  /** 오늘 거래 정리 — 사람 승인형 일감 검증 큐로 연결한다. */
+  onTodayTransactions?: () => void;
   onCarePiggy?: () => void;
 }) {
   const v2 = usePersonalizationV2();   // 세션 공유 캐시 — compact(홈 배너) 스킨 렌더도 여기서
@@ -62,6 +62,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   const skinKey = skinKeyFor(v2);
   const skin = SKINS[skinKey];
   const myRender = characterRender(skinKey, MY_JOB);   // 기본 스킨은 null → 2D 마스코트 폴백
+  const rhythmCollectorUnlocked = piggybank.level >= 4;
   const next = piggybank.levels.find((level) => level.level === piggybank.level + 1) ?? null;
   const [open, setOpen] = useState<'roadmap' | 'missions' | 'peers' | 'scraps' | null>(null);
   const [scrapWrite, setScrapWrite] = useState(false);
@@ -72,7 +73,9 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
     return (
       <Card p={20} style={{ backgroundColor: colors.green, borderColor: 'transparent', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 13 } }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          {myRender ? (
+          {rhythmCollectorUnlocked ? (
+            <Image source={level4Piggy} style={{ width: 88, height: 88, borderRadius: 22 }} resizeMode="cover" />
+          ) : myRender ? (
             <CharacterImage skin={skinKey} job={MY_JOB} width={88} height={88} radius={22} />
           ) : (
             <PiggyHero skin={skin} level={piggybank.level} size={88} />
@@ -122,7 +125,11 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
             Lv.{piggybank.level}
           </Text>
         </View>
-        {myRender ? (
+        {rhythmCollectorUnlocked ? (
+          <View style={{ alignSelf: 'stretch', marginTop: 14, height: 230, borderRadius: 22, backgroundColor: 'rgba(255,255,255,.5)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            <Image source={level4Piggy} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          </View>
+        ) : myRender ? (
           /* 3D 컷아웃 무대 — 반투명 흰 무대 + 바닥 그림자 (PiggybankRedesign A안) */
           <View style={{ alignSelf: 'stretch', marginTop: 14, height: 230, borderRadius: 22, backgroundColor: 'rgba(255,255,255,.5)', overflow: 'hidden', alignItems: 'center', justifyContent: 'flex-end' }}>
             <View style={{ position: 'absolute', bottom: 16, width: 150, height: 20, borderRadius: 999, backgroundColor: 'rgba(0,0,0,.06)' }} />
@@ -165,26 +172,12 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
         </Text>
       </View>
 
-      {/* 검증된 일감 담기 — 핵심 인터랙션 진입 (실 승인 큐로, 담는 건 사람) */}
-      {onAddCareer && (
-        <Pressable onPress={onAddCareer} style={{ backgroundColor: colors.green, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 13, shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 8 } }}>
-          <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="plus" size={22} color="#fff" sw={2.2} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 14.5, fontWeight: '800', color: '#fff' }}>검증된 일감 담기</Text>
-            <Text style={{ fontSize: 11.5, fontWeight: '500', color: 'rgba(255,255,255,.82)', marginTop: 2 }}>일감을 검증하면 커리어 저금통에 담겨요 · 건당 +30 XP</Text>
-          </View>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>+30 XP</Text>
-        </Pressable>
-      )}
-
       {/* Zone 2 · 오늘의 미션 — 국면 적응형, 최대 3개 */}
       <Card>
         <TodayQuests
           piggybank={piggybank}
           onMissionUpdated={onMissionUpdated}
-          onOpenLedger={onOpenLedger}
+          onTodayTransactions={onTodayTransactions}
           onWriteScrap={onWriteScrap}
           onCarePiggy={onCarePiggy}
           onScrapSaved={(scrap) => setScraps((current) => [scrap, ...current])}
@@ -264,10 +257,10 @@ export function CareerPiggybank({ piggybank, compact = false, trust, verifiedCou
   );
 }
 
-function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, onCarePiggy, onScrapSaved }: {
+function TodayQuests({ piggybank, onMissionUpdated, onTodayTransactions, onWriteScrap, onCarePiggy, onScrapSaved }: {
   piggybank: Piggybank;
   onMissionUpdated?: () => void | Promise<unknown>;
-  onOpenLedger?: () => void;
+  onTodayTransactions?: () => void;
   onWriteScrap?: () => void;
   onCarePiggy?: () => void;
   onScrapSaved?: (scrap: CareerScrap) => void;
@@ -305,7 +298,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
           const onPress = mission.id === 'career_scrap'
             ? () => (onWriteScrap ? onWriteScrap() : setComposerOpen((current) => !current))
             : mission.id === 'today_transactions'
-              ? onOpenLedger
+              ? onTodayTransactions
               : () => { setCared(true); onCarePiggy?.(); };
           return (
             <Pressable
@@ -366,7 +359,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
 
 // 조각 저금 컴포저 — 오늘의 미션(스크랩 탭)과 조각 모음 접힘이 같은 입력을 쓴다
 export function ScrapComposer({ onSaved, onCancel }: {
-  onSaved: (scrap: CareerScrap) => void | Promise<void>;
+  onSaved: (scrap: CareerScrap, xpAwarded: boolean) => void | Promise<void>;
   onCancel: () => void;
 }) {
   const [scrapText, setScrapText] = useState('');
@@ -378,7 +371,7 @@ export function ScrapComposer({ onSaved, onCancel }: {
     try {
       const result = await saveCareerScrap(content);
       setScrapText('');
-      await onSaved(result.scrap);
+      await onSaved(result.scrap, result.xp_awarded);
     } catch {} finally {
       setSaving(false);
     }

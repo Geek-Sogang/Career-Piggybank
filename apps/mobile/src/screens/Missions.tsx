@@ -37,10 +37,9 @@ export function Missions() {
         <CareerPiggybank
           piggybank={vals.piggybank}
           verifiedCount={vals.verified.count}
-          onAddCareer={() => actions.pushScr('jobProof')}
           onWriteScrap={() => actions.pushScr('scrapWrite')}
           onMissionUpdated={actions.refreshCareer}
-          onOpenLedger={() => actions.openTransactions('unverified')}
+          onTodayTransactions={() => actions.pushScr('jobProof')}
           onCarePiggy={openCare}
         />
       </View>
@@ -52,7 +51,7 @@ export function Missions() {
               <VideoView player={player} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
             </View>
             <Text style={{ fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center', marginTop: 18 }}>돼지 저금통 돌보기 완료</Text>
-            <Text style={{ fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: colors.sub2, textAlign: 'center', marginTop: 6 }}>오늘도 피기에게 관심을 저금했어요</Text>
+            <Text style={{ fontSize: 12.5, fontWeight: '400', lineHeight: 18, color: colors.sub2, textAlign: 'center', marginTop: 6 }}>0 XP · 반응 미션은 성장 점수에 영향을 주지 않아요</Text>
             <Pressable onPress={closeCare} style={{ backgroundColor: colors.green, borderRadius: 14, alignItems: 'center', paddingVertical: 13, marginTop: 16 }}>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>확인</Text>
             </Pressable>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { getClarify, getTransactions, tagTransaction, type Clarify, type Txn } from '@/api';
 import { colors } from '@/theme/colors';
@@ -8,18 +8,27 @@ import { useApp } from '@/store';
 // 거래 내역 — 입금·자동 분류 전용 화면. 가계부 허브에서 진입한다.
 // AI 1차 분류 + 애매한 건 수기 태그(코치 해소 질문 → 탭 한 번 = 사전 학습).
 export function Transactions() {
-  const { actions } = useApp();
+  const { actions, transactionsTab } = useApp();
   const [txns, setTxns] = useState<Txn[] | null>(null);
   const [ready, setReady] = useState(false);
+  const [activeTab, setActiveTab] = useState<'verified' | 'unverified'>(transactionsTab);
   const load = useCallback(() => {
     getTransactions()
       .then((next) => { setTxns(next); setReady(true); })
       .catch(() => { setTxns(null); setReady(true); });
   }, []);
   useEffect(load, [load]);
+  useEffect(() => setActiveTab(transactionsTab), [transactionsTab]);
 
   const month = txns?.[0]?.date.slice(0, 7) ?? '2025-05';
   const monthTxns = (txns ?? []).filter((t) => t.date.startsWith(month));
+  const verifiedTxns = monthTxns.filter((t) => !t.needs_review);
+  const unverifiedTxns = monthTxns.filter((t) => t.needs_review);
+  const visibleTxns = activeTab === 'verified' ? verifiedTxns : unverifiedTxns;
+  const finishTagging = useCallback(() => {
+    load();
+    setActiveTab('verified');
+  }, [load]);
 
   return (
     <View style={{ gap: 12 }}>
@@ -28,26 +37,64 @@ export function Transactions() {
         {ready && <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>{txns ? `${monthTxns.length}건` : '데모 내역'}</Text>}
       </View>
 
+      <View style={{ flexDirection: 'row', backgroundColor: colors.line, borderRadius: 13, padding: 4 }}>
+        <TxnTab
+          label="검증"
+          count={txns ? verifiedTxns.length : 3}
+          active={activeTab === 'verified'}
+          onPress={() => setActiveTab('verified')}
+        />
+        <TxnTab
+          label="미검증"
+          count={txns ? unverifiedTxns.length : 1}
+          active={activeTab === 'unverified'}
+          onPress={() => setActiveTab('unverified')}
+        />
+      </View>
+      <Text style={{ fontSize: 10.5, fontWeight: '500', color: colors.sub2, marginHorizontal: 4, marginTop: -5 }}>
+        거래 분류 확인 기준이며, 커리어 일감 검증과는 별개예요
+      </Text>
+
       <Card p={0} style={{ paddingHorizontal: 16, borderRadius: 16 }}>
         {!ready ? (
           <Text style={{ fontSize: 13, fontWeight: '600', color: colors.sub2, paddingVertical: 18 }}>내역을 불러오고 있어요…</Text>
         ) : txns ? (
-          monthTxns.map((t, i, arr) => (
+          visibleTxns.length > 0 ? visibleTxns.map((t, i, arr) => (
             t.needs_review
-              ? <LiveTagRow key={t.id} txn={t} onTagged={load} last={i === arr.length - 1} />
+              ? <LiveTagRow key={t.id} txn={t} onTagged={finishTagging} last={i === arr.length - 1} />
               : <TxRow key={t.id} {...rowProps(t)} last={i === arr.length - 1} onPress={pressFor(t, actions)} />
-          ))
+          )) : (
+            <View style={{ paddingVertical: 28, alignItems: 'center', gap: 5 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink }}>
+                {activeTab === 'unverified' ? '확인이 필요한 거래가 없어요' : '확인된 거래가 없어요'}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '500', color: colors.sub2 }}>
+                {activeTab === 'unverified' ? '새로운 애매한 거래가 생기면 여기에 모아둘게요' : '거래를 직접 확인하면 이곳으로 이동해요'}
+              </Text>
+            </View>
+          )
         ) : (
-          <>
-            {/* 오프라인 폴백 — 백엔드 없이도 데모 유지 */}
-            <TxRow badge="토스" bg={colors.bufferTint} color={colors.buffer} title="토스페이 정산" tag="AI 미분류 · 직접 분류하기" tagColor={colors.orange} amount="+₩250,000" />
-            <TxRow badge="커" bg={colors.greenTint} color={colors.green} title="○○커머스" tag="일감 매출 · 자동분류" tagColor={colors.spendable} amount="+₩500,000" onPress={() => actions.openJob('commerce')} />
-            <TxRow badge="스" bg={colors.orangeTint} color={colors.orange} title="△△스튜디오" tag="일감 매출 · 자동분류" tagColor={colors.spendable} amount="+₩1,200,000" onPress={() => actions.openJob('studio')} />
-            <TxRow badge="구독" bg={colors.line} color={colors.sub} title="Figma 구독" tag="경비 · 소프트웨어" tagColor={colors.sub2} amount="−₩18,000" amountColor={colors.sub2} last small onPress={() => actions.pushScr('txDetail')} />
-          </>
+          activeTab === 'unverified'
+            ? <TxRow badge="토스" bg={colors.bufferTint} color={colors.buffer} title="토스페이 정산" tag="AI 미분류 · 직접 분류하기" tagColor={colors.orange} amount="+₩250,000" last />
+            : <>
+                {/* 오프라인 폴백 — 백엔드 없이도 데모 유지 */}
+                <TxRow badge="커" bg={colors.greenTint} color={colors.green} title="○○커머스" tag="일감 매출 · 자동분류" tagColor={colors.spendable} amount="+₩500,000" onPress={() => actions.openJob('commerce')} />
+                <TxRow badge="스" bg={colors.orangeTint} color={colors.orange} title="△△스튜디오" tag="일감 매출 · 자동분류" tagColor={colors.spendable} amount="+₩1,200,000" onPress={() => actions.openJob('studio')} />
+                <TxRow badge="구독" bg={colors.line} color={colors.sub} title="Figma 구독" tag="경비 · 소프트웨어" tagColor={colors.sub2} amount="−₩18,000" amountColor={colors.sub2} last small onPress={() => actions.pushScr('txDetail')} />
+              </>
         )}
       </Card>
     </View>
+  );
+}
+
+function TxnTab({ label, count, active, onPress }: { label: string; count: number; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, borderRadius: 10, backgroundColor: active ? '#fff' : 'transparent', paddingVertical: 9, alignItems: 'center', shadowColor: '#000', shadowOpacity: active ? 0.06 : 0, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
+      <Text style={{ fontSize: 12.5, fontWeight: active ? '800' : '600', color: active ? colors.ink : colors.sub2 }}>
+        {label} <Text style={{ color: active ? colors.green : colors.sub3 }}>{count}</Text>
+      </Text>
+    </Pressable>
   );
 }
 
@@ -104,9 +151,21 @@ function LiveTagRow({ txn, onTagged, last }: { txn: Txn; onTagged: () => void; l
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [clarify, setClarify] = useState<Clarify | null>(null);
+  const [questionReady, setQuestionReady] = useState(false);
+  const questionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (questionTimer.current) clearTimeout(questionTimer.current);
+  }, []);
   const toggle = () => {
-    setOpen((o) => !o);
-    if (!clarify) getClarify(txn.id).then(setClarify).catch(() => {}); // 실패 시 칩만 (폴백)
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    setQuestionReady(false);
+    if (questionTimer.current) clearTimeout(questionTimer.current);
+    questionTimer.current = setTimeout(() => setQuestionReady(true), 500);
+    if (!clarify) getClarify(txn.id).then(setClarify).catch(() => {}); // 0.5초 뒤 결정론 질문으로 즉시 폴백
   };
   const OPTS: { label: string; kind: 'income' | 'expense' | 'living' }[] = clarify?.options ?? [
     { label: '일감 매출', kind: 'income' },
@@ -141,7 +200,9 @@ function LiveTagRow({ txn, onTagged, last }: { txn: Txn; onTagged: () => void; l
             <Mascot head size={26} radius={8} />
             <View style={{ flexShrink: 1, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 11, borderTopLeftRadius: 3, paddingVertical: 8, paddingHorizontal: 11 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: colors.ink, lineHeight: 17 }}>
-                {clarify ? clarify.question : '피기가 질문을 만드는 중…'}
+                {!questionReady
+                  ? '피기가 질문을 만드는 중…'
+                  : clarify?.question ?? `${txn.counterparty} 입금은 어떤 돈인가요?`}
               </Text>
             </View>
           </View>

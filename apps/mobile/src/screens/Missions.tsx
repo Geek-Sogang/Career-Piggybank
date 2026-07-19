@@ -14,7 +14,7 @@ export function Missions() {
         onAddCareer={() => actions.pushScr('jobProof')}
         onWriteScrap={() => actions.pushScr('scrapWrite')}
         onMissionUpdated={actions.refreshCareer}
-        onOpenLedger={() => actions.nav('ledger')}
+        onOpenLedger={() => actions.openTransactions('unverified')}
       />
     </View>
   );

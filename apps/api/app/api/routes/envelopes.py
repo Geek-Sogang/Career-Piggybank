@@ -20,6 +20,12 @@ from app.store import db
 
 router = APIRouter(prefix="/v1/envelopes", tags=["envelopes"])
 
+
+def _recommendation_family(name: str) -> str:
+    if "일 없는 달" in name or "소득 공백" in name:
+        return "income_gap"
+    return name.strip()
+
 class GoalCreate(BaseModel):
     name: str = Field(min_length=1, max_length=20)
     target_amount: float = Field(gt=0)
@@ -67,12 +73,12 @@ def recommend() -> dict:
                           - prof.expected_monthly_expense)
     # 또래 소스(결정론) — 같은 직군·유사 페르소나의 개설 관찰. LLM 소스와 이름이 겹치면
     # 내 팩트 근거(⑤a)를 우선하고 또래 항목은 뺀다(중복 추천 방지)
-    ai_names = {i.name for i in ideas}
+    ai_families = {_recommendation_family(i.name) for i in ideas}
     peers = [
         p for p in peer_envelopes.recommend(
             up.career.job, axes, {g["name"] for g in goals_now}, db.list_peer_envelopes(),
             monthly_surplus=monthly_surplus,
-        ) if p.name not in ai_names
+        ) if _recommendation_family(p.name) not in ai_families
     ]
     return {
         "recommendations": [i.as_dict() for i in ideas],

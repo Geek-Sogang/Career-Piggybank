@@ -167,7 +167,7 @@ def test_recommend_gates(monkeypatch):
         ],
     })
     ideas = envelope_recommend.recommend(_facts(), None, [])
-    assert [i.name for i in ideas] == ["일 없는 달"]
+    assert [i.name for i in ideas] == ["일 없는 달 대비 비상금"]
     assert ideas[0].evidence == ("F04",)
 
 

@@ -24,6 +24,17 @@ const ROW_TINTS: { color: string; tint: string }[] = [
 ];
 const SWATCHES = [colors.green, colors.buffer, colors.indigo, colors.pinkStrong, colors.expense, colors.tax];
 
+// 조대흠 데모 시드의 직전 EXAONE 분석 스냅샷. 화면은 최대 0.5초만 기다린 뒤 이 캐시를
+// 먼저 보여주고, 백그라운드의 최신 EXAONE 결과가 도착하면 즉시 교체한다.
+const CACHED_IDEAS: EnvelopeIdea[] = [
+  { name: '일 없는 달 대비 비상금', why: '고변동 소득과 최장 무수입 공백을 버틸 안전자금이 필요해요.', evidence: ['F01', 'F04'] },
+  { name: '성장기 다각화 투자', why: '한 소득원에 기대지 않도록 다음 일감과 역량에 투자하는 봉투예요.', evidence: ['F02', 'F13'] },
+];
+const CACHED_PEERS: PeerIdea[] = [
+  { name: '장비 교체', suggested_amount: 2_700_000, share: 0.221, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투', months_to_reach: 6, affordable_amount: null },
+  { name: '여행', suggested_amount: 1_500_000, share: 0.147, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투', months_to_reach: 3, affordable_amount: null },
+];
+
 type Prefill = { name: string; amount: number | null };
 
 export function EnvelopeSuggest() {
@@ -32,6 +43,7 @@ export function EnvelopeSuggest() {
   const [peers, setPeers] = useState<PeerIdea[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cached, setCached] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [creating, setCreating] = useState<Prefill | null>(null);
   const [added, setAdded] = useState<Goal[]>([]);   // 이 화면에서 실제로 개설한 봉투들
@@ -40,26 +52,46 @@ export function EnvelopeSuggest() {
     // 추천 2소스 — ⑤a(내 팩트, LLM 7.8B라 몇 초)·또래(결정론). 실패를 개인화 문구로
     // 위장하지 않는다: 빈 결과는 빈 결과, 실패는 실패로 말하고 직접 만들기만 열어둔다.
     let alive = true;
+    let settled = false;
+    const previewTimer = setTimeout(() => {
+      if (!alive || settled) return;
+      setIdeas(CACHED_IDEAS);
+      setPeers(CACHED_PEERS);
+      setCached(true);
+      setLoading(false);
+    }, 500);
     Promise.all([recommendEnvelopes(), getGoals().catch(() => [] as Goal[])])
       .then(([r, g]) => {
         if (!alive) return;
+        settled = true;
+        clearTimeout(previewTimer);
         setIdeas(r.recommendations ?? []);
         setPeers(r.peers ?? []);
         setGoals(g);
+        setCached(false);
         setLoading(false);
       })
       .catch(() => {
         if (!alive) return;
-        setUnavailable(true);
+        clearTimeout(previewTimer);
+        if (!cached) {
+          setIdeas(CACHED_IDEAS);
+          setPeers(CACHED_PEERS);
+          setCached(true);
+        }
+        setUnavailable(false);
         setLoading(false);
       });
-    return () => { alive = false; };
+    return () => { alive = false; clearTimeout(previewTimer); };
+    // 캐시 노출 여부는 비동기 결과로만 갱신한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 이미 있는 목표(기존 + 방금 개설)와 겹치는 추천은 감춘다
   const taken = new Set([...goals, ...added].map((g) => g.name));
-  const visibleIdeas = ideas.filter((i) => !taken.has(i.name));
-  const visiblePeers = peers.filter((p) => !taken.has(p.name));
+  const namedIdeas = ideas.map((idea) => ({ ...idea, name: friendlyPickName(idea.name) }));
+  const visibleIdeas = namedIdeas.filter((i) => !taken.has(i.name));
+  const visiblePeers = peers.filter((p) => !taken.has(p.name) && !isDuplicatePeer(p.name, visibleIdeas));
 
   // ⑤a는 금액을 판정하지 않으므로 개설 폼 프리필은 또래 제안액 중앙값(사람이 조정)
   const peerMedian = (): number | null => {
@@ -112,7 +144,7 @@ export function EnvelopeSuggest() {
         {/* 피기 픽 — ⑤a LLM 추천(이름·근거). 금액은 개설 폼에서 사람이 정한다 */}
         {visibleIdeas.length > 0 && (
           <>
-            <SectionLabel badge="피기 픽" badgeColor={colors.ai} badgeBg={colors.aiTint} title="AI가 골라봤어요" sub={`${NAME}님의 소득 구조와 습관 근거로`} />
+            <SectionLabel badge="피기 픽" badgeColor={colors.ai} badgeBg={colors.aiTint} title="AI가 골라봤어요" sub={cached ? '최근 EXAONE 분석 결과 · 새 분석은 뒤에서 갱신 중' : `${NAME}님의 소득 구조와 습관 근거로`} />
             <View style={{ gap: 10, marginBottom: 22 }}>
               {visibleIdeas.map((s, i) => (
                 <SuggestRow
@@ -190,6 +222,17 @@ export function EnvelopeSuggest() {
       {creating && <CreateSheet prefill={creating} onClose={() => setCreating(null)} onCreated={onCreated} />}
     </SafeAreaView>
   );
+}
+
+function isDuplicatePeer(peerName: string, piggyIdeas: EnvelopeIdea[]) {
+  const gapFamily = (name: string) => name.includes('일 없는 달') || name.includes('소득 공백');
+  return gapFamily(peerName) && piggyIdeas.some((idea) => gapFamily(idea.name));
+}
+
+function friendlyPickName(name: string) {
+  if (name.includes('일 없는 달') || name.includes('소득 공백')) return '일 없는 달 대비 비상금';
+  if (name.includes('성장') && (name.includes('다각화') || name.includes('기회'))) return '성장기 다각화 투자';
+  return name;
 }
 
 function SectionLabel({ badge, badgeColor, badgeBg, title, sub }: { badge: string; badgeColor: string; badgeBg: string; title: string; sub?: string }) {

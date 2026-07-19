@@ -91,7 +91,7 @@ export function PersonaLedger() {
       {step === 'ledgerLoading' && (
         <Loading title={`${NAME}님만을 위한\n봉투를 설계하고 있어요`} sub="입금이 오면 나눠 담을 4개 봉투를 준비하고 있어요" onDone={() => go('deposit')} />
       )}
-      {step === 'deposit' && <Deposit txn={txn} onYes={() => go('ack')} onOther={() => { actions.back(); actions.pushScr('transactions'); }} />}
+      {step === 'deposit' && <Deposit txn={txn} onYes={() => go('ack')} onOther={() => { actions.back(); actions.openTransactions('unverified'); }} />}
       {step === 'ack' && <Ack onNext={() => go('allocation')} />}
       {step === 'allocation' && (
         <Allocate
@@ -415,6 +415,7 @@ function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNoti
   const [warn, setWarn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [reasonsOpen, setReasonsOpen] = useState(false);
 
   // 실 배분 제안 — AI 판정 + 산수. 서버가 죽어도 데모는 죽지 않는다(오프라인 폴백).
   // review면 새 제안을 만들지 않고 확정본을 그대로 편다(근거·배분 동일 사건).
@@ -547,14 +548,21 @@ function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNoti
         </View>
         {/* 배분 근거 — AI 판정의 이유를 그대로 보여준다(신뢰 장치) */}
         {proposal.reasons.length > 0 && (
-          <View style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15, marginTop: 14, gap: 7 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 14, marginTop: 14, overflow: 'hidden' }}>
+            <Pressable onPress={() => setReasonsOpen((open) => !open)} style={{ flexDirection: 'row', alignItems: 'center', gap: 7, padding: 15 }}>
               <Mascot head size={22} radius={7} />
-              <Text style={{ fontSize: 12.5, fontWeight: '800', color: colors.ink }}>피기가 이렇게 나눈 이유</Text>
-            </View>
-            {proposal.reasons.map((r) => (
-              <Text key={r} style={{ fontSize: 12, fontWeight: '500', color: colors.sub, lineHeight: 18 }}>· {r}</Text>
-            ))}
+              <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: colors.ink }}>피기가 이렇게 나눈 이유</Text>
+              <View style={{ transform: [{ rotate: reasonsOpen ? '90deg' : '0deg' }] }}>
+                <Icon name="chevronRight" size={17} color={colors.sub2} sw={2} />
+              </View>
+            </Pressable>
+            {reasonsOpen && (
+              <View style={{ paddingHorizontal: 15, paddingBottom: 15, gap: 7 }}>
+                {proposal.reasons.map((r) => (
+                  <Text key={r} style={{ fontSize: 12, fontWeight: '400', color: colors.sub, lineHeight: 18 }}>· {friendlyAllocationReason(r)}</Text>
+                ))}
+              </View>
+            )}
           </View>
         )}
         <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.sub3, lineHeight: 17, marginTop: 12 }}>
@@ -588,6 +596,22 @@ function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNoti
       )}
     </View>
   );
+}
+
+function friendlyAllocationReason(reason: string) {
+  return reason
+    .replace(
+      /연 매출 [\d,]+원 기준 실효 추가세율 ([\d.]+%)를 먼저 떼어/,
+      '이번 입금의 $1를 떼어',
+    )
+    .replace(
+      /이번 달 예상 경비 ([\d,]+원) 중 ([\d,]+원)이 이미 있어 부족분만 채워요/,
+      '현재 $2이라 이번 달 예상 경비 $1까지 부족분을 채워요',
+    )
+    .replace(/^즉시가용 /, '생활비 ')
+    .replace('소득 변동에 대비해 버퍼 목표', '소득 공백에 대비할 목표')
+    .replace(' 더 모아요', ' 더 필요해요')
+    .replace(/이번 입금은 평소\(([^)]+)\)의 ([\d.]+)배 — 코치가 확인을 요청해요/, '이번 입금은 평소 $1의 $2배라 담기 전에 한 번 더 확인해요');
 }
 
 function Stepper({ label, onPress }: { label: string; onPress: () => void }) {

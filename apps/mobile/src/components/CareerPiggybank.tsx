@@ -307,7 +307,7 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
           return (
             <Pressable
               key={mission.id}
-              disabled={(done && mission.id !== 'career_scrap') || !actionable}
+              disabled={(done && mission.id !== 'career_scrap' && mission.id !== 'today_transactions') || !actionable}
               onPress={onPress}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : colors.bg, paddingVertical: 10, paddingHorizontal: 11 }}
             >
@@ -327,7 +327,11 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onWriteScrap, 
                     ? { color: '#fff', backgroundColor: colors.green }
                     : { color: colors.green, backgroundColor: colors.greenTint }),
               }}>
-                {mission.id === 'career_scrap' && done ? '또 저금' : done ? '완료' : mission.xp > 0 ? `+${mission.xp} XP` : '반응 보기'}
+                {mission.id === 'career_scrap' && done
+                  ? '또 저금'
+                  : mission.id === 'today_transactions' && done
+                    ? '다시 보기'
+                    : done ? '완료' : mission.xp > 0 ? `+${mission.xp} XP` : '반응 보기'}
               </Text>
             </Pressable>
           );

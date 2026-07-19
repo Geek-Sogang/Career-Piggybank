@@ -116,8 +116,8 @@ def propose(
     tax = round(deposit * rate, 2)
     remaining = deposit - tax
     reasons.append(
-        f"세금봉투 {_won(tax)}: 연 매출 {_won(profile.annual_gross)} 기준 "
-        f"실효 추가세율 {rate:.1%}를 먼저 떼어 5월 종소세에 대비해요"
+        f"세금봉투 {_won(tax)}: 연 매출 {_won(profile.annual_gross)}으로 계산한 "
+        f"실효 추가세율 {rate:.1%}를 이번 입금에 적용해 5월 종소세를 준비해요"
     )
 
     # 2) 경비봉투 — 예상 월 경비까지 갭 채우기
@@ -126,8 +126,8 @@ def propose(
     remaining -= expense
     if expense > 0:
         reasons.append(
-            f"경비봉투 {_won(expense)}: 이번 달 예상 경비 {_won(profile.expected_monthly_expense)} 중 "
-            f"{_won(bal.expense)}이 이미 있어 부족분만 채워요"
+            f"경비봉투 {_won(expense)}: 현재 {_won(bal.expense)}이라 "
+            f"이번 달 예상 경비 {_won(profile.expected_monthly_expense)}까지 부족분을 채워요"
         )
     else:
         reasons.append("경비봉투 0원: 이번 달 예상 경비가 이미 채워져 있어요")
@@ -143,15 +143,16 @@ def propose(
     remaining -= spendable
     if living_months > 1.05 and spendable > 0:
         reasons.append(
-            f"즉시가용 {_won(spendable)}: 다음 수입까지 약 {ctx.expected_gap_days:.0f}일 예상 — "
+            f"생활비 {_won(spendable)}: 다음 수입까지 약 {ctx.expected_gap_days:.0f}일 예상 — "
             f"생활비를 {living_months:.1f}개월치({_won(living_target)})까지 확보해요"
         )
     elif spendable > 0:
         reasons.append(
-            f"즉시가용 {_won(spendable)}: 이번 달 생활비 {_won(living_target)}까지 채워요"
+            f"생활비 {_won(spendable)}: 현재 {_won(bal.spendable)}이라 "
+            f"다음 수입 전까지 쓸 {_won(living_target)}을 채워요"
         )
     else:
-        reasons.append("즉시가용 0원: 이번 달 생활비가 이미 확보돼 있어요")
+        reasons.append("생활비 0원: 다음 수입 전까지 쓸 돈이 이미 확보돼 있어요")
 
     # 4) 여윳돈 — 남는 전부. 반올림 오차도 여기서 흡수해 합계 == 입금액 보장.
     #    커리어 추세 보정: 신호 악화(수주 간격↑·발주처↓·단가↓)면 버퍼 목표를 더 두껍게
@@ -197,8 +198,8 @@ def propose(
         )
     else:
         reasons.append(
-            f"여윳돈 {_won(buffer)}: 소득 변동에 대비해 버퍼 목표 {_won(buffer_target)}"
-            f"({months:.1f}개월치 생활비)까지 {_won(max(0.0, buffer_target - after))} 더 모아요"
+            f"여윳돈 {_won(buffer)}: 소득 공백에 대비할 목표 {_won(buffer_target)}"
+            f"({months:.1f}개월치 생활비)까지 {_won(max(0.0, buffer_target - after))} 더 필요해요"
         )
 
     # 평소와 다른 입금인가? — 이력이 없거나(콜드스타트) 평균의 1.5배 이상이면 코치 확인
@@ -208,7 +209,7 @@ def propose(
         reasons.append("입금 이력이 아직 없어 첫 배분은 코치와 함께 확인해요")
     elif needs_confirmation:
         reasons.append(
-            f"이번 입금은 평소({_won(profile.avg_deposit)})의 {windfall:.1f}배 — 코치가 확인을 요청해요"
+            f"이번 입금은 평소 {_won(profile.avg_deposit)}의 {windfall:.1f}배라 담기 전에 한 번 더 확인해요"
         )
 
     return AllocationProposal(

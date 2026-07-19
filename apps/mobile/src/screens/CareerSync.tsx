@@ -6,6 +6,7 @@ import { PRODUCTS, type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
+import { CharacterHero } from '@/components/ProfileAvatar';
 import { Frame, Title, FlowHeader } from '@/components/flow';
 import { useApp, type ConnSrc } from '@/store';
 
@@ -66,7 +67,7 @@ function Intro({ name, onStart, onLater }: { name: string; onStart: () => void; 
   return (
     <Frame cta="이력 연동 시작하기" ctaSub="연결하면 각 기관의 자료 제공에 동의하게 돼요" secondary="다음에 할게요" onCta={onStart} onSecondary={onLater}>
       <View style={{ alignItems: 'center', paddingTop: 24, paddingBottom: 12 }}>
-        <Mascot head size={120} radius={34} />
+        <CharacterHero size={120} radius={34} />
       </View>
       <Title
         title={`${name}님,\n흩어진 이력을 모아드릴까요?`}
@@ -281,7 +282,7 @@ function Products({ name, onStart, onLater }: { name: string; onStart: () => voi
   return (
     <Frame cta="시작하기" secondary="다음에" onCta={onStart} onSecondary={onLater}>
       <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }}>
-        <Mascot head size={88} radius={26} />
+        <CharacterHero size={88} radius={26} />
       </View>
       <Title kicker="검증된 커리어로 열린 혜택" title={`${name}님의 커리어로\n누릴 수 있는 하나은행 상품이에요`} />
       <View style={{ gap: 12 }}>

@@ -4,13 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   DEMO_DEPOSIT, OFFLINE_ALLOCATION, decideAllocation, getGigProfile, getPersona,
   getTransactions, proposeAllocation, readPersona,
-  type Allocation, type EnvelopeSplit, type GigProfile, type Txn,
+  type Allocation, type EnvelopeSplit, type GigProfile, type Persona as Persona4, type Txn,
 } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
+import { CharacterHero } from '@/components/ProfileAvatar';
 import { Frame, Title, FlowHeader } from '@/components/flow';
-import { PersonaCard } from '@/screens/My';
+import { PersonaCard, axisSummaries } from '@/screens/My';
 import { usePersonalizationV2 } from '@/lib/personalization';
 import { useApp, type AllocNotice } from '@/store';
 
@@ -210,7 +211,7 @@ function PersonaLoading({ onDone }: { onDone: (gig: GigProfile | null) => void }
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{s.title}</Text>
-                  <Text style={{ fontSize: 9.5, fontWeight: '700', color: colors.sub2 }}>{s.badge}</Text>
+                  <Text style={{ fontSize: 9.5, fontWeight: '700', color: s.badge === 'EXAONE 판독' ? colors.ai : colors.sub2 }}>{s.badge}</Text>
                 </View>
                 <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.sub2, marginTop: 2 }}>{s.sub}</Text>
               </View>
@@ -227,7 +228,7 @@ function PersonaLoading({ onDone }: { onDone: (gig: GigProfile | null) => void }
 function Habits({ cta, onNext }: { cta: string; onNext: () => void }) {
   return (
     <Frame cta={cta} onCta={onNext}>
-      <Title kicker="AI가 읽은 나" title={'돈 관리 습관도\n읽어뒀어요'} />
+      <Title ai kicker="AI가 읽은 나" title={'돈 관리 습관도\n읽어뒀어요'} />
       <PersonaCard />
     </Frame>
   );
@@ -280,17 +281,21 @@ function LoadingBody({ title, sub }: { title: string; sub: string }) {
   );
 }
 
-// ── 페르소나 공개 — 실 긱 프로필(archetype·구조 라벨)이 주인공 ──────────────
+// ── 페르소나 공개 — 실 긱 프로필(archetype·구조 라벨)이 주인공. 2+4 프레임:
+// 구조 2(입금 기록 측정, 결정론) + 성향 4(EXAONE 판독) — "구조는 측정, 성향은 AI".
 function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: GigProfile | null; cta?: string; onNext: () => void }) {
   const v2 = usePersonalizationV2();   // 구조 2요소 — 마이 탭 '내 일감·정산 흐름'과 같은 소스
+  const [persona, setPersona] = useState<Persona4 | null>(null);
+  useEffect(() => { getPersona().then(setPersona).catch(() => {}); }, []);
+  const axes = axisSummaries(persona);
   const g = gig ?? FALLBACK_GIG;
   const [headline, tail] = g.archetype.split(' — ');
   const traits = [g.rhythm, `소득원 ${g.concentration}`, g.phase].filter(Boolean);
   return (
     <Frame cta={cta} onCta={onNext}>
-      <Title kicker="AI가 읽은 나" title={`${NAME}님은\n'${headline}'`} />
+      <Title ai kicker="AI가 읽은 나" title={`${NAME}님은\n'${headline}'`} />
       <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 20, padding: 20, alignItems: 'center' }}>
-        <Mascot head size={96} radius={28} style={{ backgroundColor: '#fff' }} />
+        <CharacterHero size={96} radius={28} bg="#fff" />
         <Text style={{ fontSize: 18, fontWeight: '800', color: colors.ink, marginTop: 14 }}>{headline}</Text>
         {tail ? (
           <Text style={{ fontSize: 13, fontWeight: '500', color: colors.greenInk, textAlign: 'center', lineHeight: 20, marginTop: 6 }}>{tail}</Text>
@@ -301,17 +306,34 @@ function Persona({ gig, cta = '맞춤 가계부 만들기', onNext }: { gig: Gig
           ))}
         </View>
       </View>
-      {/* 구조 2요소 — 방금 모은 기록에서 측정된 일·정산 흐름(결정론) */}
+      {/* 구조 2 — 방금 모은 기록에서 측정된 일·정산 흐름(결정론) */}
       {(v2?.gig_structure ?? []).length > 0 && (
-        <View style={{ gap: 10, marginTop: 12 }}>
-          {v2!.gig_structure.map((s) => (
-            <View key={s.key} style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
-              <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>{s.label}</Text>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 3 }}>{s.level}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 3, lineHeight: 17 }}>{s.detail}</Text>
-            </View>
-          ))}
-        </View>
+        <>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2, marginTop: 16 }}>일·정산 구조 2 · 입금 기록으로 측정</Text>
+          <View style={{ gap: 10, marginTop: 8 }}>
+            {v2!.gig_structure.map((s) => (
+              <View key={s.key} style={{ backgroundColor: colors.bg, borderRadius: 14, padding: 15 }}>
+                <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2 }}>{s.label}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: colors.ink, marginTop: 3 }}>{s.level}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '500', color: colors.sub2, marginTop: 3, lineHeight: 17 }}>{s.detail}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+      {/* 성향 4 — EXAONE 판독 한 줄 요약. 게이지·근거 상세는 다음 장(돈 관리 습관)이 담당 */}
+      {axes.length > 0 && (
+        <>
+          <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.ai, marginTop: 14 }}>돈 관리 성향 4 · EXAONE 판독</Text>
+          <View style={{ backgroundColor: colors.aiBg, borderWidth: 1, borderColor: colors.aiLine, borderRadius: 14, padding: 14, marginTop: 8, gap: 10 }}>
+            {axes.map((a) => (
+              <View key={a.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: a.fallback ? colors.sub2 : colors.ai, backgroundColor: a.fallback ? colors.line3 : colors.aiTint2, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>{a.tag}</Text>
+                <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: a.fallback ? colors.sub2 : colors.ink, lineHeight: 17 }}>{a.line}</Text>
+              </View>
+            ))}
+          </View>
+        </>
       )}
       <Text style={{ fontSize: 12.5, fontWeight: '500', color: colors.sub2, lineHeight: 19, marginTop: 16 }}>
         타 가계부는 '지출'을 봐요. 우리는 불규칙한 '소득'을 평탄하게 관리해요 — 그래서 입금이 오면 봉투로 나눠 담아요.
@@ -464,7 +486,7 @@ function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNoti
         {review ? (
           <Title kicker="배분 결과" title={'이렇게 나눠\n담았어요'} sub="근거를 다시 보고, 필요하면 조정할 수 있어요. 조정분은 여윳돈에서 오가요." />
         ) : (
-          <Title kicker="AI 추천 배분" title={'이렇게 나눠 담는 걸\n추천드려요'} sub="내 소득 리듬과 세율표를 함께 봤어요. 자유롭게 조정하셔도 돼요." />
+          <Title ai kicker="AI 추천 배분" title={'이렇게 나눠 담는 걸\n추천드려요'} sub="내 소득 리듬과 세율표를 함께 봤어요. 자유롭게 조정하셔도 돼요." />
         )}
         {/* 비율 막대 */}
         <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2, marginBottom: 18 }}>
@@ -523,7 +545,7 @@ function Allocate({ txn, review, onDone }: { txn: Txn | null; review?: AllocNoti
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <Pressable onPress={() => setWarn(false)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.5)' }} />
           <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 30 }}>
-            <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 18 }} />
+            <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 18 }} />
             <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: colors.taxBg, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' }}>
               <Icon name="shield" size={28} color={colors.tax} />
             </View>

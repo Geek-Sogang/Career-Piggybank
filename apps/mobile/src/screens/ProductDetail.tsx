@@ -41,7 +41,7 @@ export function ProductDetail() {
         <Text style={{ fontSize: 13.5, color: colors.ink2, fontWeight: '500', lineHeight: 22 }}>{p.desc}</Text>
       </Card>
 
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>검증 연동</Text>{'\n'}
           커리어 검증 점수 {vals.score}점 · {vals.stage} 단계예요. {vals.reviewReady ? '연결된 자료를 심사 화면에 함께 가져갈 수 있어요.' : '홈택스 또는 KOSA 확인 후 검증자료 연결이 열려요.'}{'\n'}

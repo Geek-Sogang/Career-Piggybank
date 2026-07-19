@@ -193,7 +193,7 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
             나와 직군·성향이 비슷한 또래의 저금통이에요 (또래 풀 기준)
           </Text>
           {PEER_BANKS.map((peer) => (
-            <View key={peer.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 12, backgroundColor: '#F7F8FA', padding: 10 }}>
+            <View key={peer.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 12, backgroundColor: colors.bg, padding: 10 }}>
               <CharacterImage skin={peer.skin} job={peer.job} width={46} height={46} radius={13} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.ink }}>{peer.name}</Text>
@@ -204,14 +204,14 @@ export function CareerPiggybank({ piggybank, compact = false, trust, onMissionUp
         </FoldRow>
         <FoldRow title="커리어 조각 모음" meta={`${scraps.length}개`} open={open === 'scraps'} onPress={() => toggle('scraps')}>
           {scraps.length === 0 ? (
-            <View style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 12 }}>
+            <View style={{ borderRadius: 10, backgroundColor: colors.bg, padding: 12 }}>
               <Text style={{ fontSize: 11.5, fontWeight: '400', color: colors.sub2 }}>
                 아직 모은 조각이 없어요 — 오늘의 미션에서 한 줄 저금해 보세요
               </Text>
             </View>
           ) : (
             scraps.map((scrap) => (
-              <View key={scrap.id} style={{ borderRadius: 10, backgroundColor: '#F7F8FA', padding: 11 }}>
+              <View key={scrap.id} style={{ borderRadius: 10, backgroundColor: colors.bg, padding: 11 }}>
                 <Text style={{ fontSize: 11, fontWeight: '600', color: colors.green }}>{formatScrapDate(scrap.created_at)}</Text>
                 <Text style={{ fontSize: 12, fontWeight: '500', color: colors.ink, lineHeight: 17, marginTop: 4 }}>{scrap.content}</Text>
               </View>
@@ -272,9 +272,9 @@ function TodayQuests({ piggybank, onMissionUpdated, onOpenLedger, onScrapSaved }
               key={mission.id}
               disabled={(done && mission.id !== 'career_scrap') || saving || !actionable}
               onPress={onPress}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : '#F8F9FA', paddingVertical: 10, paddingHorizontal: 11 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, borderColor: done ? colors.greenLine : colors.line, backgroundColor: done ? colors.greenTint2 : colors.bg, paddingVertical: 10, paddingHorizontal: 11 }}
             >
-              <View style={{ width: 27, height: 27, borderRadius: 14, backgroundColor: done ? colors.green : '#E6E9EC', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 27, height: 27, borderRadius: 14, backgroundColor: done ? colors.green : colors.line4, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name={done ? 'check' : mission.id === 'career_scrap' ? 'ledgerDoc' : 'coin'} size={15} color={done ? '#fff' : colors.sub2} sw={2.1} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -333,7 +333,7 @@ function FoldRow({ title, meta, open, onPress, first, children }: {
         <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.sub2, ...T.num }}>{meta}</Text>
         <View style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
-          <Icon name="chevronRight" size={16} color="#C2C7CE" sw={2.2} />
+          <Icon name="chevronRight" size={16} color={colors.chev} sw={2.2} />
         </View>
       </Pressable>
       {open && <View style={{ paddingBottom: 16, gap: 12 }}>{children}</View>}
@@ -394,9 +394,9 @@ function Roadmap({ piggybank, skin }: {
               <View key={level.level} style={{ width: '29%', alignItems: 'center' }}>
                 <View style={{
                   width: current ? 61 : 52, height: current ? 61 : 52, borderRadius: 31,
-                  backgroundColor: reached ? (current ? skin.tint : colors.greenTint) : '#F4F5F7',
+                  backgroundColor: reached ? (current ? skin.tint : colors.greenTint) : colors.line2,
                   borderWidth: current ? 3 : 1.5,
-                  borderColor: current ? skin.ink : reached ? colors.greenLine : '#E2E5E9',
+                  borderColor: current ? skin.ink : reached ? colors.greenLine : colors.line4,
                   alignItems: 'center', justifyContent: 'center',
                   shadowColor: current ? skin.ink : '#000', shadowOpacity: current ? 0.18 : 0,
                   shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
@@ -439,8 +439,8 @@ function MissionList({ missions }: { missions: Piggybank['missions'] }) {
   return (
     <View style={{ gap: 7 }}>
       {ordered.slice(0, 5).map((mission) => (
-        <View key={mission.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, backgroundColor: mission.completed ? colors.greenTint2 : '#F7F8FA', paddingVertical: 9, paddingHorizontal: 10 }}>
-          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: mission.completed ? colors.green : '#E2E5E9', alignItems: 'center', justifyContent: 'center' }}>
+        <View key={mission.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 11, backgroundColor: mission.completed ? colors.greenTint2 : colors.bg, paddingVertical: 9, paddingHorizontal: 10 }}>
+          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: mission.completed ? colors.green : colors.line4, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name={mission.completed ? 'check' : 'coin'} size={14} color={mission.completed ? '#fff' : colors.sub3} sw={2.2} />
           </View>
           <Text style={{ flex: 1, fontSize: 12, fontWeight: mission.completed ? '500' : '700', color: mission.completed ? colors.sub2 : colors.ink }}>{mission.title}</Text>

@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
-import { Card, Mascot, T } from '@/components/ui';
+import { Card, Mascot, T, Toggle } from '@/components/ui';
 import { CAREER_SCORE_VALUES, useApp, type ConnSrc } from '@/store';
 
 export function Connect() {
@@ -32,7 +32,7 @@ export function Connect() {
         </View>
         <Text style={{ fontSize: 12, fontWeight: '400', color: 'rgba(255,255,255,.78)', marginTop: 3 }}>검증 이력과 연결 자료를 다른 서비스에도 설명할 수 있게 모아요</Text>
         <Text style={{ fontSize: 12.5, fontWeight: '600', color: '#fff', marginTop: 9 }}>검증 {vals.stage} · {vals.reviewLabel}</Text>
-        <Text style={{ fontSize: 10.5, fontWeight: '400', color: 'rgba(255,255,255,.7)', marginTop: 5 }}>이 점수는 상품 자격·금리·한도를 계산하지 않아요</Text>
+        <Text style={{ fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,.7)', marginTop: 5 }}>이 점수는 상품 자격·금리·한도를 계산하지 않아요</Text>
         {flash ? (
           <Text style={{ position: 'absolute', top: 18, right: 18, backgroundColor: colors.pink, color: '#fff', fontSize: 12.5, fontWeight: '800', paddingVertical: 7, paddingHorizontal: 11, borderRadius: 11, overflow: 'hidden' }}>{flash}</Text>
         ) : null}
@@ -65,7 +65,7 @@ export function Connect() {
         <Text style={{ fontSize: 12, fontWeight: '800', color: vals.stageColor, backgroundColor: vals.stageBg, paddingVertical: 5, paddingHorizontal: 12, borderRadius: 10, overflow: 'hidden' }}>{vals.stage}</Text>
       </Card>
       {verificationMessage ? (
-        <View style={{ backgroundColor: colors.greenTint, borderWidth: 1, borderColor: '#D2E8E8', borderRadius: 14, padding: 13 }}>
+        <View style={{ backgroundColor: colors.greenTint, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 14, padding: 13 }}>
           <Text style={{ fontSize: 12.5, color: colors.greenInk, fontWeight: '600', lineHeight: 19 }}>{verificationMessage}</Text>
         </View>
       ) : null}
@@ -97,13 +97,5 @@ function Row({ icon, iconBg, title, on, onText, sub, onPress, first, last }: { i
       </View>
       <Toggle on={on} onPress={onPress} />
     </View>
-  );
-}
-
-function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: on ? colors.green : '#E2E5E9' }}>
-      <View style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
-    </Pressable>
   );
 }

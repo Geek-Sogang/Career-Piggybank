@@ -31,14 +31,14 @@ export function Retirement() {
               <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -1, color: colors.green, marginTop: 4 }}>{liveBand ?? (unavail ? vals.scLabel : '계산 중…')}</Text>
               <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600', marginTop: 3 }}>내 입금 시계열로 예측한 은퇴 구간이에요</Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
           </View>
 
           {/* 미니 은퇴곡선 */}
           <View style={{ position: 'relative' }}>
             <Svg viewBox="0 0 320 120" width="100%" height={70} preserveAspectRatio="none">
               <Path d="M10 100 C 110 88 205 50 310 28 L 310 62 C 205 82 110 104 10 108 Z" fill="rgba(0,132,133,.10)" />
-              <Line x1="10" y1="44" x2="310" y2="44" stroke="#D7DBE0" strokeWidth={1.2} strokeDasharray="4 4" />
+              <Line x1="10" y1="44" x2="310" y2="44" stroke={colors.dash} strokeWidth={1.2} strokeDasharray="4 4" />
               <Path d="M10 102 C 110 92 205 54 310 36" fill="none" stroke={colors.green} strokeWidth={2.4} strokeLinecap="round" />
             </Svg>
             <View style={{ position: 'absolute', top: 2, bottom: 12, left: `${vals.scLeft * 100}%`, width: `${vals.scWidth * 100}%`, backgroundColor: 'rgba(0,132,133,.13)', borderLeftWidth: 1.5, borderRightWidth: 1.5, borderColor: colors.green, borderStyle: 'dashed', borderRadius: 2 }} />
@@ -79,7 +79,7 @@ export function Retirement() {
         <Card style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text style={{ fontSize: 15, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>내 연금</Text>
-            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
           </View>
           <View>
             <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600' }}>매달 납입 중</Text>

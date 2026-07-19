@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getCareerVerification, logBehavior, updateCareerVerification, type CareerVerification, type EnvelopeSplit } from '@/api';
+import { colors } from '@/theme/colors';
 import type { JobKey } from '@/jobs';
 import type { ProductKey } from '@/products';
 
@@ -15,7 +16,7 @@ type Conn = Record<ConnSrc, boolean>;
 
 export const CAREER_SCORE_VALUES: Record<ConnSrc, number> = { github: 30, mydata: 50, hometax: 40, kosa: 35, behance: 30, portfolio: 20 };
 // 커리어 검증 점수 = 검증 실적 + 외부 연결 소스. 금융상품 한도와는 분리된 평판 신호다.
-const STAGE_MAP = { 잠정: ['#6B7280', '#F1F2F4'], 준검증: ['#0091C7', '#E7F4FB'], 확정: ['#008485', '#E8F4F4'] } as const;
+const STAGE_MAP = { 잠정: [colors.sub, colors.line2], 준검증: [colors.buffer, colors.bufferTint], 확정: [colors.green, colors.greenTint] } as const;
 const SC = {
   cons: ['2039 ~ 2041', 0.56, 0.08, '소득 하방 가정'],
   base: ['2041 ~ 2044', 0.63, 0.11, '기준 소득 가정'],

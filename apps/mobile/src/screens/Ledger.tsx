@@ -76,7 +76,7 @@ export function Ledger() {
                 {depositConfirmed ? '4개 봉투에 나눠 담았어요' : '배분 제안이 준비됐어요 — 확인해 주세요'}
               </Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#9AA1A9" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.sub3} sw={2.2} />
           </View>
         </Pressable>
       )}
@@ -89,7 +89,7 @@ export function Ledger() {
               <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>자동 봉투</Text>
               <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>입금마다 세금·경비·여윳돈으로 자동 적립</Text>
             </View>
-            <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+            <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
           </View>
           {/* 봉투 비중 바 — 실 잔액 비율(조회 전엔 대표 비율) */}
           <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
@@ -171,7 +171,7 @@ function MenuRow({ icon, tint, color, title, sub, onPress, last }: { icon: IconN
         <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>{sub}</Text>
       </View>
-      <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+      <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
     </Pressable>
   );
 }

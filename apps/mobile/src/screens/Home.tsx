@@ -54,7 +54,7 @@ export function Home() {
           <Card>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub }}>내 봉투</Text>
-              <Icon name="chevronRight" size={18} color="#C2C7CE" sw={2.2} />
+              <Icon name="chevronRight" size={18} color={colors.chev} sw={2.2} />
             </View>
             <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '600', marginTop: 10 }}>지금 쓸 수 있는 돈</Text>
             <Text style={{ fontSize: 30, fontWeight: '800', letterSpacing: -0.8, color: colors.ink, marginTop: 2, ...T.num }}>
@@ -105,7 +105,7 @@ export function Home() {
             <Text style={{ fontSize: 14.5, fontWeight: '700', marginTop: 3, color: colors.ink }}>{nextTask.title}</Text>
             <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '400' }}>{nextTask.sub}</Text>
           </View>
-          <Icon name="chevronRight" size={20} color="#C2C7CE" sw={2.2} />
+          <Icon name="chevronRight" size={20} color={colors.chev} sw={2.2} />
         </Card>
       </Pressable>
     </View>

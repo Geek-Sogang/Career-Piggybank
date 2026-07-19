@@ -45,7 +45,7 @@ export function VerifiedDetail() {
       {/* 타임라인 */}
       <Card style={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16 }}>
         <View style={{ paddingLeft: 34, position: 'relative' }}>
-          <View style={{ position: 'absolute', left: 13, top: 24, bottom: 30, width: 2, backgroundColor: v ? '#D2E8E8' : colors.line }} />
+          <View style={{ position: 'absolute', left: 13, top: 24, bottom: 30, width: 2, backgroundColor: v ? colors.greenLine : colors.line }} />
           {job.nodes.map((n, i) => (
             <View key={i} style={{ paddingTop: 16, paddingBottom: 4, position: 'relative' }}>
               <View style={{ position: 'absolute', left: -34, top: 16, width: 28, height: 28, borderRadius: 14, backgroundColor: n.bg, alignItems: 'center', justifyContent: 'center' }}>
@@ -59,15 +59,15 @@ export function VerifiedDetail() {
             </View>
           ))}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 14, backgroundColor: v ? colors.greenTint : '#FFF6EC', borderRadius: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, padding: 14, backgroundColor: v ? colors.greenTint : colors.orangeTint, borderRadius: 14 }}>
           <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: v ? colors.green : colors.expense, alignItems: 'center', justifyContent: 'center' }}>
             {v ? <Icon name="check" size={18} color="#fff" sw={2.4} /> : <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>!</Text>}
           </View>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: v ? colors.greenInk : '#A56A19' }}>{job.resultText}</Text>
+          <Text style={{ fontSize: 13, fontWeight: '800', color: v ? colors.greenInk : colors.amber }}>{job.resultText}</Text>
         </View>
       </Card>
 
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 19, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>{v ? '검증 가능한 산수' : '자기보고란?'}</Text>{'\n'}
           {job.mathNote}

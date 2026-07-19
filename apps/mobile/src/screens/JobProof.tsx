@@ -32,7 +32,7 @@ export function JobProof() {
 
   return (
     <View style={{ gap: 14 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.greenTint, borderWidth: 1, borderColor: '#D2E8E8', borderRadius: 16, padding: 14, paddingHorizontal: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.greenTint, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 16, padding: 14, paddingHorizontal: 16 }}>
         <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
         <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.greenInk, lineHeight: 19 }}>
           검증되지 않은 정산 입금이에요.{'\n'}내 일감이 맞다면 승인해 주세요 — 검증 이력과 XP에 쌓여요.

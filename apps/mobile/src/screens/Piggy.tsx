@@ -110,7 +110,7 @@ function JobRow({ badge, badgeBg, badgeColor, title, sub, amount, verified, righ
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={{ fontSize: amount ? 14.5 : 13, fontWeight: amount ? '800' : '700', color: amount ? colors.ink : colors.sub3, ...T.num }}>{amount || right}</Text>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: verified ? colors.green : '#A8AEB6', marginTop: 3 }}>{verified ? '검증 ✓' : rightSub}</Text>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: verified ? colors.green : colors.faint, marginTop: 3 }}>{verified ? '검증 ✓' : rightSub}</Text>
       </View>
     </Card>
   );

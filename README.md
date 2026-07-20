@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/career-piggybank-icon.png" width="280" alt="커리어 저금통 아이콘">
+  <img width="500" height="500" alt="KakaoTalk_Photo_2026-07-20-23-46-44" src="https://github.com/user-attachments/assets/ce01cbcd-3c21-4254-8421-25d032765533" />
 </p>
 
 <h1 align="center">커리어 저금통</h1>

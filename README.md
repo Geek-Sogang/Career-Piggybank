@@ -160,3 +160,7 @@ python -m evals.run_persona_eval --llm
 ## 팀
 
 서강대학교 팀 짱사이트 — 구준모, 권유철, 조대흠, 한민영
+
+## 기여
+
+버그 제보나 제안은 GitHub Issues로 남겨주십시오.

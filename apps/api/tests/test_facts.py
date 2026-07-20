@@ -141,7 +141,7 @@ def test_insufficient_data_is_none_not_invented():
 
 def test_every_fact_has_band_and_definition():
     facts = facts_svc.build_factsheet(_burst_ledger(), [], [])
-    assert len(facts) == 14   # F01~F12 + F13(소스 연결)·F14(앱 참여) 실제 행동
+    assert len(facts) == 14   # F01~F12 + F13(긱 커리어 행동) + F14(앱 관측 품질)
     for f in facts:
         assert f.band.strip(), f.id
         assert f.definition.strip(), f.id
@@ -209,6 +209,8 @@ def test_tag_and_decision_log_events():
     assert len(decided) == 1
     assert decided[0]["payload"]["action"] == "adjust"
     assert decided[0]["payload"]["buffer_delta"] == 50_000
+    assert decided[0]["payload"]["income_event_id"] == res["transaction"]["id"]
+    assert decided[0]["payload"]["rhythm_eligible"] is True
 
     txn_id = res["transaction"]["id"]
     client.post(f"/v1/bank/transactions/{txn_id}/tag", json={"kind": "income"})

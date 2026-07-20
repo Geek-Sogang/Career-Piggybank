@@ -114,6 +114,7 @@ def eligible(
     tax_balance: float,
     ctx: AllocationContext | None = None,
     has_confirmed_income: bool = False,
+    career_review_ready: bool = False,
 ) -> tuple[list[Candidate], dict[str, str]]:
     """카탈로그 → (적격 후보, veto된 상품과 사유).
 
@@ -144,10 +145,11 @@ def eligible(
     #   '갚을 근거(확정 예정 수입)' 없이 돈 없다고 대출을 권하는 건 부채 유도라 차단(준모 피드백).
     gap_days = c.expected_gap_days or 0.0
     if invest_available <= 0 and gap_days >= GAP_BRIDGE_DAYS and has_confirmed_income:
+        review_note = " · 연결된 커리어 검증자료를 심사 화면에서 함께 확인" if career_review_ready else ""
         candidates.append(Candidate(
             "emergency", CATALOG["emergency"], "spendable",
             f"다음 수입까지 약 {gap_days:.0f}일이지만 들어올 돈이 확정돼 있어요 — "
-            "공백만 메우는 브릿지로 미리 열어둘 수 있어요 (쓰지 않으면 이자 0)",
+            f"공백만 메우는 브릿지로 미리 열어둘 수 있어요 (쓰지 않으면 이자 0){review_note}",
         ))
     elif invest_available > 0:
         vetoed["emergency"] = "버퍼 목표 초과 여유가 있어요 — 신용상품 권유는 부적합"

@@ -22,11 +22,10 @@ export const PRODUCTS: Record<ProductKey, Product> = {
   },
   emergency: {
     badge: '비', badgeBg: colors.greenTint, badgeColor: colors.green,
-    name: '하나 긱워커 비상금대출', tagline: '하나은행 · 검증 활동 기반 첫 신용한도',
-    highlight: '2,000,000원', highlightLabel: '한도',
-    terms: ['연 5.9%~', 'SGI 보증', '중도상환 수수료 면제'],
-    desc: '소득증빙이 어려운 긱워커도 검증된 커리어 데이터를 보조지표로 첫 신용한도를 받아요.',
-    cta: '자세히 보고 신청',
+    name: '하나 긱워커 비상금대출', tagline: '하나은행 · 커리어 검증자료 심사 연결',
+    terms: ['검증자료 연동', '최종 조건은 은행 심사', '신청 전 사용자 확인'],
+    desc: '확정 단계에서는 연결된 커리어 자료를 심사 화면에 함께 가져갈 수 있어요. 커리어 점수만으로 자격·금리·한도를 결정하지 않습니다.',
+    cta: '심사 연결 보기',
   },
   youth: {
     badge: '햇', badgeBg: colors.pinkTint, badgeColor: colors.pinkStrong,
@@ -61,9 +60,8 @@ export const PRODUCTS: Record<ProductKey, Product> = {
   parking: {
     badge: '파', badgeBg: colors.bufferTint, badgeColor: colors.buffer,
     name: '하나 긱워커 파킹통장', tagline: '하나은행 · 세금·여윳돈 안전 보관',
-    highlight: '연 3.0%', highlightLabel: '우대금리',
-    terms: ['입출금 자유', '5월 종소세 대비 금고', '커리어 점수 우대'],
-    desc: '자동 봉투에 쌓이는 세금·여윳돈을 안전하게 보관하며 이자를 받아요. 언제든 인출할 수 있어 강제성이 없고, 5월 종소세 때 바로 꺼내 쓸 수 있어요. 커리어 점수가 높을수록 우대금리를 더 드려요.',
+    terms: ['입출금 자유', '5월 종소세 대비 금고', '우대 조건 확인'],
+    desc: '자동 봉투에 쌓이는 세금·여윳돈을 종소세 전까지 분리 보관해요. 적용 금리와 우대 조건은 실제 상품 심사 화면에서 확인합니다.',
     cta: '파킹통장 만들기',
   },
 };

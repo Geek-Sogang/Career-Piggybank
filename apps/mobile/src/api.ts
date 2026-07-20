@@ -1,9 +1,26 @@
 // 백엔드(FastAPI) 클라이언트 — 데모: 로컬 서버(make api, :8000)
 // iOS 시뮬레이터·웹 모두 호스트의 localhost로 접근 가능. 서버가 꺼져 있으면
 // 각 호출부가 오프라인 폴백을 쓴다(데모가 죽지 않는 원칙).
-const API_BASE = 'http://localhost:8000';
+//
+// DEMO 모드(EXPO_PUBLIC_DEMO=1): 백엔드 없이 Vercel에만 올린 UI 데모용.
+// 네트워크 대신 녹화 픽스처(demoData)를 반환한다 — 라이브 백엔드에서 캡처한
+// 조대흠 시드 응답. 실서비스가 아니라 "화면 보여주기"용 정적 데모.
+import { demoGet, demoPost } from '@/lib/demoData';
+import type { ProductKey } from '@/products';
+
+const DEMO = process.env.EXPO_PUBLIC_DEMO === '1';
+const API_BASE = process.env.EXPO_PUBLIC_API_BASE ?? 'http://localhost:8000';
+
+// DEMO에서 데모 서버 감각을 살짝 살리는 지연(ms) — 로딩 UI가 자연스럽게 보이게.
+const demoDelay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function get<T>(path: string, timeoutMs = 10_000): Promise<T> {
+  if (DEMO) {
+    const v = demoGet(path);
+    await demoDelay(120);
+    if (v !== undefined) return v as T;
+    throw new Error(`demo: no fixture for GET ${path}`);
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -16,6 +33,10 @@ async function get<T>(path: string, timeoutMs = 10_000): Promise<T> {
 }
 
 async function post<T>(path: string, body: unknown, timeoutMs = 90_000): Promise<T> {
+  if (DEMO) {
+    await demoDelay(220);
+    return demoPost(path, body) as T;
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -43,7 +64,7 @@ export const DEMO_PROFILE = {
 
 // 코치에게 주입하는 컨텍스트 — 숫자는 전부 결정론 엔진 출력(코치는 인용만)
 export const DEMO_COACH_CONTEXT = {
-  user: '조대흠 · 프리랜스 개발자 · 커리어 점수 320점(세 살)',
+  user: '조대흠 · 프리랜스 개발자',
   profile: DEMO_PROFILE,
   envelopes: { tax: 320_000, expense: 400_000, spendable: 1_200_000, buffer: 99_555 },
   note: '5월 종소세 예상 1,090,000원 중 320,000원 준비됨',
@@ -60,15 +81,36 @@ export function coachChat(message: string, context: object = DEMO_COACH_CONTEXT)
 
 export type EnvelopeSplit = { tax: number; expense: number; spendable: number; buffer: number };
 // 배분 → 하나 상품 훅 — 선택은 백엔드 룰, product_id는 products.ts ProductKey와 1:1
-export type ProductHook = { product_id: string; envelope: string; name: string; line: string };
+export type ProductHook = { product_id: ProductKey; envelope: string; name: string; line: string };
 
 // ⑥ 상품 매칭 (AI) — 핫패스 아님: 시트는 룰 훅을 즉시 보여주고, 이 호출이 돌아오면 승급.
 // 후보는 적합성 veto(결정론)를 통과한 것만 — AI는 그 메뉴 안에서 고르고 근거 팩트를 인용.
 export type ProductMatchPick = ProductHook & { evidence: string[]; source: 'llm' | 'rule' };
+export type ProductMatchCandidate = Omit<ProductHook, 'line'> & { basis: string };
+export type ProductMatchResponse = {
+  matches: ProductMatchPick[];
+  candidates?: ProductMatchCandidate[];
+  vetoed: Partial<Record<ProductKey, string>>;
+  persona_used: boolean;
+  persona_staleness?: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
+  note: string;
+  verification: CareerVerification;
+};
+let productMatchCache: ProductMatchResponse | null = null;
+let productMatchPending: Promise<ProductMatchResponse> | null = null;
 export function fetchProductMatch() {
-  return post<{ matches: ProductMatchPick[]; persona_used: boolean; note: string }>(
-    '/v1/products/match', {}, 60_000, // 로컬 7.8B 생성 대기
-  );
+  if (productMatchCache) return Promise.resolve(productMatchCache);
+  if (productMatchPending) return productMatchPending;
+  productMatchPending = post<ProductMatchResponse>(
+    '/v1/products/match', {}, 60_000, // 로컬 EXAONE 결과는 화면 사이에서 재사용
+  ).then((result) => {
+    if ((result.candidates?.length ?? 0) > 0 || result.matches.length > 0) productMatchCache = result;
+    return result;
+  }).finally(() => { productMatchPending = null; });
+  return productMatchPending;
+}
+export function prefetchProductMatch() {
+  void fetchProductMatch().catch(() => {});
 }
 export type Allocation = {
   id: string;
@@ -80,6 +122,11 @@ export type Allocation = {
   reasons: string[];
   product_hooks?: ProductHook[];
   gig_archetype?: string;   // 이 배분을 만든 긱워커 소득 유형 한 줄
+  buffer_target: number;
+  invest_available: number;
+  policy?: { arm_id: string; months: number; reason: string; prior_source: string } | null;
+  persona_used: boolean;
+  persona_staleness?: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
 };
 
 export function proposeAllocation(deposit: number, profile = DEMO_PROFILE) {
@@ -91,12 +138,12 @@ export function decideAllocation(id: string, action: 'confirm' | 'adjust' | 'rej
 }
 
 // 강점 한 줄 — 후보는 백엔드 결정론, LLM은 선택만 (§6-1 개인화 3종 ③)
-export const DEMO_CAREER_FACTS = {
-  verified_count: 12, months_active: 24, repeat_client_rate: 0.8,
-  settlement_growth: 3.0, top_skill: 'React 커머스',
+export type CareerFacts = {
+  verified_count: number; months_active: number; repeat_client_rate: number;
+  settlement_growth: number; top_skill: string;
 };
 export type Strength = { line: string; chosen_by: 'llm' | 'fallback'; reason: string };
-export function fetchStrength(facts = DEMO_CAREER_FACTS) {
+export function fetchStrength(facts: CareerFacts) {
   return post<Strength>('/v1/strength', facts, 120_000);
 }
 
@@ -104,7 +151,7 @@ export function fetchStrength(facts = DEMO_CAREER_FACTS) {
 export type Txn = {
   id: string; date: string; amount: number; direction: 'in' | 'out';
   counterparty: string; memo: string; kind: string; subtype: string | null;
-  confidence: number; needs_review: boolean; signals: string[];
+  confidence: number; needs_review: boolean; signals: string[]; verified_career_job: boolean;
 };
 export const DEMO_DEPOSIT = { date: '2025-05-27', amount: 3_000_000, counterparty: '△△플랫폼 정산', memo: '' };
 
@@ -152,13 +199,88 @@ export type GigProfile = {
 export function getGigProfile() {
   return get<GigProfile>('/v1/profile/gig');
 }
-// 실제 행동(비금융) 계측 — 소스 연결·앱 방문. 페르소나 계획성 축의 비금융 근거(F13·F14).
+// 실제 행동(비금융) 계측 — F13 소스 연결은 긱 계획성 근거, F14 앱 방문은 데이터 품질만 표시.
 // 실패해도 무시(계측은 있으면 좋고 없어도 됨).
 export function logBehavior(type: 'source_connected' | 'app_opened' | 'portfolio_uploaded', source?: string) {
   return post('/v1/behavior', { type, source }).catch(() => {});
 }
-export function readPersona() {
-  return post<{ snapshot_id: string }>('/v1/profile/read?trigger=manual', {}, 300_000); // 축당 7.8B — 수십 초
+export type CareerScrap = {
+  id: string; created_at: string; content: string; source: string;
+};
+export function getCareerScraps() {
+  return get<CareerScrap[]>('/v1/behavior/career-scraps');
+}
+export function saveCareerScrap(content: string) {
+  return post<{ ok: true; scrap: CareerScrap; event_id: string; xp_awarded: boolean }>(
+    '/v1/behavior/career-scraps', { content }, 15_000,
+  );
+}
+export function readPersona(trigger: 'manual' | 'onboarding' = 'manual') {
+  return post<{ snapshot_id: string }>(`/v1/profile/read?trigger=${trigger}`, {}, 300_000); // 축당 7.8B — 수십 초
+}
+// V2 개인화 계약 — 긱 구조 2 + 금융 대응 3의 결정론 번역층(새 AI 판정 아님).
+// 배분·밴딧은 이 값을 소비하지 않는다 — 화면·설명·코치 톤 전용.
+export type V2Structure = { key: string; label: string; level: string; detail: string; fact_ids: string[] };
+export type V2Decision = {
+  key: string; label: string; level: string;
+  decision_status: 'confirmed' | 'insufficient_evidence';
+  source_axes: string[];
+  evidence: {
+    fact_ids: string[]; sample_size: number | null; gate: string;
+    fallback_used: boolean; stale: boolean | null;
+    data_quality?: { career_sources: number | null; engagement_weeks: number | null };
+  };
+  basis: string;
+};
+export type PersonalizationV2 = {
+  gig_structure: V2Structure[];
+  financial_response: V2Decision[];
+  management_override: string | null;   // 사용자 선택 — 권장과 별도 보관, 선택이 항상 이긴다
+  effective_management: string;
+};
+export function getPersonalizationV2() {
+  return get<PersonalizationV2>('/v1/profile/v2');
+}
+export function setManagementOverride(level: string | null) {
+  return post<PersonalizationV2>('/v1/profile/v2/management-override', { level }, 15_000);
+}
+
+export type CareerVerification = {
+  job: 'developer' | 'designer' | 'creator'; sources: string[];
+  score: number; stage: '잠정' | '준검증' | '확정';
+  score_breakdown: { verified_history: number; connected_sources: number };
+  review_connection: { available: boolean; label: string; basis: string };
+  verified: {
+    count: number; streak_months: number; span_months: number;
+    recent: { id: string; date: string; amount: number; counterparty: string; memo: string }[];
+  };
+  piggybank: {
+    xp: number; work_xp: number; mission_xp: number; loop_xp: number; daily_xp: number;
+    level: number; level_title: string; max_level: number;
+    current_threshold: number; next_threshold: number | null; xp_to_next: number;
+    progress: number; completed_missions: number;
+    missions: { id: string; title: string; xp: number; completed: boolean }[];
+    daily_missions: {
+      id: string; title: string; xp: number; completed: boolean; available: boolean; description: string;
+    }[];
+    phase: { key: 'tax_season' | 'after_settlement' | 'income_gap' | 'quiet'; label: string; message: string };
+    levels: { level: number; title: string; threshold: number; reward: string; node_type: 'character' | 'reward' }[];
+    reward_is_example: true;
+  };
+};
+export function getCareerVerification() {
+  return get<CareerVerification>('/v1/profile/verification');
+}
+// 일감 증명 큐 — 확정 income인데 아직 사람이 승인하지 않은 입금. 승인(HITL)만 검증 사건을 만든다.
+export type PendingJob = { id: string; date: string; amount: number; counterparty: string; memo: string };
+export function getPendingJobs() {
+  return get<{ jobs: PendingJob[] }>('/v1/profile/verification/pending');
+}
+export function approveJob(txnId: string) {
+  return post<CareerVerification>('/v1/profile/verification/jobs', { txn_id: txnId }, 15_000);
+}
+export function updateCareerVerification(sources: string[], job: CareerVerification['job'] = 'developer') {
+  return post<CareerVerification>('/v1/profile/verification', { sources, job }, 15_000);
 }
 
 // ── 목표 봉투 + 금액 페이싱 — 개설·확정은 사람, AI(⑤a 추천·⑤b 페이싱)는 판정까지만 ──
@@ -180,10 +302,24 @@ export type PeerIdea = {
   pool: number; scope: 'job' | 'all'; basis: string;
   months_to_reach: number | null; affordable_amount: number | null;
 };
+export type EnvelopeRecommendation = {
+  recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean;
+};
+let envelopeRecommendationCache: EnvelopeRecommendation | null = null;
+let envelopeRecommendationPending: Promise<EnvelopeRecommendation> | null = null;
 export function recommendEnvelopes() {
-  return post<{ recommendations: EnvelopeIdea[]; peers: PeerIdea[]; persona_used: boolean }>(
-    '/v1/envelopes/recommend', {}, 60_000, // 로컬 7.8B 생성 대기
-  );
+  if (envelopeRecommendationCache) return Promise.resolve(envelopeRecommendationCache);
+  if (envelopeRecommendationPending) return envelopeRecommendationPending;
+  envelopeRecommendationPending = post<EnvelopeRecommendation>(
+    '/v1/envelopes/recommend', {}, 60_000, // 로컬 EXAONE 생성은 화면 진입 전에 미리 시작
+  ).then((result) => {
+    envelopeRecommendationCache = result;
+    return result;
+  }).finally(() => { envelopeRecommendationPending = null; });
+  return envelopeRecommendationPending;
+}
+export function prefetchEnvelopeRecommendations() {
+  void recommendEnvelopes().catch(() => {});
 }
 // ⑤b 금액 페이싱 — 판단(우선순위·스탠스)은 AI, 원화 번역은 산수, 실행은 confirm만
 export type PacingProposal = {
@@ -193,6 +329,8 @@ export type PacingProposal = {
   judgment: { reason: string; fallback: boolean; evidence: string[]; stances: Record<string, string> };
   goals: { id: string; name: string; base: number; stance: string; amount: number }[];
   source: string;
+  persona_used: boolean;
+  persona_staleness: { new_txns: number | null; stale: boolean | null; threshold: number } | null;
 };
 export function proposePacing(available: number, today: string, source: 'deposit' | 'buffer') {
   return post<PacingProposal>('/v1/pacing/propose',
@@ -202,7 +340,11 @@ export function decidePacing(id: string, action: 'confirm' | 'reject') {
   return post<{ id: string; status: string }>(`/v1/pacing/${id}/decision`, { action });
 }
 export function getEnvelopeBalances() {
-  return get<{ balances: Record<string, number> }>('/v1/bank/envelopes');
+  return get<{
+    balances: Record<string, number>;
+    // 세금 준비 현황 — 백엔드 결정론 계산(연 예상세액 · 세금봉투 잔액 · 부족분)
+    annual_tax_expected?: number; tax_prepared?: number; tax_shortfall?: number;
+  }>('/v1/bank/envelopes');
 }
 
 // ── 벨 인박스 (어젠다 큐) — 피기가 아직 말하지 않은 사건의 트리아지. 발화문은 결정론 템플릿 ──
@@ -262,11 +404,11 @@ export const OFFLINE_ALLOCATION: Allocation = {
   windfall_ratio: 3.75,
   needs_confirmation: true,
   reasons: [
-    '세금봉투 108,900원: 실효 추가세율 3.6%를 먼저 떼어 5월 종소세에 대비해요',
-    '경비봉투 400,000원: 이번 달 예상 경비를 채워요',
-    '즉시가용 1,200,000원: 이번 달 생활비까지 채워요',
-    '여윳돈 1,291,100원: 소득 변동에 대비해 버퍼 목표까지 더 모아요',
-    '이번 입금은 평소(800,000원)의 3.8배 — 코치가 확인을 요청해요',
+    '세금봉투 108,900원: 이번 입금의 3.6%를 떼어 5월 종소세를 준비해요',
+    '경비봉투 400,000원: 현재 0원이라 이번 달 예상 경비 400,000원을 채워요',
+    '생활비 1,200,000원: 현재 0원이라 다음 수입 전까지 쓸 한 달 생활비를 채워요',
+    '여윳돈 1,291,100원: 소득 공백에 대비할 목표 3,120,000원까지 1,828,900원 더 필요해요',
+    '이번 입금은 평소 800,000원의 3.8배라 담기 전에 한 번 더 확인해요',
   ],
   product_hooks: [
     {
@@ -274,5 +416,10 @@ export const OFFLINE_ALLOCATION: Allocation = {
       line: '세금봉투 108,900원은 하나 긱워커 파킹통장(연 3.0%)에 두면 5월 종소세 때까지 이자가 붙어요',
     },
   ],
-  gig_archetype: '고변동 · 단일 플랫폼 의존 — 가장 취약한 긱 구조라 버퍼가 생명줄',
+  gig_archetype: '고변동 긱워커 — 큰 대금이 가끔, 세금·가뭄 대비가 핵심',   // 라이브 시드 실측과 동일 표현
+  buffer_target: 3_600_000,
+  invest_available: 0,
+  policy: null,
+  persona_used: false,
+  persona_staleness: null,
 };

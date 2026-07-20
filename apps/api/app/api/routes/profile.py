@@ -6,17 +6,25 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from app.agents import profile_read
 from app.api.routes.bank import _boot
 from app.schemas.allocation import SpendingProfileIn
 from app.schemas.profile import ProfileEstimateRequest, ProfileEstimateResponse
-from app.engines import facts as facts_svc
+from app.engines import career_verification, facts as facts_svc
 from app.engines import forecast, gig_profile, income_streams, spending_profile
 from app.engines.spending_profile import Txn
+from app.profile import personalization_v2 as p13n_v2
+from app.profile.user_profile import build_user_profile
 from app.store import db
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])
+
+
+class CareerVerificationRequest(BaseModel):
+    job: str = Field(default="developer", description="developer | designer | creator")
+    sources: list[str] = Field(default_factory=list, description="현재 활성화된 커리어 연결 소스")
 
 
 @router.post("/estimate", response_model=ProfileEstimateResponse)
@@ -65,6 +73,104 @@ def latest_persona() -> dict:
         raise HTTPException(status_code=404, detail="no persona snapshot — POST /v1/profile/read first")
     # 신선도 게이트 — 원장은 자랐는데 축은 예전이면 다운스트림이 알아야 한다 (판정만, 자동 재판독 없음)
     return {**snap, "staleness": facts_svc.snapshot_staleness(snap, len(db.list_txns()))}
+
+
+class JobApproveRequest(BaseModel):
+    txn_id: str = Field(description="검증 승인할 확정 income 거래 ID")
+    memo: str | None = Field(default=None, description="일감 메모 (없으면 거래 메모 사용)")
+
+
+@router.get("/verification/pending")
+def pending_verification_jobs() -> dict:
+    """검증 대기 일감 — 확정 income인데 아직 사람이 승인하지 않은 입금 목록."""
+    _boot()
+    return {"jobs": career_verification.pending_jobs(db.list_events(), db.list_txns())}
+
+
+@router.post("/verification/jobs")
+def approve_verification_job(req: JobApproveRequest) -> dict:
+    """일감 검증 승인 — 사람의 명시 승인만 `career_job_verified` 사건을 만든다 (HITL).
+
+    이 사건이 검증 건수·일감 XP·점수 이력의 유일한 원천이다(PR #86 계약).
+    같은 거래의 중복 승인은 409 — 재조회·중복 이벤트로 반복 지급하지 않는다.
+    """
+    _boot()
+    txn = db.get_txn(req.txn_id)
+    if (txn is None or txn["kind"] != "income" or txn["direction"] != "in"
+            or txn["needs_review"]):
+        raise HTTPException(status_code=422, detail="txn must be a confirmed income deposit")
+    already = any(
+        e.get("type") == "career_job_verified" and e.get("ref_id") == req.txn_id
+        for e in db.list_events()
+    )
+    if already:
+        raise HTTPException(status_code=409, detail="already verified")
+    db.log_event(
+        "career_job_verified", ref_id=req.txn_id,
+        payload={"memo": req.memo or txn.get("memo") or "검증된 일감"},
+    )
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
+
+
+@router.get("/verification")
+def get_verification() -> dict:
+    """커리어 검증 SSOT — 점수·단계·심사 연결·커리어 저금통 XP를 계산한다."""
+    _boot()
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
+
+
+@router.post("/verification")
+def update_verification(req: CareerVerificationRequest) -> dict:
+    """활성 연결 상태 동기화 — 신뢰 점수·단계만 바꾸며 금융 금액에는 관여하지 않는다."""
+    _boot()
+    if req.job not in {"developer", "designer", "creator"}:
+        raise HTTPException(status_code=422, detail="job must be developer|designer|creator")
+    invalid = sorted(set(req.sources) - set(career_verification.SOURCE_SCORES))
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"unknown sources: {invalid}")
+    result = career_verification.compute(req.sources, req.job)
+    db.log_event(
+        "career_verification_updated",
+        payload={"job": result.job, "sources": list(result.sources)},
+    )
+    # 방금 기록한 상태를 전체 사건 로그와 함께 다시 읽어 XP도 같은 SSOT로 돌려준다.
+    return career_verification.latest(db.list_events(), db.list_txns()).as_dict()
+
+
+class ManagementOverrideRequest(BaseModel):
+    level: str | None = Field(
+        default=None,
+        description="자율 | 가이드 | 적극 관리 — null이면 오버라이드 해제(권장값으로 복귀)",
+    )
+
+
+@router.get("/v2")
+def personalization_v2() -> dict:
+    """2+2 제품 계약 — 긱 구조(측정) + 금융 대응(기존 4축의 결정론 번역).
+
+    새 AI 판정이 아니다: 검증된 판독·측정의 번역층이라 항상 조회 가능하고,
+    근거가 부족하면 confidence 흉내 없이 decision_status로 보류를 정직하게 알린다.
+    배분·밴딧은 이 값을 소비하지 않는다(raw 축 유지) — 화면·설명·코치 톤 전용.
+    """
+    _boot()
+    return build_user_profile().personalization_v2.as_dict()
+
+
+@router.post("/v2/management-override")
+def set_management_override(req: ManagementOverrideRequest) -> dict:
+    """관리 강도 사용자 선택 — 권장은 권장대로 남고, 선택이 항상 이긴다.
+
+    실행 승인 게이트(HITL)와 무관하다: 어떤 강도를 골라도 돈이 움직이는 실행은
+    기존 confirm 경로 그대로다. 이 값은 코치의 톤·제안 문구만 바꾼다.
+    """
+    _boot()
+    if req.level is not None and req.level not in p13n_v2.MANAGEMENT_LEVELS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"level must be one of {list(p13n_v2.MANAGEMENT_LEVELS)} or null",
+        )
+    db.log_event(p13n_v2.OVERRIDE_EVENT, payload={"level": req.level})
+    return build_user_profile().personalization_v2.as_dict()
 
 
 @router.get("/gig")

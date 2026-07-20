@@ -63,6 +63,9 @@ class AllocationResponse(BaseModel):
     assumptions: dict[str, float]
     product_hooks: list[ProductHook] = []  # 봉투별 하나 상품 안내 (최대 2)
     gig_archetype: str = ""                 # 이 배분을 만든 긱워커 소득 유형 한 줄 (결정론)
+    policy: dict | None = None               # 안전 수준(P60/P75/P90)과 근거 — 화면 감사 로그
+    persona_used: bool = False               # 최신 금융 성향이 실제 정책 선택에 들어갔는가
+    persona_staleness: dict | None = None     # 미사용 이유(없음/오래됨)를 정직하게 노출
 
 
 class MetricsResponse(BaseModel):

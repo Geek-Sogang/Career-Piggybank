@@ -65,7 +65,7 @@ export function Tax() {
         </View>
         <View style={{ marginTop: 16 }}>
           {rows.map((r, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: '#F4F5F6' }}>
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: i < 3 ? 1 : 0, borderBottomColor: colors.line2 }}>
               <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: r.c }} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>{r.label}</Text>
@@ -104,7 +104,7 @@ export function Tax() {
                       {won(bal)} <Text style={{ fontSize: 11, color: colors.sub3, fontWeight: '600' }}>/ {won(g.target_amount)}</Text>
                     </Text>
                   </View>
-                  <View style={{ height: 8, borderRadius: 4, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.line3, overflow: 'hidden' }}>
                     <View style={{ width: `${p * 100}%`, height: 8, borderRadius: 4, backgroundColor: colors.buffer }} />
                   </View>
                   {added > 0 ? (
@@ -125,14 +125,37 @@ export function Tax() {
           <KV k="산출세액 (지방세 포함)" v={won(a.totalTax)} />
           <KV k="기납부 (3.3% 원천징수)" v={`−${won(a.alreadyWithheld)}`} vColor={colors.buffer} border />
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, padding: 15, backgroundColor: colors.taxBg, borderRadius: 14 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.taxInk }}>5월 추가납부 예상</Text>
-          <Text style={{ fontSize: 26, fontWeight: '800', color: colors.tax, letterSpacing: -0.8, ...T.num }}>{won(a.additionalDue)}</Text>
-        </View>
+        {/* 준비 현황 — 긍정 프레임은 유지하되 수치는 실값(세금봉투 잔액 vs 산출 추가납부) */}
+        {(() => {
+          const prepared = balances?.tax ?? null;
+          if (prepared == null) return null;
+          const taxReady = prepared >= a.additionalDue;
+          return (
+            <View style={{ marginTop: 14, backgroundColor: colors.greenTint, borderRadius: 14, padding: 15, gap: 11 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: taxReady ? colors.green : colors.buffer, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={taxReady ? 'check' : 'coin'} size={13} color="#fff" sw={2.6} />
+                </View>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.greenInk }}>
+                  {taxReady ? '5월 종소세, 넉넉히 준비됐어요' : '5월 종소세, 모아가는 중이에요'}
+                </Text>
+              </View>
+              <View style={{ gap: 7 }}>
+                <TaxLine label="5월 추가납부 예상" value={won(a.additionalDue)} />
+                <TaxLine label="세금봉투에 모음" value={won(prepared)} strong />
+                {taxReady ? (
+                  <TaxLine label="여유분" value={`+${won(prepared - a.additionalDue)}`} accent />
+                ) : (
+                  <TaxLine label="앞으로 모을 금액" value={won(a.additionalDue - prepared)} />
+                )}
+              </View>
+            </View>
+          );
+        })()}
       </Card>
 
       {/* 계산 가정 */}
-      <View style={{ backgroundColor: '#FBFBFC', borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
+      <View style={{ backgroundColor: colors.bg2, borderWidth: 1, borderColor: colors.dash, borderStyle: 'dashed', borderRadius: 14, padding: 14 }}>
         <Text style={{ fontSize: 12, color: colors.sub, lineHeight: 21, fontWeight: '500' }}>
           <Text style={{ fontWeight: '800', color: colors.ink2 }}>계산 가정 · 검증 가능한 산수</Text>{'\n'}
           연매출 3,000만 · 단순경비율 적용 → 과세표준 2,100만{'\n'}
@@ -159,6 +182,14 @@ function MiniCard({ label, value }: { label: string; value: string }) {
     <View style={{ flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 14 }}>
       <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '600' }}>{label}</Text>
       <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, marginTop: 3, color: colors.ink, ...T.num }}>{value}</Text>
+    </View>
+  );
+}
+function TaxLine({ label, value, strong, accent }: { label: string; value: string; strong?: boolean; accent?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.greenInk }}>{label}</Text>
+      <Text style={{ fontSize: strong ? 14.5 : 13, fontWeight: strong ? '800' : '700', color: accent ? colors.green : colors.greenInk, ...T.num }}>{value}</Text>
     </View>
   );
 }

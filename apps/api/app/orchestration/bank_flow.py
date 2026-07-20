@@ -143,6 +143,8 @@ def propose_for_deposit(deposit: float, date: str, txn_id: str | None) -> tuple[
             "product_hooks": product_match.hooks_for(p, ctx, up.has_confirmed_incoming),
             "policy": policy.as_dict(),
             "gig_archetype": up.gig_archetype,   # 배분 시트가 앞세울 긱 정체성
+            "persona_used": up.persona_axes is not None,
+            "persona_staleness": up.persona_staleness,
         },
         txn_id=txn_id,
     )

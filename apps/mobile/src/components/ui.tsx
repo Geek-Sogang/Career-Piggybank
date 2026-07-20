@@ -4,7 +4,7 @@ import { colors } from '@/theme/colors';
 /** 디자인 토글 스위치 (46x28). */
 export function Toggle({ on, onPress }: { on: boolean; onPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: on ? colors.green : '#E2E5E9' }}>
+    <Pressable onPress={onPress} style={{ width: 46, height: 28, borderRadius: 14, backgroundColor: on ? colors.green : colors.line4 }}>
       <View style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
     </Pressable>
   );

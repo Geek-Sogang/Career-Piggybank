@@ -1,283 +1,159 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput } from 'react-native';
-import { createGoal, fetchStrength, getGoals, recommendEnvelopes, type EnvelopeIdea, type Goal, type PeerIdea } from '@/api';
+import { View, Text, Pressable } from 'react-native';
+import { fetchStrength } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Card, Mascot, Stat, T } from '@/components/ui';
-import { useApp, VERIFIED } from '@/store';
+import { CharacterImage, characterRender } from '@/components/CharacterImage';
+import { CareerSourceIcon } from '@/components/CareerSourceIcon';
+import { MY_JOB, skinKeyFor } from '@/components/CareerPiggybank';
+import { usePersonalizationV2 } from '@/lib/personalization';
+import { useApp } from '@/store';
 
 // 서버/LLM 미가동 시 오프라인 폴백 문구
 const OFFLINE_STRENGTH = '"꾸준한 React 커밋과 정시 정산 — 신뢰도 높은 프론트엔드 개발자"';
 
-// 데모용 폴백 추천 — 온디바이스 7.8B는 느리고 접지 게이트로 자주 비므로(recommendations=[]),
-// 백엔드가 진짜 추천을 주면 즉시 대체된다. 백엔드 배선은 [[career-piggybank-frontend-sim-backend-todo]].
-const FALLBACK_IDEAS: EnvelopeIdea[] = [
-  { name: '일 없는 달 대비 예비 자금', why: '고변동 소득이라 수입이 끊기는 달이 있어요. 무수입 공백을 버틸 예비 자금이 필요해요.', evidence: [] },
-  { name: '다각화 소득 스트림 구축 자금', why: '소득원이 소수에 집중돼 있어요. 새 소득원을 여는 초기 자금을 모으면 장기 안정성이 올라가요.', evidence: [] },
-];
-const FALLBACK_PEERS: PeerIdea[] = [
-  { name: '장비 교체', suggested_amount: 2_700_000, share: 0.25, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투 — 유사 성향 가중 25%', months_to_reach: null, affordable_amount: null },
-  { name: '일 없는 달', suggested_amount: 1_750_000, share: 0.24, count: 2, pool: 10, scope: 'job', basis: '나와 성향이 비슷한 개발자 10명 중 2명이 만든 봉투 — 유사 성향 가중 24%', months_to_reach: null, affordable_amount: null },
-];
-
+// 커리어 탭 — 신뢰 층 전용: 검증된 일감이 쌓인 것을 보여주는 화면.
+// 게임 층(저금통·미션·XP)은 미션 탭이, 돈(목표 봉투·페이싱)은 정산 탭이 담당한다.
 export function Piggy() {
-  const { actions, sheet } = useApp();
+  const { actions, vals, careerReviewPending } = useApp();
   const [strength, setStrength] = useState(OFFLINE_STRENGTH);
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const v2 = usePersonalizationV2();
+  const vaultSkin = skinKeyFor(v2);
+  const vaultRender = characterRender(vaultSkin, MY_JOB, true) != null;
   useEffect(() => {
-    fetchStrength()
+    if (careerReviewPending) return;
+    fetchStrength({
+      verified_count: vals.verified.count,
+      months_active: vals.verified.streak_months,
+      repeat_client_rate: 0,
+      settlement_growth: 0,
+      top_skill: vals.verified.recent[0]?.memo || '개발',
+    })
       .then((s) => setStrength(`"${s.line}"`)) // 결정론 후보 원문 — AI는 선택만 했음
       .catch(() => {});
-  }, []);
-  // 목표 봉투 — 페이싱 시트가 닫힐 때 재조회(confirm이 잔액을 움직인 직후)
+  }, [careerReviewPending, vals.verified.count, vals.verified.streak_months, vals.verified.recent]);
   useEffect(() => {
-    if (!sheet) getGoals().then(setGoals).catch(() => {});
-  }, [sheet]);
-
+    if (careerReviewPending) setVaultOpen(false);
+  }, [careerReviewPending]);
   return (
     <View style={{ gap: 14 }}>
-      {/* 검증된 이력 */}
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>검증된 이력</Text>
-          <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>확정 ✓</Text>
+      {careerReviewPending && (
+        <View style={{ borderWidth: 1.5, borderColor: colors.greenLine, backgroundColor: colors.greenTint2, borderRadius: 18, padding: 16 }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green }}>이력 확인</Text>
+          <Text style={{ fontSize: 19, fontWeight: '800', letterSpacing: -0.5, lineHeight: 26, color: colors.ink, marginTop: 4 }}>
+            방금 모은 기록들이 맞나요?
+          </Text>
+          <Text style={{ fontSize: 12, fontWeight: '400', lineHeight: 18, color: colors.sub2, marginTop: 5 }}>
+            아래 저금통을 열어 정산처와 작업 내용을 확인해 주세요. 확인하기 전에는 페르소나를 만들지 않아요.
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', marginTop: 16 }}>
-          <Stat value={`${VERIFIED.count}`} unit="건" label="검증 완료" />
-          <Stat value={`${VERIFIED.streakMonths}`} unit="개월" label="연속 활동" borderLeft />
-          <Stat value={`${VERIFIED.spanMonths}`} unit="개월" label="거래 기간" flex={1.2} borderLeft />
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 18 }}>
-          {[0, 1, 2].map((i) => <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.green }} />)}
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>잠정</Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.faint2 }}>준검증</Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.green }}>확정</Text>
-        </View>
-      </Card>
+      )}
 
-      {/* AI 강점 */}
-      <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
-          <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
-          <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
+      {/* AI 강점 — 검증 이력에서 AI가 고른 한 줄. 이 탭의 첫인상 = "AI가 요약한 나" */}
+      {!careerReviewPending && (
+        <View style={{ backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 18, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <Mascot head size={40} radius={12} style={{ backgroundColor: '#fff' }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.green, letterSpacing: 0.2 }}>AI가 본 내 강점</Text>
+            <Text style={{ fontSize: 14.5, fontWeight: '700', lineHeight: 21, marginTop: 5, color: colors.ink }}>{strength}</Text>
+            <Text style={{ fontSize: 11, color: '#7C9594', marginTop: 6, fontWeight: '600' }}>자기보고 아님 · 검증 이력에서 AI가 선택</Text>
+          </View>
+        </View>
+      )}
+
+      {/* 검증 저금통 — 검증된 일감이 담기는 금고. 탭하면 담긴 일감이 펼쳐진다 (PiggybankRedesign) */}
+      <View style={{ borderRadius: 20, backgroundColor: colors.green, overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 } }}>
+        <Pressable onPress={() => setVaultOpen((o) => !o)}>
+          <View style={{ paddingTop: 16, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.3 }}>검증 저금통</Text>
+              <Text style={{ fontSize: 10.5, fontWeight: '600', color: 'rgba(255,255,255,.82)', marginTop: 1 }}>검증된 일감이 차곡차곡 담겨요</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Text style={{ fontSize: 11.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden', ...T.num }}>{vals.score}점</Text>
+              <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(255,255,255,.2)', paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8, overflow: 'hidden' }}>{vals.stage}</Text>
+            </View>
+          </View>
+          <View style={{ height: 172, alignItems: 'center', justifyContent: 'flex-end', marginTop: 2 }}>
+            {/* 밝은 원형 무대 — 컷아웃 에셋의 흰 잔영을 진한 그린 위에서 흡수한다 */}
+            <View style={{ position: 'absolute', bottom: 2, width: 200, height: 168, borderRadius: 100, backgroundColor: 'rgba(255,255,255,.18)' }} />
+            <View style={{ position: 'absolute', bottom: 14, width: 150, height: 18, borderRadius: 999, backgroundColor: 'rgba(0,0,0,.18)' }} />
+            {vaultRender ? (
+              <CharacterImage cutout skin={vaultSkin} job={MY_JOB} width={168} height={168} />
+            ) : (
+              <Mascot head size={120} radius={34} style={{ marginBottom: 10 }} />
+            )}
+          </View>
+        </Pressable>
+        <View style={{ backgroundColor: '#fff', padding: 18 }}>
+          <View style={{ flexDirection: 'row' }}>
+            <Stat value={`${vals.verified.count}`} unit="건" label="담긴 검증" />
+            <Stat value={`${vals.verified.streak_months}`} unit="개월" label="연속 확인" borderLeft />
+            <Stat value={`${vals.verified.span_months}`} unit="개월" label="활동 범위" flex={1.2} borderLeft />
+          </View>
+          <Pressable onPress={() => setVaultOpen((o) => !o)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, backgroundColor: colors.greenTint2, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 12, paddingVertical: 11 }}>
+            <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.greenInk }}>{vaultOpen ? '담긴 일감 접기' : '저금통 열어 담긴 일감 보기'}</Text>
+            <View style={{ transform: [{ rotate: vaultOpen ? '270deg' : '90deg' }] }}>
+              <Icon name="chevronRight" size={15} color={colors.greenInk} sw={2.4} />
+            </View>
+          </Pressable>
+          {vaultOpen && (
+            <View style={{ marginTop: 10, gap: 8 }}>
+              {vals.verified.recent.map((job) => {
+                const key = job.counterparty.includes('커머스') ? 'commerce' : job.counterparty.includes('스튜디오') ? 'studio' : null;
+                const row = <JobRow
+                  counterparty={job.counterparty}
+                  title={`${job.counterparty} · ${job.memo}`}
+                  sub={`${job.date.slice(0, 7).replace('-', '.')} 정산 · 연결 자료 확인`}
+                  amount={`₩${Math.round(job.amount).toLocaleString('en-US')}`}
+                  verified
+                />;
+                return key ? <Pressable key={job.id} onPress={() => actions.openJob(key)}>{row}</Pressable> : <View key={job.id}>{row}</View>;
+              })}
+              <Pressable onPress={() => actions.openJob('personal')}>
+                <JobRow counterparty="개인 프로젝트" title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
+              </Pressable>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* 목표 봉투 — 개설은 사람, 추천(⑤a)·페이싱(⑤b)은 AI 판정까지만 */}
-      <GoalSection goals={goals} onCreated={(g) => setGoals((prev) => [...prev, g])} onPace={() => actions.openSheet('pacing')} />
+      {careerReviewPending && (
+        <Pressable
+          onPress={actions.confirmCareerHistory}
+          style={{ borderRadius: 16, backgroundColor: colors.green, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', shadowColor: colors.green, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 7 } }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>네, 이 기록들이 맞아요</Text>
+        </Pressable>
+      )}
 
       {/* CTA */}
-      <Pressable onPress={() => actions.pushScr('connect')} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
+      {!careerReviewPending && <Pressable onPress={() => actions.openCareerSync()} style={{ backgroundColor: colors.green, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
         <View style={{ gap: 2 }}>
-          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>커리어 연결하고 한도 늘리기</Text>
-          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '500' }}>연결할수록 검증 한도가 커져요</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff' }}>흩어진 이력 모으기</Text>
+          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,.82)', fontWeight: '400' }}>입금·세금·인증서를 한 번에 연동하고 상품까지</Text>
         </View>
         <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,.18)', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="plus" size={20} color="#fff" sw={2.2} />
         </View>
-      </Pressable>
-
-      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.sub, marginHorizontal: 4, marginTop: 2, marginBottom: -2 }}>검증된 일감</Text>
-
-      <Pressable onPress={() => actions.openJob('commerce')}>
-        <JobRow badge="커" badgeBg={colors.indigoTint} badgeColor={colors.indigo} title="○○커머스 · 웹 프론트엔드" sub="2025.05 정산 · 3자 교차검증" amount="₩500,000" verified />
-      </Pressable>
-      <Pressable onPress={() => actions.openJob('studio')}>
-        <JobRow badge="스" badgeBg={colors.orangeTint} badgeColor={colors.orange} title="△△스튜디오 · 랜딩 개발" sub="2025.03 정산" amount="₩1,200,000" verified />
-      </Pressable>
-      <Pressable onPress={() => actions.openJob('personal')}>
-        <JobRow badge="개" badgeBg={colors.line} badgeColor={colors.sub2} title="개인 프로젝트 · 오픈소스" sub="2024.11~ 진행중" right="미정산" rightSub="자기보고" />
-      </Pressable>
+      </Pressable>}
     </View>
   );
 }
 
-// ── 목표 봉투 섹션 — 목록·AI 추천 칩·개설 폼·페이싱 진입 ──
-const wonFmt = (n: number) => '₩' + Math.round(n).toLocaleString('en-US');
-
-function GoalSection({ goals, onCreated, onPace }: {
-  goals: Goal[]; onCreated: (g: Goal) => void; onPace: () => void;
-}) {
-  const { pacingApplied } = useApp();   // ⑤b 페이싱으로 방금 담은 금액 오버레이
-  const [ideas, setIdeas] = useState<EnvelopeIdea[]>([]);
-  const [peers, setPeers] = useState<PeerIdea[]>([]);
-  const [loadingRecs, setLoadingRecs] = useState(true);   // 추천 로딩 중(7.8B라 몇 초) 표시용
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState('');
-  useEffect(() => {
-    // 추천 2소스 — ⑤a(내 팩트, LLM)·또래(유사 페르소나 관찰, 결정론).
-    // 데모: AI 추천(7.8B)은 느리고 접지 게이트로 자주 비므로 폴백을 먼저 띄우고,
-    // 백엔드가 진짜 추천을 주면 대체한다(빈 배열이면 폴백 유지).
-    let alive = true;
-    const fb = setTimeout(() => {
-      if (!alive) return;
-      setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-      setPeers((p) => (p.length ? p : FALLBACK_PEERS));
-      setLoadingRecs(false);
-    }, 900);
-    recommendEnvelopes()
-      .then((r) => {
-        if (!alive) return;
-        if (r.recommendations?.length) setIdeas(r.recommendations);
-        else setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-        if (r.peers?.length) setPeers(r.peers);
-        else setPeers((p) => (p.length ? p : FALLBACK_PEERS));
-        setLoadingRecs(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setIdeas((p) => (p.length ? p : FALLBACK_IDEAS));
-        setPeers((p) => (p.length ? p : FALLBACK_PEERS));
-        setLoadingRecs(false);
-      });
-    return () => { alive = false; clearTimeout(fb); };
-  }, []);
-
-  const submit = async () => {
-    const amt = Number(amount.replace(/[,\s만]/g, '')) * (amount.includes('만') ? 10_000 : 1);
-    if (!name.trim() || !amt || amt <= 0) return;
-    const target = /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? date.trim() : null;
-    try {
-      const g = await createGoal(name.trim(), amt, target);
-      onCreated(g);
-      setCreating(false); setName(''); setAmount(''); setDate('');
-    } catch {}
-  };
-
-  // AI 추천(⑤a)은 이름·근거만 주고 금액이 없어, 개설 폼 금액을 또래 제안액 중앙값으로 프리필한다(사람이 조정).
-  const defaultManwon = (): string => {
-    const vals = peers.map((p) => p.suggested_amount).filter((v) => v > 0).sort((a, b) => a - b);
-    const m = vals.length ? vals[Math.floor(vals.length / 2)] : 1_000_000;
-    return String(Math.round(m / 10_000)) + '만';
-  };
-
-  return (
-    <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: 16, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>목표 봉투</Text>
-        <Pressable onPress={() => setCreating((v) => !v)}>
-          <Text style={{ fontSize: 12, fontWeight: '800', color: colors.green, backgroundColor: colors.greenTint, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, overflow: 'hidden' }}>
-            {creating ? '닫기' : '+ 만들기'}
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* 내 목표들 — 잔액/목표 게이지 */}
-      <View style={{ marginTop: 12, gap: 10 }}>
-        {goals.length === 0 && !creating && (
-          <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', lineHeight: 18 }}>
-            {loadingRecs && ideas.length === 0 && peers.length === 0
-              ? '피기가 내 상황·또래를 보고 맞는 봉투를 찾고 있어요…'
-              : '아직 목표 봉투가 없어요 — 아래 피기 추천을 탭하거나 직접 만들어 보세요'}
-          </Text>
-        )}
-        {goals.map((g) => {
-          const added = pacingApplied[g.id] ?? 0;      // 방금 페이싱으로 담은 금액(오버레이)
-          const bal = g.balance + added;
-          const pct = Math.min(1, bal / Math.max(1, g.target_amount));
-          return (
-            <View key={g.id} style={{ gap: 5 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.ink }}>
-                  {g.name} {g.target_date ? <Text style={{ fontSize: 11, color: colors.sub3, fontWeight: '600' }}>~{g.target_date.slice(5).replace('-', '/')}</Text> : null}
-                </Text>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.sub, ...T.num }}>
-                  {wonFmt(bal)} <Text style={{ color: colors.sub3 }}>/ {wonFmt(g.target_amount)}</Text>
-                </Text>
-              </View>
-              <View style={{ height: 7, borderRadius: 4, backgroundColor: '#EDEFF2', overflow: 'hidden' }}>
-                <View style={{ width: `${pct * 100}%`, height: 7, borderRadius: 4, backgroundColor: colors.buffer }} />
-              </View>
-              {added > 0 ? (
-                <Text style={{ fontSize: 11, color: colors.green, fontWeight: '700', marginTop: 1 }}>방금 여윳돈에서 +{wonFmt(added)} 담았어요 ✓</Text>
-              ) : null}
-            </View>
-          );
-        })}
-      </View>
-
-      {/* 추천 칩 2소스 — 탭 = 개설 폼 프리필 (개설은 사람의 결정).
-          AI(⑤a, 내 팩트 근거) = 보라 / 또래(유사 페르소나 관찰, 결정론 통계) = 파랑 */}
-      {(ideas.length > 0 || peers.length > 0) && (
-        <View style={{ marginTop: 12, gap: 6 }}>
-          {ideas.filter((i) => !goals.some((g) => g.name === i.name)).slice(0, 2).map((i) => (
-            <Pressable
-              key={i.name}
-              onPress={() => { setCreating(true); setName(i.name); setAmount(defaultManwon()); }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F5F1FB', borderWidth: 1, borderColor: '#E2D8F3', borderRadius: 11, padding: 10 }}
-            >
-              <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 추천</Text>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
-                <Text style={{ fontWeight: '800' }}>{i.name}</Text> — {i.why}
-              </Text>
-            </Pressable>
-          ))}
-          {peers.filter((p) => !goals.some((g) => g.name === p.name)).slice(0, 2).map((p) => (
-            <Pressable
-              key={p.name}
-              onPress={() => {
-                setCreating(true); setName(p.name);
-                // 도달이 너무 길면 형편 기준 낮춘 금액으로, 아니면 또래 중앙값으로 프리필
-                setAmount(String(Math.round((p.affordable_amount ?? p.suggested_amount) / 10_000)) + '만');
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.bufferTint, borderWidth: 1, borderColor: '#CBE7F5', borderRadius: 11, padding: 10 }}
-            >
-              <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.buffer, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>또래 픽</Text>
-              <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>
-                <Text style={{ fontWeight: '800' }}>{p.name}</Text> — {p.basis}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
-      {/* 개설 폼 — 개설은 언제나 사람 */}
-      {creating && (
-        <View style={{ marginTop: 12, gap: 8 }}>
-          <TextInput value={name} onChangeText={setName} placeholder="봉투 이름 (예: 새 맥북)" placeholderTextColor={colors.sub3}
-            style={{ borderWidth: 1.4, borderColor: colors.line, borderRadius: 11, paddingVertical: 10, paddingHorizontal: 12, fontSize: 13.5, fontWeight: '600', color: colors.ink }} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TextInput value={amount} onChangeText={setAmount} placeholder="목표 금액 (예: 240만)" placeholderTextColor={colors.sub3} keyboardType="numbers-and-punctuation"
-              style={{ flex: 1.2, borderWidth: 1.4, borderColor: colors.line, borderRadius: 11, paddingVertical: 10, paddingHorizontal: 12, fontSize: 13.5, fontWeight: '600', color: colors.ink }} />
-            <TextInput value={date} onChangeText={setDate} placeholder="기한 YYYY-MM-DD (선택)" placeholderTextColor={colors.sub3}
-              style={{ flex: 1.4, borderWidth: 1.4, borderColor: colors.line, borderRadius: 11, paddingVertical: 10, paddingHorizontal: 12, fontSize: 12.5, fontWeight: '600', color: colors.ink }} />
-          </View>
-          <Pressable onPress={submit} style={{ backgroundColor: colors.green, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}>
-            <Text style={{ color: '#fff', fontSize: 13.5, fontWeight: '800' }}>봉투 만들기</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* ⑤b 페이싱 진입 — 여윳돈에서 목표로 (판단 AI·원화 산수·실행 사람) */}
-      {goals.length > 0 && (
-        <Pressable onPress={onPace} style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1.4, borderColor: colors.buffer, borderRadius: 13, paddingVertical: 12 }}>
-          <Icon name="coin" size={16} color={colors.buffer} sw={2.2} />
-          <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.buffer }}>여윳돈에서 목표에 나눠 담기</Text>
-        </Pressable>
-      )}
-    </Card>
-  );
-}
-
-function JobRow({ badge, badgeBg, badgeColor, title, sub, amount, verified, right, rightSub }: { badge: string; badgeBg: string; badgeColor: string; title: string; sub: string; amount?: string; verified?: boolean; right?: string; rightSub?: string }) {
+function JobRow({ counterparty, title, sub, amount, verified, right, rightSub }: { counterparty: string; title: string; sub: string; amount?: string; verified?: boolean; right?: string; rightSub?: string }) {
   return (
     <Card p={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16 }}>
-      <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: badgeBg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 15, fontWeight: '800', color: badgeColor }}>{badge}</Text>
-      </View>
+      <CareerSourceIcon counterparty={counterparty} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.ink }}>{title}</Text>
         <Text style={{ fontSize: 12, color: colors.sub2, marginTop: 2, fontWeight: '500' }}>{sub}</Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={{ fontSize: amount ? 14.5 : 13, fontWeight: amount ? '800' : '700', color: amount ? colors.ink : colors.sub3, ...T.num }}>{amount || right}</Text>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: verified ? colors.green : '#A8AEB6', marginTop: 3 }}>{verified ? '검증 ✓' : rightSub}</Text>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: verified ? colors.green : colors.faint, marginTop: 3 }}>{verified ? '검증 ✓' : rightSub}</Text>
       </View>
     </Card>
   );

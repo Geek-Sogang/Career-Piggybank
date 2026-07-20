@@ -43,6 +43,9 @@ def to_response(a: dict) -> AllocationResponse:
         assumptions=meta.get("assumptions", {}),
         product_hooks=[ProductHook(**h) for h in meta.get("product_hooks", [])],
         gig_archetype=meta.get("gig_archetype", ""),
+        policy=meta.get("policy"),
+        persona_used=meta.get("persona_used", False),
+        persona_staleness=meta.get("persona_staleness"),
     )
 
 
@@ -62,6 +65,7 @@ def propose(req: ProposeRequest) -> AllocationResponse:
             "windfall_ratio": p.windfall_ratio, "needs_confirmation": p.needs_confirmation,
             "reasons": p.reasons, "assumptions": p.assumptions,
             "product_hooks": product_match.hooks_for(p),
+            "persona_used": False,
         },
     )
     return to_response(db.get_allocation(alloc_id))  # type: ignore[arg-type]
@@ -156,7 +160,16 @@ def decide(alloc_id: str, req: DecisionRequest) -> AllocationResponse:
         buffer_delta = round(
             float(decided["final"].get("buffer", 0)) - float(decided["proposed"].get("buffer", 0)), 2
         )
-    payload: dict = {"action": req.action, "buffer_delta": buffer_delta}
+    income_event_id = decided.get("txn_id") if decided else None
+    payload: dict = {
+        "action": req.action,
+        "buffer_delta": buffer_delta,
+        # 미션 XP는 결정 내용이 아니라 '입금 배분을 처리했는가'에만 붙는다.
+        # txn_id 없는 수동 제안은 제외하고, 엔진에서 고유 입금 ID를 다시 중복 제거한다.
+        "income_event_id": income_event_id,
+        "rhythm_eligible": req.action in {"confirm", "adjust"} and bool(income_event_id),
+        "mission_eligible": bool(income_event_id),
+    }
 
     # 학습 정책 보상 — 이 제안을 만든 arm에 결정을 귀속 (온라인 학습이 닫히는 지점).
     # 원자적 상태 전이(위의 조건부 UPDATE)를 따낸 요청만 여기 도달 — 결정 1건 = 보상 1건.

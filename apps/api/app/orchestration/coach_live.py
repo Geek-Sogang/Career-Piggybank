@@ -13,8 +13,16 @@ from __future__ import annotations
 
 from app.orchestration import bank_flow
 from app.engines import income_streams, tax_envelope
-from app.engines import facts as facts_svc
+from app.profile import build_user_profile
+from app.profile.personalization_v2 import MANAGEMENT_KEY
 from app.store import db
+
+# 관리 강도별 코치 말투 지침 — 톤·제안 문구만 바꾼다. 어떤 강도든 실행은 승인 게이트 뒤다.
+_TONE_HINTS = {
+    "자율": "짧게 요점만 말해라 — 이 사용자는 직접 관리하는 스타일이다. 제안은 최소한으로, 물어볼 때 상세히.",
+    "가이드": "제안과 근거를 함께 말해라 — 선택지를 주고 결정은 사용자에게 맡겨라.",
+    "적극 관리": "다음 행동 1개를 구체적으로 안내해라 — 단 실행은 항상 사용자가 승인한 뒤에만 된다고 말해라.",
+}
 
 
 def _income_txns(txns: list[dict]) -> list[dict]:
@@ -31,6 +39,7 @@ def build(intent: str = "qa") -> dict:
     txns = db.list_txns()
     balances = db.envelope_balances()
     est = bank_flow.profile_from_store()
+    up = build_user_profile()
 
     ctx: dict = {"balances": {k: round(v, 2) for k, v in balances.items()}}
 
@@ -67,11 +76,26 @@ def build(intent: str = "qa") -> dict:
             ]
 
     # 페르소나 — 축 + 신선도 (stale이면 코치가 재판독을 권할 수 있다)
-    snap = db.latest_snapshot()
-    if snap and snap.get("axes"):
+    if up.persona_axes:
         ctx["persona"] = {
-            "axes": {k: a.get("value") for k, a in snap["axes"].items()},
-            "staleness": facts_svc.snapshot_staleness(snap, len(txns)),
+            "axes": {k: a.get("value") for k, a in up.persona_axes.items()},
+            "staleness": up.persona_staleness,
+            "used": True,
+        }
+    elif up.persona_staleness:
+        ctx["persona"] = {"axes": {}, "staleness": up.persona_staleness, "used": False}
+
+    # 권장 관리 강도(V2 번역층) — 코치의 톤·제안 문구 전용. 돈·실행 권한과 무관하다.
+    if up.personalization_v2:
+        mgmt = next(d for d in up.personalization_v2.financial_response
+                    if d.key == MANAGEMENT_KEY)
+        effective = up.personalization_v2.effective_management
+        ctx["management_support"] = {
+            "effective": effective,
+            "recommended": mgmt.level,
+            "status": mgmt.decision_status,          # 보류면 코치가 단정하지 않는다
+            "override": up.personalization_v2.management_override,
+            "tone_hint": _TONE_HINTS[effective],
         }
 
     # 인텐트별 상세 — 분기한 곳만 (실행은 전부 화면의 승인 게이트로)
@@ -101,7 +125,8 @@ def build(intent: str = "qa") -> dict:
         allocs = db.list_allocations()
         invest_available = float(allocs[-1]["meta"].get("invest_available", 0.0)) if allocs else 0.0
         candidates, vetoed = product_match.eligible(
-            invest_available, balances.get("tax", 0.0), bank_flow.context_from_store(),
+            invest_available, balances.get("tax", 0.0), up.allocation_context(),
+            up.has_confirmed_incoming, career_review_ready=up.career.review_ready,
         )
         ctx["product_candidates"] = [c.as_dict() for c in candidates]
         if vetoed:

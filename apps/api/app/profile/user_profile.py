@@ -14,14 +14,16 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass
 
-from app.engines import facts as facts_svc
+from app.engines import career_verification, facts as facts_svc
 from app.engines import forecast, gig_profile, income_streams, spending_profile
+from app.engines.career_verification import CareerVerification
 from app.engines.allocator import BIAS_MIN_SAMPLES, AllocationContext
 from app.engines.facts import Fact
 from app.engines.forecast import CareerSignals, IncomeGap
 from app.engines.gig_profile import GigProfile
 from app.engines.income_streams import IncomeStreams
 from app.engines.spending_profile import ProfileEstimate, Txn
+from app.profile.personalization_v2 import PersonalizationV2, build_personalization_v2
 from app.store import db
 
 DEFAULT_PERSONA = "developer"      # profile_from_store 기본 페르소나와 동기화
@@ -62,10 +64,12 @@ class UserProfile:
     gap: IncomeGap | None             # 다음 수입까지 예상 간격 (income 이력 없으면 None)
     factsheet: tuple[Fact, ...]       # 팩트 12종 (한 번만 빌드)
     gig: GigProfile                   # 긱워커 소득 프로필 (facts·signals·streams 합성)
-    persona_axes: dict | None         # 심리 4축 판독 SSOT (판독 전이면 None)
+    career: CareerVerification        # 커리어 검증 점수·단계·심사자료 연결·저금통 XP(결정론)
+    persona_axes: dict | None         # 금액 판단에 사용 가능한 최신 심리 4축(없거나 stale이면 None)
     persona_staleness: dict | None    # 판독 스냅샷 신선도 (판독 없으면 None — 다운스트림 경고용)
     buffer_bias: float                # 조정 성향(행동) — 버퍼를 늘려온 중앙값
     has_confirmed_incoming: bool      # 확정 예정 수입(예정 이벤트 or 미결 잔금)이 있는가
+    personalization_v2: PersonalizationV2 | None = None  # 2+2 제품 계약 — 화면·코치 톤 전용 번역층
 
     @property
     def gig_archetype(self) -> str:
@@ -85,7 +89,7 @@ class UserProfile:
         )
 
 
-def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
+def build_user_profile(persona: str | None = None) -> UserProfile:
     """원장을 한 번만 읽어 프로필 전 조각을 합성한다 (순수 읽기, 상태 변경 없음).
 
     공유 상류(팩트·커리어 신호·스트림)를 각 1회만 계산해 gig·배분·추천이 같은 값을 쓰게 한다.
@@ -96,6 +100,15 @@ def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
     events = db.list_events()
     expected_events = db.list_expected_events()
     snapshot = db.latest_snapshot()
+    career = career_verification.latest(events, all_txns)
+    staleness = facts_svc.snapshot_staleness(snapshot, len(all_txns))
+    # 돈과 상품을 결정하는 소비자에는 신선도가 확인된 축만 공급한다. 오래됐거나 판정할 수
+    # 없는 스냅샷은 /profile/persona 화면에는 남지만, 다음 판독 전까지 구조 기반 폴백으로 간다.
+    effective_axes = (
+        snapshot["axes"]
+        if snapshot and snapshot.get("axes") and staleness and staleness.get("stale") is False
+        else None
+    )
 
     income_txns = [
         t for t in all_txns
@@ -117,11 +130,19 @@ def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
         for t in all_txns
         if t["kind"] in ("income", "expense", "living") and not t["needs_review"]
     ]
-    spending = spending_profile.estimate(spend_txns, persona)
+    spending = spending_profile.estimate(spend_txns, persona or career.job or DEFAULT_PERSONA)
     gig = gig_profile.build_gig_profile(factsheet, signals, streams)
 
     future_events = [e for e in expected_events if not as_of or e["date"] > as_of]
     has_incoming = bool(future_events) or bool(streams.pending_settlements)
+
+    # 2+2 번역층 — 신선도 무관하게 항상 조립한다 (보류 상태도 화면이 알아야 할 사실).
+    # 단 level 확정은 모듈 안의 신선도 게이트(effective_axes와 같은 규칙)가 지킨다.
+    v2 = build_personalization_v2(
+        factsheet=factsheet, gig=gig,
+        snapshot_axes=snapshot["axes"] if snapshot and snapshot.get("axes") else None,
+        staleness=staleness, events=events,
+    )
 
     return UserProfile(
         as_of=as_of,
@@ -133,8 +154,10 @@ def build_user_profile(persona: str = DEFAULT_PERSONA) -> UserProfile:
         gap=gap,
         factsheet=tuple(factsheet),
         gig=gig,
-        persona_axes=snapshot["axes"] if snapshot else None,
-        persona_staleness=facts_svc.snapshot_staleness(snapshot, len(all_txns)),
+        career=career,
+        persona_axes=effective_axes,
+        persona_staleness=staleness,
         buffer_bias=_buffer_bias(allocations),
         has_confirmed_incoming=has_incoming,
+        personalization_v2=v2,
     )

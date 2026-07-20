@@ -307,8 +307,8 @@ def build_factsheet(txns: list[dict], allocations: list[dict], events: list[dict
     ))
 
     # ── 실제 행동 (비금융 — 금융 거래가 아니라 '진짜 행동'을 잰다) ──
-    # F10~F12는 앱 안 금융 행동(태깅·승인·조정)이지만, F13~F14는 커리어 관리라는
-    # 실제 행동이다: 스스로 소스를 연결하고 앱을 꾸준히 여는 성실도(계획성 축의 진짜 근거).
+    # F10~F12는 앱 안 금융 행동(태깅·승인·조정), F13은 스스로 긱 커리어 소스를
+    # 연결한 실제 관리 행동이다. F14는 제품 참여도라 성향 방향에 쓰지 않고 데이터 품질만 잰다.
     src_events = [e for e in events if e["type"] == "source_connected"]
     sources = {e["payload"].get("source") for e in src_events if e["payload"].get("source")}
     facts.append(Fact(
@@ -327,7 +327,7 @@ def build_factsheet(txns: list[dict], allocations: list[dict], events: list[dict
     facts.append(Fact(
         "F14", "앱 참여 리듬", float(len(open_weeks)) if open_events else None,
         "관측 없음" if not open_events else f"{len(open_weeks)}주 활동 · {len(open_events)}회 방문",
-        "실제 행동(비금융): 앱을 꾸준히 여는 습관 — 3주↑ 규칙적이면 성실한 자기관리 신호",
+        "데이터 품질: 여러 주에 걸친 앱 관측이 있으면 행동 판독의 시간 범위가 넓음 (성향 방향에는 미사용)",
         "app_opened 이벤트가 걸친 서로 다른 주 수 (이벤트 로그 계측)",
         len(open_weeks),
     ))

@@ -19,14 +19,27 @@ const CONSENTS = [
 ];
 
 export function DataSovereignty() {
-  const { vals } = useApp();
+  const { vals, actions } = useApp();
   const [consent, setConsent] = useState(CONSENTS.map((c) => c.def));
   return (
     <View style={{ gap: 13 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.greenTint, borderWidth: 1, borderColor: '#D2E8E8', borderRadius: 16, padding: 14, paddingHorizontal: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.greenTint, borderWidth: 1, borderColor: colors.greenLine, borderRadius: 16, padding: 14, paddingHorizontal: 16 }}>
         <Icon name="shieldCheck" size={26} color={colors.green} />
         <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.greenInk, lineHeight: 20 }}>내 데이터, 내가 관리해요.{'\n'}동의는 항목별로 따로 켜고 끌 수 있어요.</Text>
       </View>
+
+      <Pressable onPress={() => actions.pushScr('connect')}>
+        <Card p={14} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.greenTint, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="download" size={20} color={colors.green} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.ink }}>커리어 연결 관리</Text>
+            <Text style={{ fontSize: 11.5, fontWeight: '500', color: colors.sub2, marginTop: 1 }}>홈택스 · KOSA · GitHub — 한 번 연결하면 계속 쓰여요</Text>
+          </View>
+          <Icon name="chevronRight" size={18} color={colors.chev} sw={2.2} />
+        </Card>
+      </Pressable>
 
       <Text style={[label]}>연동 현황</Text>
       <Card p={0} style={{ paddingHorizontal: 16 }}>
@@ -54,10 +67,10 @@ export function DataSovereignty() {
         ))}
       </Card>
 
-      <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#F6D2D3', backgroundColor: '#FEF4F4', borderRadius: 14, padding: 14 }}>
+      <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: '#F6D2D3', backgroundColor: colors.taxBg, borderRadius: 14, padding: 14 }}>
         <View>
           <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.taxInk }}>데이터 삭제</Text>
-          <Text style={{ fontSize: 11.5, color: '#D08688', fontWeight: '600', marginTop: 2 }}>삭제하면 진짜 사라집니다 (검증 이력 포함)</Text>
+          <Text style={{ fontSize: 11.5, color: colors.taxInk, fontWeight: '600', marginTop: 2 }}>삭제하면 진짜 사라져요 (검증 이력 포함)</Text>
         </View>
         <Icon name="chevronRight" size={20} color={colors.tax} sw={2} />
       </Pressable>

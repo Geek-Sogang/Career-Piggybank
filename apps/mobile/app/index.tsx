@@ -1,19 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bankDeposit, consumeAgenda, decideAllocation, fetchProductMatch, getAgenda, getEnvelopeBalances, getGoals, OFFLINE_ALLOCATION, type AgendaItem, type Allocation, type EnvelopeSplit, type ProductMatchPick } from '@/api';
+import { bankDeposit, consumeAgenda, decideAllocation, decidePacing, DEMO_DEPOSIT, fetchProductMatch, getAgenda, getEnvelopeBalances, getPersona, OFFLINE_ALLOCATION, proposePacing, readPersona, type AgendaItem, type Allocation, type EnvelopeSplit, type PacingProposal, type ProductMatchPick } from '@/api';
 import { type ProductKey } from '@/products';
 import { colors } from '@/theme/colors';
 import { Icon, type IconName } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { AppProvider, useApp } from '@/store';
 import { Home } from '@/screens/Home';
+import { Missions } from '@/screens/Missions';
 import { Piggy } from '@/screens/Piggy';
 import { Connect } from '@/screens/Connect';
+import { JobProof } from '@/screens/JobProof';
 import { VerifiedDetail } from '@/screens/VerifiedDetail';
 import { Ledger } from '@/screens/Ledger';
+import { Transactions } from '@/screens/Transactions';
+import { Goals } from '@/screens/Goals';
 import { Tax } from '@/screens/Tax';
 import { Retirement } from '@/screens/Retirement';
+import { RetirementDetail } from '@/screens/RetirementDetail';
 import { My } from '@/screens/My';
 import { DataSovereignty } from '@/screens/DataSovereignty';
 import { Products } from '@/screens/Products';
@@ -21,10 +27,14 @@ import { Settings } from '@/screens/Settings';
 import { NestEgg } from '@/screens/NestEgg';
 import { Intro } from '@/screens/Intro';
 import { Chat } from '@/screens/Chat';
+import { CareerSync } from '@/screens/CareerSync';
+import { PersonaLedger } from '@/screens/PersonaLedger';
+import { EnvelopeSuggest } from '@/screens/EnvelopeSuggest';
 import { LockScreen } from '@/screens/LockScreen';
 import { TxDetail } from '@/screens/TxDetail';
 import { ProductDetail } from '@/screens/ProductDetail';
 import { EmptyState } from '@/screens/EmptyState';
+import { ScrapWrite } from '@/screens/ScrapWrite';
 
 export default function Index() {
   return (
@@ -35,24 +45,42 @@ export default function Index() {
 }
 
 const SCREENS: Record<string, () => JSX.Element> = {
-  home: Home, piggy: Piggy, ledger: Ledger, my: My,
-  connect: Connect, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
+  home: Home, missions: Missions, piggy: Piggy, ledger: Ledger, my: My, future: Retirement,
+  connect: Connect, jobProof: JobProof, verifiedDetail: VerifiedDetail, tax: Tax, retirement: Retirement,
   dataSovereignty: DataSovereignty, products: Products, settings: Settings, nestEgg: NestEgg, txDetail: TxDetail,
-  productDetail: ProductDetail, emptyState: EmptyState,
+  productDetail: ProductDetail, emptyState: EmptyState, scrapWrite: ScrapWrite, transactions: Transactions, goals: Goals, retirementDetail: RetirementDetail,
 };
 
 function Shell() {
-  const { entered, tab, push, sheet, vals, actions } = useApp();
+  const { entered, tab, push, sheet, vals, actions, backgroundPersonaEnabled, careerReviewPending } = useApp();
   const insets = useSafeAreaInsets();
   const Screen = SCREENS[vals.scr] || Home;
+  const contentScrollRef = useRef<ScrollView>(null);
 
   // 벨 인박스 — 어젠다 큐(피기가 아직 말하지 않은 사건). 시트가 닫힐 때마다 재조회:
   // 배분 승인/조정 직후가 바로 어젠다(후속 질문·브리핑)가 생기는 순간이다
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [inbox, setInbox] = useState(false);
+  const personaBooted = useRef(false);
+  // 인트로를 건너뛴 진입만 백그라운드 판독한다. 정식 온보딩은 커리어 이력 확인 뒤
+  // 사용자가 '페르소나 만들기'를 눌렀을 때 PersonaLedger가 명시적으로 판독한다.
+  useEffect(() => {
+    if (!entered || !backgroundPersonaEnabled || personaBooted.current) return;
+    personaBooted.current = true;
+    getPersona()
+      .then((p) => {
+        if (!p.staleness || p.staleness.stale !== false) return readPersona('onboarding');
+        return undefined;
+      })
+      .catch(() => readPersona('onboarding'))
+      .catch(() => {});
+  }, [entered, backgroundPersonaEnabled]);
   useEffect(() => {
     if (!sheet && entered) getAgenda().then((r) => setAgenda(r.items)).catch(() => {});
   }, [sheet, entered]);
+  useEffect(() => {
+    contentScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [vals.scr, careerReviewPending]);
   const openInbox = () => { if (agenda.length) setInbox(true); };
   const closeInbox = (consume: boolean) => {
     setInbox(false);
@@ -62,6 +90,9 @@ function Shell() {
   // 인트로 플로우 / 풀스크린(자체 chrome) 화면들
   if (!entered) return <Intro />;
   if (push === 'chat') return <Chat />;
+  if (push === 'careerSync') return <CareerSync />;
+  if (push === 'personaLedger') return <PersonaLedger />;
+  if (push === 'envelopeSuggest') return <EnvelopeSuggest />;
   if (push === 'lockscreen') return <LockScreen />;
 
   return (
@@ -69,17 +100,17 @@ function Shell() {
       {/* 헤더 */}
       {vals.showGreeting && (
         <View style={{ height: 54, paddingHorizontal: 20, paddingTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Mascot head size={38} radius={19} style={{ borderWidth: 1, borderColor: colors.line }} />
+          <Pressable onPress={() => actions.pushScr('my')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <ProfileAvatar size={38} style={{ borderWidth: 1, borderColor: colors.line }} />
             <View>
               <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.3, color: colors.ink }}>조대흠님</Text>
-              <Text style={{ fontSize: 11.5, color: '#8A9098', fontWeight: '500' }}>프리랜스 개발자</Text>
+              <Text style={{ fontSize: 11.5, color: colors.sub2, fontWeight: '400' }}>프리랜스 개발자 · 정산 흐름 관리 중</Text>
             </View>
-          </View>
+          </Pressable>
           <Pressable onPress={openInbox} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="bell" size={22} color="#3A4047" sw={1.8} />
+            <Icon name="bell" size={22} color={colors.ink2} sw={1.8} />
             {agenda.length > 0 && (
-              <View style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: '#FF4D4F', borderWidth: 1.5, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
+              <View style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 8, backgroundColor: colors.tax, borderWidth: 1.5, borderColor: colors.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 }}>
                 <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#fff' }}>{agenda.length}</Text>
               </View>
             )}
@@ -102,7 +133,7 @@ function Shell() {
       )}
 
       {/* 본문 */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={contentScrollRef} key={vals.scr} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingTop: 14, paddingBottom: 26 }} showsVerticalScrollIndicator={false}>
         <Screen />
       </ScrollView>
 
@@ -118,10 +149,17 @@ function Shell() {
 
       {/* 탭바 */}
       <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: colors.line3, paddingTop: 9, paddingBottom: Math.max(insets.bottom, 8) }}>
-        <TabButton icon="tabHome" label="홈" active={tab === 'home'} onPress={() => actions.nav('home')} />
-        <TabButton icon="tabPiggy" label="저금통" active={tab === 'piggy'} onPress={() => actions.nav('piggy')} />
-        <TabButton icon="tabLedger" label="가계부" active={tab === 'ledger'} onPress={() => actions.nav('ledger')} />
-        <TabButton icon="tabMy" label="마이" active={tab === 'my'} onPress={() => actions.nav('my')} />
+        <TabButton icon="tabHome" label="홈" active={tab === 'home' && !push} onPress={() => actions.nav('home')} />
+        <TabButton icon="tabLedger" label="가계부" active={tab === 'ledger' && !push} onPress={() => actions.nav('ledger')} />
+        {/* 중앙 미션 탭 — 떠 있는 마스코트 버튼 (PiggybankRedesign 시안) */}
+        <Pressable onPress={() => actions.nav('missions')} style={{ flex: 1, alignItems: 'center' }}>
+          <View style={{ width: 54, height: 54, borderRadius: 20, backgroundColor: colors.green, marginTop: -16, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', overflow: 'hidden', shadowColor: colors.green, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 6 } }}>
+            <Mascot head size={60} radius={0} style={{ backgroundColor: 'transparent' }} />
+          </View>
+          <Text style={{ fontSize: 10.5, fontWeight: '800', color: tab === 'missions' && !push ? colors.green : colors.sub3, marginTop: 3 }}>미션</Text>
+        </Pressable>
+        <TabButton icon="shield" label="커리어" active={tab === 'piggy' && !push} onPress={() => actions.nav('piggy')} />
+        <TabButton icon="houseSmall" label="미래" active={tab === 'future' && !push} onPress={() => actions.nav('future')} />
       </View>
 
       {/* 시트 */}
@@ -143,58 +181,47 @@ function Shell() {
 
 // ⑤b 금액 페이싱 시트 — 여윳돈(버퍼)에서 목표 봉투로. 판단(우선순위·스탠스)은 AI,
 // 원화 번역은 산수(합계 보존), 실행은 confirm만 — source=buffer 재배치 회계.
-const STANCE_COLOR: Record<string, string> = { 당김: '#7C5CBF', 기본: colors.sub, 보류: colors.sub3 };
+const STANCE_COLOR: Record<string, string> = { 당김: colors.ai, 기본: colors.sub, 보류: colors.sub3 };
 
-type PacingAssigned = { id: string; name: string; stance: string; amount: number };
 function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInset: number }) {
   const { actions } = useApp();
-  const [prop, setProp] = useState<{ available: number; goals: PacingAssigned[]; leftover: number; reason: string } | null>(null);
+  const [prop, setProp] = useState<PacingProposal | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     let live = true;
-    Promise.all([getEnvelopeBalances(), getGoals()])
-      .then(([e, goalsList]) => {
+    getEnvelopeBalances()
+      .then((e) => {
         const buffer = Math.floor(e.balances.buffer ?? 0);
         if (buffer <= 0) { if (live) setError('아직 여윳돈이 없어요 — 입금 배분 후 다시 열어주세요'); return; }
-        if (!goalsList.length) { if (live) setError('목표 봉투가 없어요 — 먼저 봉투를 만들어 주세요'); return; }
-        // 온디바이스 AI 판단 시뮬레이션 — 약 3초 뒤 목표별 적정 금액을 채운다 (백엔드는 나중에)
-        setTimeout(() => {
-          if (!live) return;
-          const distributable = Math.floor((buffer * 0.7) / 10000) * 10000; // 여윳돈 70%만 목표로, 30%는 비상용으로 남김
-          const withNeed = goalsList
-            .map((g) => ({ g, need: Math.max(0, g.target_amount - g.balance) }))
-            .filter((x) => x.need > 0);
-          const totalNeed = withNeed.reduce((a, x) => a + x.need, 0) || 1;
-          let left = distributable;
-          const assigned: PacingAssigned[] = withNeed
-            .map(({ g, need }, i) => {
-              const raw = i === withNeed.length - 1 ? left : Math.round(((need / totalNeed) * distributable) / 10000) * 10000;
-              const amount = Math.max(0, Math.min(need, raw, left));
-              left -= amount;
-              const stance = g.target_date ? '당김' : need / totalNeed > 0.4 ? '기본' : '보류';
-              return { id: g.id, name: g.name, stance, amount };
-            })
-            .filter((x) => x.amount > 0);
-          const leftover = buffer - assigned.reduce((a, x) => a + x.amount, 0);
-          setProp({ available: buffer, goals: assigned, leftover, reason: '기한과 목표 잔여액을 반영해 여윳돈 일부만 목표로 옮겨요 — 비상 여윳돈은 남겨둬요' });
-        }, 3000);
+        return proposePacing(buffer, DEMO_DEPOSIT.date, 'buffer');
       })
+      .then((p) => { if (live && p) setProp(p); })
       .catch(() => { if (live) setError('제안을 불러오지 못했어요 — 서버 연결을 확인해 주세요'); });
     return () => { live = false; };
   }, []);
 
-  const confirm = () => {
-    if (!prop) return;
-    const deposits: Record<string, number> = {};
-    prop.goals.forEach((g) => { deposits[g.id] = g.amount; });
-    actions.applyPacing(deposits); // 저금통으로 이동 + 담은 금액 오버레이 표시
+  const confirm = async () => {
+    if (!prop || confirming) return;
+    setConfirming(true);
+    try {
+      await decidePacing(prop.id, 'confirm');
+      actions.applyPacing({});
+    } catch {
+      setError('반영하지 못했어요 — 잔액이 바뀌었는지 확인한 뒤 다시 시도해 주세요');
+      setConfirming(false);
+    }
+  };
+  const reject = () => {
+    if (!prop) { onClose(); return; }
+    decidePacing(prop.id, 'reject').catch(() => {}).finally(onClose);
   };
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 16 }} />
         {error ? (
           <View style={{ alignItems: 'center', gap: 12, paddingVertical: 10 }}>
             <Text style={{ fontSize: 13, color: colors.sub, fontWeight: '600', textAlign: 'center', lineHeight: 19 }}>{error}</Text>
@@ -213,9 +240,11 @@ function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
               <Mascot head size={44} radius={13} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 17, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>여윳돈 ₩{prop.available.toLocaleString('en-US')} 나누기</Text>
-                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>페르소나·팩트를 읽고 우선순위를 판단했어요</Text>
+                <Text style={{ fontSize: 12, color: colors.sub2, fontWeight: '500', marginTop: 2 }}>
+                  {prop.persona_used ? '금융 성향·팩트를 읽고 우선순위를 판단했어요' : '소득 구조·목표 기한을 기준으로 판단했어요'}
+                </Text>
               </View>
-              <Text style={{ fontSize: 10, fontWeight: '800', color: '#7C5CBF', backgroundColor: '#F5F1FB', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>AI 판단</Text>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: prop.persona_used ? colors.ai : colors.green, backgroundColor: prop.persona_used ? colors.aiTint : colors.greenTint, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>{prop.persona_used ? '성향 반영' : '구조 기반'}</Text>
             </View>
             <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
               {prop.goals.map((g) => (
@@ -227,18 +256,19 @@ function PacingSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
               ))}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, borderTopWidth: 1, borderTopColor: colors.line2, paddingTop: 9 }}>
                 <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '600', color: colors.sub2 }}>여윳돈에 남김</Text>
-                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{prop.leftover.toLocaleString('en-US')}</Text>
+                <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.sub }}>₩{(prop.split.buffer ?? 0).toLocaleString('en-US')}</Text>
               </View>
             </View>
             <View style={{ marginTop: 12, gap: 5 }}>
-              <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.reason}</Text>
+              <Text style={{ fontSize: 11, color: colors.sub2, fontWeight: '500', lineHeight: 16 }}>· {prop.judgment.reason || prop.reasons[0]}</Text>
+              {!prop.persona_used && <Text style={{ fontSize: 10.5, color: colors.sub3, fontWeight: '500', lineHeight: 15 }}>· 금융 성향 판독이 완료되면 다음 제안부터 성향까지 반영해요</Text>}
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <Pressable onPress={onClose} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
+              <Pressable onPress={reject} style={{ flex: 1, borderWidth: 1.4, borderColor: colors.line, borderRadius: 15, paddingVertical: 15, alignItems: 'center' }}>
                 <Text style={{ color: colors.sub, fontSize: 14.5, fontWeight: '700' }}>이번엔 안 할래요</Text>
               </Pressable>
-              <Pressable onPress={confirm} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } }}>
-                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>이대로 담기</Text>
+              <Pressable onPress={confirm} disabled={confirming} style={{ flex: 1.6, backgroundColor: colors.green, borderRadius: 15, paddingVertical: 15, alignItems: 'center', shadowColor: colors.green, shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 10 }, opacity: confirming ? 0.6 : 1 }}>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>{confirming ? '반영 중…' : '이대로 담기'}</Text>
               </Pressable>
             </View>
           </>
@@ -261,7 +291,7 @@ function InboxSheet({ items, bottomInset, onAsk, onClose }: {
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 16 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Mascot head size={40} radius={12} />
           <Text style={{ flex: 1, fontSize: 16.5, fontWeight: '800', color: colors.ink }}>피기가 전할 소식 {items.length}건</Text>
@@ -341,7 +371,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
 
   const confirm = async () => {
     if (!alloc) return;
-    if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); } catch {} }
+    if (!offline) { try { await decideAllocation(alloc.id, 'confirm'); actions.refreshCareer(); } catch {} }
     note(alloc, alloc.proposed, true);
     setDone('confirmed');
   };
@@ -349,7 +379,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
   const applyAdjust = async () => {
     if (!alloc || !split) return;
     if (delta === 0) return confirm(); // 조정 0 = 그대로 승인
-    if (!offline) { try { await decideAllocation(alloc.id, 'adjust', split); } catch {} }
+    if (!offline) { try { await decideAllocation(alloc.id, 'adjust', split); actions.refreshCareer(); } catch {} }
     note(alloc, split, true);
     setDone('adjusted');
   };
@@ -365,7 +395,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 16 }} />
         {!alloc || !split ? (
           <Text style={{ fontSize: 13.5, color: colors.sub, fontWeight: '600', textAlign: 'center', paddingVertical: 30 }}>피기가 배분을 계산하고 있어요 …</Text>
         ) : done ? (
@@ -394,7 +424,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                 </Text>
               </View>
               {offline && (
-                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.sub2, backgroundColor: '#F1F2F4', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>오프라인</Text>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.sub2, backgroundColor: colors.line2, paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>오프라인</Text>
               )}
             </View>
             {/* 긱워커 소득 유형 — 이 배분이 왜 이 사람에게 맞는지의 근거(결정론 측정) */}
@@ -402,6 +432,21 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.greenTint2, borderRadius: 11, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 }}>
                 <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>내 긱 유형</Text>
                 <Text style={{ flex: 1, fontSize: 11, fontWeight: '600', color: colors.greenInk, lineHeight: 15 }}>{alloc.gig_archetype}</Text>
+              </View>
+            ) : null}
+            {!adjusting && !offline ? (
+              <View style={{ backgroundColor: alloc.persona_used ? colors.aiTint : colors.bg, borderWidth: 1, borderColor: alloc.persona_used ? colors.aiLine : colors.line, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 11, marginTop: 8, gap: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <Text style={{ fontSize: 9.5, fontWeight: '800', color: alloc.persona_used ? colors.ai : colors.sub2, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>{alloc.persona_used ? '금융 성향 반영' : '소득 구조 기반'}</Text>
+                  <Text style={{ flex: 1, fontSize: 11, fontWeight: '700', color: colors.ink }}>
+                    {alloc.persona_used && alloc.policy
+                      ? `안전 ${alloc.policy.arm_id} · 여윳돈 목표 ${alloc.policy.months.toFixed(1)}개월`
+                      : '성향은 판독 완료 후 다음 제안부터 반영'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 10.5, color: colors.sub2, fontWeight: '500', lineHeight: 15 }}>
+                  여윳돈 목표 ₩{alloc.buffer_target.toLocaleString('en-US')}{alloc.persona_staleness?.stale ? ' · 기존 성향은 오래되어 이번 계산에서 제외' : ''}
+                </Text>
               </View>
             ) : null}
             <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 14, marginTop: 14, gap: 9 }}>
@@ -412,7 +457,7 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                     <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: e.color }} />
                     <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: colors.sub }}>{e.label}</Text>
                     {adjusting && e.locked && (
-                      <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.sub3, backgroundColor: '#F1F2F4', paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>잠금</Text>
+                      <Text style={{ fontSize: 9.5, fontWeight: '800', color: colors.sub3, backgroundColor: colors.line2, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6, overflow: 'hidden' }}>잠금</Text>
                     )}
                     <Text style={{ fontSize: 14, fontWeight: '800', color: changed ? colors.green : colors.ink }}>
                       ₩{split[e.key].toLocaleString('en-US')}
@@ -460,13 +505,13 @@ function AllocationSheet({ onClose, bottomInset }: { onClose: () => void; bottom
                 <Pressable
                   key={h.product_id}
                   onPress={() => actions.openProduct(h.product_id as ProductKey)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isAi ? '#F5F1FB' : colors.greenTint2, borderWidth: 1, borderColor: isAi ? '#E2D8F3' : colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: isAi ? colors.aiTint : colors.greenTint2, borderWidth: 1, borderColor: isAi ? colors.aiLine : colors.greenLine, borderRadius: 12, padding: 11, marginTop: 8 }}
                 >
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAi ? '#7C5CBF' : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: isAi ? colors.ai : colors.green, backgroundColor: '#fff', paddingVertical: 3, paddingHorizontal: 7, borderRadius: 7, overflow: 'hidden' }}>
                     {isAi ? 'AI 맞춤' : '하나 상품'}
                   </Text>
                   <Text style={{ flex: 1, fontSize: 11.5, fontWeight: '600', color: colors.ink, lineHeight: 16 }}>{h.line}</Text>
-                  <Icon name="chevronRight" size={15} color={isAi ? '#7C5CBF' : colors.green} sw={2.2} />
+                  <Icon name="chevronRight" size={15} color={isAi ? colors.ai : colors.green} sw={2.2} />
                 </Pressable>
               );
             })}
@@ -504,7 +549,7 @@ function InvestSheet({ onClose, bottomInset }: { onClose: () => void; bottomInse
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.45)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 + bottomInset }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 16 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 16 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Mascot head size={44} radius={13} />
           <View>
@@ -557,7 +602,7 @@ function Mini({ name, amt }: { name: string; amt: string }) {
 }
 
 function TabButton({ icon, label, active, onPress }: { icon: IconName; label: string; active: boolean; onPress: () => void }) {
-  const c = active ? colors.green : '#9AA1A9';
+  const c = active ? colors.green : colors.sub3;
   return (
     <Pressable onPress={onPress} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
       <Icon name={icon} size={25} color={c} />
@@ -572,7 +617,7 @@ function ConsentSheet({ onConfirm, onClose, bottomInset }: { onConfirm: () => vo
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,18,23,.42)' }} />
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30 + bottomInset }}>
-        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: '#E2E5E9', alignSelf: 'center', marginBottom: 18 }} />
+        <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: colors.line4, alignSelf: 'center', marginBottom: 18 }} />
         <Text style={{ fontSize: 19, fontWeight: '800', letterSpacing: -0.4, color: colors.ink }}>마이데이터 연결 동의</Text>
         <Text style={{ fontSize: 12.5, color: colors.sub2, fontWeight: '500', marginTop: 5 }}>안전하게 암호화되어 전송되며, 언제든 철회할 수 있어요</Text>
         <View style={{ marginTop: 18 }}>

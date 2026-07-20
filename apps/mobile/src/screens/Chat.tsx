@@ -1,11 +1,12 @@
 import { useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { coachChat, decideAllocation, DEMO_COACH_CONTEXT } from '@/api';
+import { coachChat, decideAllocation, DEMO_COACH_CONTEXT, fetchProductMatch, prefetchProductMatch, type ProductMatchResponse } from '@/api';
 import { colors } from '@/theme/colors';
 import { Icon } from '@/components/Icon';
 import { Mascot } from '@/components/ui';
 import { useApp } from '@/store';
+import { PRODUCTS, type ProductKey } from '@/products';
 
 // 백엔드(로컬 LLM) 미가동 시 오프라인 폴백 — 데모가 죽지 않는 원칙
 const OFFLINE_REPLIES = [
@@ -15,11 +16,48 @@ const OFFLINE_REPLIES = [
 ];
 
 const won = (v: number) => `₩${v.toLocaleString('en-US')}`;
+const NAME = '조대흠';
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+type ProductCard = { key: ProductKey; line: string; matched: boolean };
+type ChatMessage = { from: 'bot' | 'me'; text: string; products?: ProductCard[] };
+
+function productAnswer(message: string, result: ProductMatchResponse): ChatMessage {
+  const asksEmergency = /비상금|대출/.test(message);
+  if (asksEmergency) {
+    const matched = result.matches.find((pick) => pick.product_id === 'emergency');
+    const verifiedCount = result.verification?.verified?.count ?? 0;
+    if (matched) {
+      return {
+        from: 'bot',
+        text: `${NAME}님에게는 ${matched.name}이 현재 적격 후보예요. ${matched.line} 신청 전 한도·금리·상환 조건은 하나원큐 실제 심사에서 확인해 주세요.`,
+        products: [{ key: 'emergency', line: matched.line, matched: true }],
+      };
+    }
+    const line = '다음 정산 예정과 검증 일감은 확인됐어요 — 대출 가능 여부는 실제 심사에서 확인해요';
+    return {
+      from: 'bot',
+      text: `${NAME}님이 비상금대출을 찾고 있군요. 다음 정산 예정은 확인되지만, 긱 소득은 월별 금액과 입금일이 달라질 수 있어 대출 가능 여부를 제가 단정하지 않을게요. 연결된 검증 일감 ${verifiedCount}건은 심사자료로 가져갈 수 있어요. 한도와 금리는 하나원큐 실제 심사에서 확인해 주세요.`,
+      products: [{ key: 'emergency', line, matched: false }],
+    };
+  }
+
+  const picks = result.matches.slice(0, 2);
+  if (!picks.length) {
+    return { from: 'bot', text: '현재 확인된 돈 흐름만으로는 억지로 상품을 권하지 않을게요. 원하는 상품 종류가 있으면 적격 조건부터 함께 확인해 드릴게요.' };
+  }
+  const names = picks.map((pick) => pick.name).join('과 ');
+  return {
+    from: 'bot',
+    text: `${NAME}님의 긱 소득 구조와 금융 페르소나를 EXAONE이 함께 분석했을 때, 지금은 ${names}을 먼저 살펴보는 것이 맞아요. 구체적으로 원하는 상품이 있을까요?`,
+    products: picks.map((pick) => ({ key: pick.product_id, line: pick.line, matched: true })),
+  };
+}
 
 export function Chat() {
   const { lastAlloc, actions } = useApp();
   const [text, setText] = useState('');
-  const [extra, setExtra] = useState<{ from: 'bot' | 'me'; text: string }[]>([]);
+  const [extra, setExtra] = useState<ChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   const [approving, setApproving] = useState(false);
   const scroll = useRef<ScrollView>(null);
@@ -27,6 +65,7 @@ export function Chat() {
   // 진입 시 최신(방금 배분 제안 + 근거 + 승인 버튼)이 바로 보이게 맨 아래로
   useEffect(() => {
     const t = setTimeout(() => scroll.current?.scrollToEnd({ animated: false }), 150);
+    prefetchProductMatch();
     return () => clearTimeout(t);
   }, []);
 
@@ -37,16 +76,25 @@ export function Chat() {
     setText('');
     setThinking(true);
     toEnd();
-    let reply: string;
+    let response: ChatMessage;
     try {
-      // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
-      const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;
-      reply = (await coachChat(t, context)).reply;
+      const productQuestion = /상품|비상금|대출|통장|ISA|IRP|연금/.test(t);
+      if (productQuestion) {
+        // 적합성 veto(결정론) 뒤 EXAONE이 후보를 선택한 실 매칭 결과를 카드로 번역한다.
+        // 프리패치가 끝났어도 분석 과정이 보이도록 일반 상품은 2초, 비상금대출은 1.5초를 보장한다.
+        const minThinkingMs = /비상금|대출/.test(t) ? 1500 : 2000;
+        const [match] = await Promise.all([fetchProductMatch(), wait(minThinkingMs)]);
+        response = productAnswer(t, match);
+      } else {
+        // 로컬 LLM(EXAONE) — 최근 배분 사건까지 컨텍스트 주입, 숫자는 결정론 검증기 통과분만
+        const context = lastAlloc ? { ...DEMO_COACH_CONTEXT, latest_allocation: lastAlloc } : DEMO_COACH_CONTEXT;
+        response = { from: 'bot', text: (await coachChat(t, context)).reply };
+      }
     } catch {
-      reply = OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length];
+      response = { from: 'bot', text: OFFLINE_REPLIES[extra.length % OFFLINE_REPLIES.length] };
     }
     setThinking(false);
-    setExtra((e) => [...e, { from: 'bot', text: reply }]);
+    setExtra((e) => [...e, response]);
     toEnd();
   };
 
@@ -58,13 +106,13 @@ export function Chat() {
       if (lastAlloc.id) await decideAllocation(lastAlloc.id, 'confirm');
     } catch {}
     actions.markAllocConfirmed();
-    setExtra((e) => [...e, { from: 'bot', text: '봉투에 담아뒀어요! ✓ 가계부에서 보여드릴게요.' }]);
+    setExtra((e) => [...e, { from: 'bot', text: '봉투에 담아뒀어요! ✓ 정산 내역에서 보여드릴게요.' }]);
     toEnd();
     setTimeout(() => actions.nav('ledger'), 1600);
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F2F4F6' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.line2 }} edges={['top', 'bottom']}>
       <View style={{ height: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.line3 }}>
         <Pressable onPress={actions.back} hitSlop={8}><Icon name="chevronLeft" size={24} color={colors.ink} sw={2} /></Pressable>
         <Mascot head size={32} radius={16} />
@@ -75,7 +123,7 @@ export function Chat() {
       </View>
 
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 11 }} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
-        <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: '#E5E8EB', paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>오늘 오후 2:14</Text>
+        <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: colors.line4, paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>오늘 오후 2:14</Text>
         <Bot>큰 돈이 들어왔네요! 🎉{'\n'}혹시 새 계약 하셨어요?</Bot>
         <Me>네, ○○커머스 신규 프로젝트요</Me>
         <Bot>
@@ -97,7 +145,7 @@ export function Chat() {
         {/* 입금 이벤트 — 코치가 먼저 말 걸기 (숫자는 결정론 엔진 출력 그대로, 코치는 전달만) */}
         {lastAlloc && (
           <>
-            <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: '#E5E8EB', paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>방금</Text>
+            <Text style={{ alignSelf: 'center', fontSize: 11, fontWeight: '600', color: colors.sub3, backgroundColor: colors.line4, paddingVertical: 4, paddingHorizontal: 11, borderRadius: 8, overflow: 'hidden' }}>방금</Text>
             <Bot>
               💰 {won(lastAlloc.deposit)} 입금이 들어왔어요! 평소의 {lastAlloc.windfall.toFixed(1)}배 큰 금액이라 제가 배분을 제안드렸어요.
             </Bot>
@@ -123,7 +171,16 @@ export function Chat() {
             )}
           </>
         )}
-        {extra.map((m, i) => (m.from === 'bot' ? <Bot key={i}>{m.text}</Bot> : <Me key={i}>{m.text}</Me>))}
+        {extra.map((m, i) => (
+          m.from === 'bot' ? (
+            <View key={i} style={{ gap: 8 }}>
+              <Bot>{m.text}</Bot>
+              {m.products?.map((product) => (
+                <ProductTicket key={product.key} product={product} onOpen={() => actions.pushScr('products')} />
+              ))}
+            </View>
+          ) : <Me key={i}>{m.text}</Me>
+        ))}
         {thinking && <Bot>피기가 생각 중이에요 …</Bot>}
       </ScrollView>
 
@@ -135,13 +192,40 @@ export function Chat() {
           placeholder="메시지 입력…"
           placeholderTextColor={colors.sub3}
           returnKeyType="send"
-          style={{ flex: 1, height: 38, backgroundColor: '#F2F4F6', borderRadius: 19, paddingHorizontal: 16, fontSize: 13, color: colors.ink }}
+          style={{ flex: 1, height: 38, backgroundColor: colors.line2, borderRadius: 19, paddingHorizontal: 16, fontSize: 13, color: colors.ink }}
         />
         <Pressable onPress={send} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: text.trim() ? colors.green : '#C7D0CF', alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="send" size={18} color="#fff" sw={2} />
         </Pressable>
       </View>
     </SafeAreaView>
+  );
+}
+
+function ProductTicket({ product, onOpen }: { product: ProductCard; onOpen: () => void }) {
+  const p = PRODUCTS[product.key];
+  return (
+    <View style={{ marginLeft: 36, maxWidth: '86%', backgroundColor: '#fff', borderRadius: 17, overflow: 'hidden', borderWidth: 1, borderColor: product.matched ? colors.ai : colors.line, shadowColor: colors.ai, shadowOpacity: product.matched ? 0.12 : 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}>
+      <View style={{ padding: 14, gap: 9 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: p.badgeBg, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: p.badgeColor }}>{p.badge}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 10.5, fontWeight: '800', color: product.matched ? colors.ai : colors.sub2 }}>
+              {product.matched ? 'EXAONE 맞춤 분석' : '요청 상품 · 권유 보류'}
+            </Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colors.ink, marginTop: 2 }}>{p.name}</Text>
+          </View>
+        </View>
+        <Text style={{ fontSize: 11.5, fontWeight: '400', lineHeight: 17, color: colors.sub }}>{product.line}</Text>
+        <Text style={{ fontSize: 10.5, fontWeight: '500', color: colors.sub3 }}>자격·한도·금리는 하나원큐 실제 심사에서 결정돼요</Text>
+      </View>
+      <Pressable onPress={onOpen} style={{ backgroundColor: product.matched ? colors.aiTint : colors.greenTint2, borderTopWidth: 1, borderTopColor: colors.line2, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 12.5, fontWeight: '800', color: product.matched ? colors.ai : colors.green }}>금융상품에서 더 보기</Text>
+        <Icon name="arrowRight" size={17} color={product.matched ? colors.ai : colors.green} sw={2} />
+      </Pressable>
+    </View>
   );
 }
 
